@@ -28,6 +28,12 @@ namespace DutchSkies
             if (plane_model == null)
                 Log.Err("Could not load plane model");
 
+            Tex map_texture = Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
+            Mesh map_quad = Mesh.GeneratePlane(new Vec2(1f, 1f), Vec3.Up, Vec3.Forward);
+            Material map_material = Default.Material.Copy();
+            map_material[MatParamName.DiffuseTex] = map_texture;
+            // XXX disable backface culling
+            map_material.FaceCull = Cull.None;
 
             Model cube = Model.FromMesh(
                 Mesh.GenerateRoundedCube(Vec3.One * 0.1f, 0.02f),
@@ -46,19 +52,39 @@ namespace DutchSkies
             data_thread.Start(data_updates);
             Log.Info("Data thread started");
 
+            // Initial head pose in physical space is apparently taken as origin, with
+            // head view direction as forward (-Z), Y is up, X to the right, i.e. right-handed
+            //
+            // Line.AddAxis shows an axis with these directions:
+            // Red = Vec3.Right = +X
+            // Green = Vec3.Up = +Y
+            // Blue = Vec3.Forward = -Z (NOTE!)
+
+
+            Pose windowPose = new Pose(-.4f, 0, 0, Quat.LookDir(1, 0, 1));
+
             // Core application loop
             while (SK.Step(() =>
             {
+                Lines.AddAxis(Pose.Identity, 0.1f);
+
+                UI.WindowBegin("Head", ref windowPose, new Vec2(20, 0) * U.cm, UIWin.Normal);
+                Pose head = Input.Head;
+                UI.Label(String.Format("POS xyz: {0,9:F6} {1,9:F6} {2,9:F6}\nDirection: {3,9:F6} {4,9:F6} {5,9:F6}", 
+                        head.position.x, head.position.y, head.position.z,
+                        head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
+                UI.WindowEnd();
+
                 if (SK.System.displayType == Display.Opaque)
                     Default.MeshCube.Draw(floorMaterial, floorTransform);
 
-                if (plane_model != null)
+                /*if (plane_model != null)
                 {
                     UI.Handle("Cube", ref cubePose, plane_model.Bounds);
                     plane_model.Draw(cubePose.ToMatrix());
                 }
                 else
-                    Text.Add("No model!", Matrix.TR(new Vec3(0, .1f, 0), Quat.LookDir(0, 0, 1)), TextAlign.Center, alignX | alignY);
+                    Text.Add("No model!", Matrix.TR(new Vec3(0, .1f, 0), Quat.LookDir(0, 0, 1)), TextAlign.Center, alignX | alignY);*/
 
                 if (!data_updates.IsEmpty)
                 {
@@ -68,6 +94,9 @@ namespace DutchSkies
 
                     Log.Info("Got {0} new states", root_node["states"].Count);
                 }
+
+                //map_quad.Draw(map_material, Matrix.Identity);
+                map_quad.Draw(map_material, Matrix.T(Vec3.Forward * 1) * Matrix.T(Vec3.Up * -0.7f));
 
                 //UI.Handle("Cube", ref cubePose, cube.Bounds);
                 //cube.Draw(cubePose.ToMatrix());

@@ -90,6 +90,7 @@
     <Content Include="Assets\Logo\Logo-71.png" />
     <Content Include="Assets\Logo\Logo-Wide150.png" />
     <Content Include="Assets\Logo\Logo-Wide300.png" />
+    <Content Include="Assets\Maps\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png" />
     <Content Include="notes.txt" />
     <Content Include="Properties\Default.rd.xml" />
   </ItemGroup>
