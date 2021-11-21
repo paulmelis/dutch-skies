@@ -30,6 +30,8 @@ namespace DutchSkies
             if (plane_model == null)
                 Log.Err("Could not load plane model");
 
+            const float plane_size_m = 0.01f;
+
             // Map
 
             OSMMap osm_map = new OSMMap();
@@ -143,8 +145,6 @@ namespace DutchSkies
                 }
 
                 // Draw map and planes
-
-                const float plane_size_m = 0.01f;
 
                 Hierarchy.Push(Matrix.R(-90f, 0f, 0f) * Matrix.T(Vec3.Forward * 1) * Matrix.T(Vec3.Up * -0.7f));
 
