@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
 using SimpleJSON;
@@ -24,16 +25,26 @@ namespace DutchSkies
 
             // Create assets used by the app
             Pose cubePose = new Pose(0, 0, -0.5f, Quat.Identity);
+
             Model plane_model = Model.FromFile("Airplane.scaled.glb");
             if (plane_model == null)
                 Log.Err("Could not load plane model");
 
+            // Map
+
+            OSMMap osm_map = new OSMMap();
+
             Tex map_texture = Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
-            Mesh map_quad = Mesh.GeneratePlane(new Vec2(1f, 1f), Vec3.Up, Vec3.Forward);
+            // XXX should the map be square? or aspect based on resolution?
+            float map_geo_height = osm_map.current_configuration.image_height / osm_map.current_configuration.image_width;
+            float map_scale_km_to_scene = 1f / osm_map.width;
+            Mesh map_quad = Mesh.GeneratePlane(new Vec2(1f, map_geo_height), -Vec3.Forward, Vec3.Up);
             Material map_material = Default.Material.Copy();
             map_material[MatParamName.DiffuseTex] = map_texture;
             // XXX disable backface culling
             map_material.FaceCull = Cull.None;
+
+           
 
             Model cube = Model.FromMesh(
                 Mesh.GenerateRoundedCube(Vec3.One * 0.1f, 0.02f),
@@ -60,31 +71,39 @@ namespace DutchSkies
             // Green = Vec3.Up = +Y
             // Blue = Vec3.Forward = -Z (NOTE!)
 
-
             Pose windowPose = new Pose(-.4f, 0, 0, Quat.LookDir(1, 0, 1));
+
+            Dictionary<string, Vec3> plane_positions = new Dictionary<string, Vec3>();
+            Dictionary<string, float> plane_headings = new Dictionary<string, float>();
 
             // Core application loop
             while (SK.Step(() =>
             {
+                if (SK.System.displayType == Display.Opaque)
+                    Default.MeshCube.Draw(floorMaterial, floorTransform);
+
                 Lines.AddAxis(Pose.Identity, 0.1f);
 
+#if false
                 UI.WindowBegin("Head", ref windowPose, new Vec2(20, 0) * U.cm, UIWin.Normal);
                 Pose head = Input.Head;
                 UI.Label(String.Format("POS xyz: {0,9:F6} {1,9:F6} {2,9:F6}\nDirection: {3,9:F6} {4,9:F6} {5,9:F6}", 
                         head.position.x, head.position.y, head.position.z,
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
+#endif
 
-                if (SK.System.displayType == Display.Opaque)
-                    Default.MeshCube.Draw(floorMaterial, floorTransform);
-
-                /*if (plane_model != null)
+#if false
+                if (plane_model != null)
                 {
                     UI.Handle("Cube", ref cubePose, plane_model.Bounds);
                     plane_model.Draw(cubePose.ToMatrix());
                 }
                 else
-                    Text.Add("No model!", Matrix.TR(new Vec3(0, .1f, 0), Quat.LookDir(0, 0, 1)), TextAlign.Center, alignX | alignY);*/
+                    Text.Add("No model!", Matrix.TR(new Vec3(0, .1f, 0), Quat.LookDir(0, 0, 1)), TextAlign.Center, alignX | alignY);
+#endif
+
+                // Update plane data, if any
 
                 if (!data_updates.IsEmpty)
                 {
@@ -92,11 +111,52 @@ namespace DutchSkies
                     // XXX check?
                     data_updates.TryDequeue(out root_node);
 
-                    Log.Info("Got {0} new states", root_node["states"].Count);
+                    JSONNode states = root_node["states"];
+                    Log.Info("Got {0} new states", states.Count);
+
+                    for (int i = 0; i < states.Count; i++)
+                    {
+                        JSONNode plane = states[i];
+
+                        string id = plane[0];                   // 24-bit ICAO address as string
+                        float lon = plane[5];
+                        float lat = plane[6];
+                        float heading = plane[10];              // 0 - 360
+                        float height = plane[13] * 0.001f;      // Kilometers
+
+#if false
+                        // Compute plane position in Earth-centric model
+                        Matrix M = Matrix.R(-(90f-lat), 0f, 0f) * Matrix.R(0f, lon, 0f);
+                        Vec3 p = new Vec3(0f, Projection.RADIUS_KILOMETERS + 0.001f * height, 0f);
+                        Log.Info($"e = {M.Transform(p)}");
+
+                        // Compute map-local position (in kilometers)
+                        p = osm_map.EarthToMapCentric.Transform(M.Transform(p));
+                        Log.Info($"plane {i}; lat = {lat}, lon = {lon}, height = {height}; p = {p} (map-centric, km)");
+#endif
+                        float x = 0f, y = 0f,  z = 0f;
+                        osm_map.Project(ref x, ref y, lon, lat);
+                        plane_positions[id] = new Vec3(x, y, height) * map_scale_km_to_scene;
+                        Log.Info($"plane {i}; lat = {lat}, lon = {lon}, height = {height}; x = {x}; y = {z}");
+
+                        plane_headings[id] = heading;
+                    }
                 }
 
-                //map_quad.Draw(map_material, Matrix.Identity);
-                map_quad.Draw(map_material, Matrix.T(Vec3.Forward * 1) * Matrix.T(Vec3.Up * -0.7f));
+                // Draw map and planes
+
+                const float plane_size_m = 0.01f;
+
+                Hierarchy.Push(Matrix.R(-90f, 0f, 0f) * Matrix.T(Vec3.Forward * 1) * Matrix.T(Vec3.Up * -0.7f));
+
+                map_quad.Draw(map_material, Matrix.Identity);
+
+                foreach (KeyValuePair<string,Vec3> item in plane_positions)
+                {
+                    plane_model.Draw(Matrix.R(90f, 0f, 0f) * Matrix.R(0f, 0f, -plane_headings[item.Key]) * Matrix.S(plane_size_m) * Matrix.T(item.Value));
+                }
+
+                Hierarchy.Pop();
 
                 //UI.Handle("Cube", ref cubePose, cube.Bounds);
                 //cube.Draw(cubePose.ToMatrix());
@@ -128,7 +188,7 @@ namespace DutchSkies
                     Log.Info("(data fetch): Exception " + e.Message);
                 }
 
-                Thread.Sleep(10 * 1000);
+                Thread.Sleep(5 * 1000);
             }
         }
     }
