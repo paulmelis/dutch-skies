@@ -44,12 +44,8 @@ namespace DutchSkies
             Mesh map_quad = Mesh.GeneratePlane(new Vec2(1f, map_geo_height), -Vec3.Forward, Vec3.Up);
             Material map_material = Default.Material.Copy();
             map_material[MatParamName.DiffuseTex] = map_texture;
-            // XXX disable backface culling
+            // Disable backface culling on the map for now
             map_material.FaceCull = Cull.None;
-
-            Model cube = Model.FromMesh(
-                Mesh.GenerateRoundedCube(Vec3.One * 0.1f, 0.02f),
-                Default.MaterialUI);
 
             Matrix floorTransform = Matrix.TS(0, -1.5f, 0, new Vec3(30, 0.1f, 30));
             Material floorMaterial = new Material(Shader.FromFile("floor.hlsl"));
@@ -150,16 +146,16 @@ namespace DutchSkies
 
                 map_quad.Draw(map_material, Matrix.Identity);
 
+                // Plane models
+                // XXX should really apply the x rot and scale to orient/scale the model on the loaded model itself
                 foreach (KeyValuePair<string,Vec3> item in plane_positions)
-                {
                     plane_model.Draw(Matrix.R(90f, 0f, 0f) * Matrix.R(0f, 0f, -plane_headings[item.Key]) * Matrix.S(plane_size_m) * Matrix.T(item.Value));
-                }
+
+                // Plane lines
+                foreach (var pos in plane_positions.Values)
+                    Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f,0f,0f), 0.001f);
 
                 Hierarchy.Pop();
-
-                //UI.Handle("Cube", ref cubePose, cube.Bounds);
-                //cube.Draw(cubePose.ToMatrix());
-
             })) ;
             SK.Shutdown();
         }
