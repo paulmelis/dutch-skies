@@ -32,6 +32,8 @@ namespace DutchSkies
 
             const float plane_size_m = 0.01f;
 
+            plane_model.RootNode.LocalTransform = plane_model.RootNode.LocalTransform * Matrix.S(plane_size_m) * Matrix.R(90f, 0f, 0f);
+
             // Map
 
             OSMMap osm_map = new OSMMap();
@@ -149,7 +151,7 @@ namespace DutchSkies
                 // Plane models
                 // XXX should really apply the x rot and scale to orient/scale the model on the loaded model itself
                 foreach (KeyValuePair<string,Vec3> item in plane_positions)
-                    plane_model.Draw(Matrix.R(90f, 0f, 0f) * Matrix.R(0f, 0f, -plane_headings[item.Key]) * Matrix.S(plane_size_m) * Matrix.T(item.Value));
+                    plane_model.Draw(Matrix.R(0f, 0f, -plane_headings[item.Key]) * Matrix.T(item.Value));
 
                 // Plane lines
                 foreach (var pos in plane_positions.Values)

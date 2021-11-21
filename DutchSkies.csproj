@@ -72,6 +72,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="OSMMap.cs" />
+    <Compile Include="PlaneData.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Projection.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
