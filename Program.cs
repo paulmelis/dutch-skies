@@ -36,15 +36,14 @@ namespace DutchSkies
 
             Tex map_texture = Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
             // XXX should the map be square? or aspect based on resolution?
-            float map_geo_height = osm_map.current_configuration.image_height / osm_map.current_configuration.image_width;
+            float map_geo_height = 1f * osm_map.height / osm_map.width;
             float map_scale_km_to_scene = 1f / osm_map.width;
+            Log.Info($"Map geometry size = {1} x {map_geo_height}");
             Mesh map_quad = Mesh.GeneratePlane(new Vec2(1f, map_geo_height), -Vec3.Forward, Vec3.Up);
             Material map_material = Default.Material.Copy();
             map_material[MatParamName.DiffuseTex] = map_texture;
             // XXX disable backface culling
             map_material.FaceCull = Cull.None;
-
-           
 
             Model cube = Model.FromMesh(
                 Mesh.GenerateRoundedCube(Vec3.One * 0.1f, 0.02f),

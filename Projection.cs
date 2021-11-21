@@ -24,8 +24,7 @@ public class Projection
         else
         {
             y = lat * RADIANS_OVER_DEGREES;
-            // XXX check the log here, why need log anyay?
-            y = MathF.Log10(MathF.Tan(y) + (1.0f / MathF.Cos(y)));
+            y = MathF.Log(MathF.Tan(y) + (1.0f / MathF.Cos(y)));
             y *= RADIUS_METERS;
         }
     }
