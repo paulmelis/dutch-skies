@@ -10,7 +10,9 @@ using StereoKit;
 namespace DutchSkies
 {
     class Program
-    {
+    { 
+        enum DetailLevel { NONE, CALLSIGN, FULL };
+
         static void Main(string[] args)
         {
             // To get , as thousand separator
@@ -78,7 +80,7 @@ namespace DutchSkies
             // Blue = Vec3.Forward = -Z (NOTE!)
 
             Pose windowPose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
-            bool show_details = true;
+            DetailLevel detail_level = DetailLevel.CALLSIGN;
             bool show_vlines = true;
 
             Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
@@ -98,9 +100,16 @@ namespace DutchSkies
 
                 // UI
 
-                UI.WindowBegin("Controls", ref windowPose, new Vec2(20, 0) * U.cm, UIWin.Normal);
-                    UI.Toggle("Plane details", ref show_details);
-                    UI.Toggle("Plane lines", ref show_vlines);
+                UI.WindowBegin("Controls", ref windowPose, new Vec2(35, 0) * U.cm, UIWin.Normal);
+                    UI.Label("Plane details");
+                    UI.SameLine();
+                    if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
+                    UI.SameLine();
+                    if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
+                    UI.SameLine();
+                    if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
+                    UI.SameLine();
+                UI.Toggle("Plane lines", ref show_vlines);
                 UI.WindowEnd();
 
                 // Process received plane data, if any
@@ -161,7 +170,22 @@ namespace DutchSkies
 
                 // Plane information
 
-                if (show_details)
+                if (detail_level == DetailLevel.CALLSIGN)
+                {
+                    foreach (var plane in plane_data.Values)
+                    {
+                        Vec3 pos = plane.computed_position;
+
+                        Text.Add(
+                            $"{plane.callsign}",
+                            Matrix.R(-90f, 180f, 0f) * Matrix.T(pos * map_scale_km_to_scene),
+                            text_style,
+                            TextAlign.XLeft | TextAlign.YTop,
+                            TextAlign.XLeft | TextAlign.YTop,
+                            -0.01f, 0f);
+                    }
+                }
+                else if (detail_level == DetailLevel.FULL)
                 {
                     foreach (var plane in plane_data.Values)
                     {

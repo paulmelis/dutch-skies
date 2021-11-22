@@ -1,5 +1,7 @@
 ﻿https://github.com/Bunny83/SimpleJSON
 
+fix plane pitch
+
 
                 UI.WindowBegin("Head", ref windowPose, new Vec2(20, 0) * U.cm, UIWin.Normal);
                 Pose head = Input.Head;
