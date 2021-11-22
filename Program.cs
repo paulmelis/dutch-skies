@@ -77,12 +77,15 @@ namespace DutchSkies
             // Green = Vec3.Up = +Y
             // Blue = Vec3.Forward = -Z (NOTE!)
 
-            Pose windowPose = new Pose(-.4f, 0, 0, Quat.LookDir(1, 0, 1));
+            Pose windowPose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
+            bool show_details = true;
+            bool show_vlines = true;
 
             Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
 
             TextStyle text_style = Text.MakeStyle(Default.Font, 0.5f * U.cm, new Color(1f, 0f, 0f));
             JSONNode root_node;
+           
 
             // Core application loop
             while (SK.Step(() =>
@@ -90,16 +93,15 @@ namespace DutchSkies
                 if (SK.System.displayType == Display.Opaque)
                     Default.MeshCube.Draw(floorMaterial, floorTransform);
 
+                // World origin (for debugging)
                 Lines.AddAxis(Pose.Identity, 0.1f);
 
-#if false
-                UI.WindowBegin("Head", ref windowPose, new Vec2(20, 0) * U.cm, UIWin.Normal);
-                Pose head = Input.Head;
-                UI.Label(String.Format("POS xyz: {0,9:F6} {1,9:F6} {2,9:F6}\nDirection: {3,9:F6} {4,9:F6} {5,9:F6}", 
-                        head.position.x, head.position.y, head.position.z,
-                        head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
+                // UI
+
+                UI.WindowBegin("Controls", ref windowPose, new Vec2(20, 0) * U.cm, UIWin.Normal);
+                    UI.Toggle("Plane details", ref show_details);
+                    UI.Toggle("Plane lines", ref show_vlines);
                 UI.WindowEnd();
-#endif
 
                 // Process received plane data, if any
 
@@ -154,40 +156,48 @@ namespace DutchSkies
                     plane.Update(draw_time);
 
                     //Lines.AddAxis(new Pose(plane.computed_position * map_scale_km_to_scene, Quat.FromAngles(0f, 0f, -plane.last_heading)));
-                    plane_model.Draw(Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(plane.computed_position * map_scale_km_to_scene));
+                    plane_model.Draw(Matrix.R(plane.computed_climb_angle, 0f, -plane.last_heading) * Matrix.T(plane.computed_position * map_scale_km_to_scene));
                 }
 
                 // Plane information
-                foreach (var plane in plane_data.Values)
+
+                if (show_details)
                 {
-                    float vrate = plane.last_vertical_rate;
-                    string vstring = " ";
+                    foreach (var plane in plane_data.Values)
+                    {
+                        float vrate = plane.last_vertical_rate;
+                        string vstring = " ";
 
-                    if (vrate > 1f)
-                        vstring = $"▲ {vrate:F0} m/s";
-                    else if (vrate < 1f)
-                        vstring = $"▼ {-vrate:F0} m/s";
+                        if (vrate > 1f)
+                            vstring = $"▲ {vrate:F0} m/s";
+                        else if (vrate < -1f)
+                            vstring = $"▼ {-vrate:F0} m/s";
 
-                    Vec3 pos = plane.computed_position;
+                        Vec3 pos = plane.computed_position;
 
-                    TextAlign align = TextAlign.XLeft | TextAlign.YTop;
-                    if (pos.z < 7.0f)
-                        align = TextAlign.XLeft | TextAlign.YBottom;
+                        TextAlign align = TextAlign.XLeft | TextAlign.YTop;
+                        if (pos.z < 7.5f)
+                            align = TextAlign.XLeft | TextAlign.YBottom;
 
-                    Text.Add(
-                        $"{plane.callsign}\n{plane.last_speed*3.6f:N0} km/h\n{plane.last_height:N0} m\n{vstring}", 
-                        Matrix.R(-90f,180f,0f) * Matrix.T(pos*map_scale_km_to_scene),
-                        text_style,
-                        align,
-                        TextAlign.XLeft | TextAlign.YTop,
-                        -0.006f, -0.007f);
+                        Text.Add(
+                            $"{plane.callsign}\n{plane.last_heading:F0}°\n{plane.last_speed * 3.6f:N0} km/h\n{plane.computed_height:N0} m\n{vstring}",
+                            Matrix.R(-90f, 180f, 0f) * Matrix.T(pos * map_scale_km_to_scene),
+                            text_style,
+                            align,
+                            TextAlign.XLeft | TextAlign.YTop,
+                            -0.006f, -0.008f);
+                    }
                 }
-                    
-                // Plane lines onto ground
-                foreach (var plane in plane_data.Values)
+
+                // Plane lines vertically to the ground position
+
+                if (show_vlines)
                 {
-                    var pos = plane.computed_position * map_scale_km_to_scene;
-                    Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
+                    foreach (var plane in plane_data.Values)
+                    {
+                        var pos = plane.computed_position * map_scale_km_to_scene;
+                        Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
+                    }
                 }
 
                 Hierarchy.Pop();

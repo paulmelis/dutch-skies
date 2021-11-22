@@ -36,7 +36,8 @@ public class PlaneData
     public float dx, dy, dz;                    // Change in x, y, z (units = km/s)
 
     // Extrapolated position and orientation
-    public float computed_heading;
+    public float computed_climb_angle;
+    public float computed_height;
     public Vec3 computed_position;
     public Vec3 computed_euler_angles;
 
@@ -126,11 +127,9 @@ public class PlaneData
         last_vertical_rate = node[11]; // vertical climb rate in m/s, >0 = climbing, <0 = descending
 
         // vertical_rate > 0 (= climb) implies negative X rotation
-        float climb_angle = 0.0f;
+        computed_climb_angle = 0.0f;
         if (last_speed > 1.0e-6f)
-            climb_angle = -MathF.Atan(last_vertical_rate / last_speed) / MathF.PI * 180.0f;
-
-        computed_euler_angles = new Vec3(climb_angle, last_heading, 0.0f);
+            computed_climb_angle = -MathF.Atan(last_vertical_rate / last_speed) / MathF.PI * 180.0f;
 
         // Compute speed vectors used for extrapolating position
         float speed_km_s = last_speed / 1000.0f;                    // m/s -> km/s
@@ -158,7 +157,7 @@ public class PlaneData
 
         // Extrapolate position based on last data received
         computed_position = new Vec3(last_x + dx * t_diff, last_y + dy * t_diff, last_z + dz * t_diff);
-        //Log.Info($"Plane {id}: computed_position = {computed_position}, computed_heading = {computed_heading}");
+        computed_height = last_height + t_diff * last_vertical_rate;
 
         // Determine new state
 

@@ -110,7 +110,6 @@
   <ItemGroup>
     <None Include="Assets\Airplane-cleaned.rotated.glb" />
     <None Include="Assets\Airplane.scaled.glb" />
-    <None Include="Assets\Cosmonaut.glb" />
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '16.0' ">
     <VisualStudioVersion>16.0</VisualStudioVersion>

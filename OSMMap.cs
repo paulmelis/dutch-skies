@@ -32,6 +32,7 @@ public class OSMMap
 
     public float min_x, max_x;              // EPSG 3857 extents
     public float min_y, max_y;
+    public float x_extent, y_extent;
 
     public Matrix EarthToMapCentric;
 
@@ -119,7 +120,7 @@ public class OSMMap
         height = 1.0f * current_configuration.image_height / current_configuration.image_width * width;
         Log.Info("Map size (kilometers) = " + width + " x " + height);
 
-        // XXX this gives an approximate x,y range
+        // This gives an approximate (but reasonable) X, Y range
         float xx = 0.0f, yy = 0.0f;
         Projection.epsg4326_to_epsg3857(ref min_x, ref yy, current_configuration.min_lon, center_lat);
         Projection.epsg4326_to_epsg3857(ref max_x, ref yy, current_configuration.max_lon, center_lat);
@@ -128,6 +129,9 @@ public class OSMMap
 
         Log.Info("Map X range: " + min_x + ", " + max_x);
         Log.Info("Map Y range: " + min_y + ", " + max_y);
+
+        x_extent = max_x - min_x;
+        y_extent = max_y - min_y;
 
         // EPSG:4326 lon 5, lat 52 -> EPSG:3857 556597.45, 6800125.45 -> -18.68516, -17.84164 (NL map centric, center = 5.27, 52.13)
         //Project(ref xx, ref yy, 5f, 52f);
@@ -143,8 +147,7 @@ public class OSMMap
         Projection.epsg4326_to_epsg3857(ref xx, ref yy, lon, lat);
         //Log.Info($"project() {lon}, {lat} -> x {xx}, y {yy}");
 
-        // XXX can precompute x and y extents
-        x = ((xx - min_x) / (max_x - min_x) - 0.5f) * width;
-        y = ((yy - min_y) / (max_y - min_y) - 0.5f) * height;
+        x = ((xx - min_x) / x_extent - 0.5f) * width;
+        y = ((yy - min_y) / y_extent - 0.5f) * height;
     }
 }

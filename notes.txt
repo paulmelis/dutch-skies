@@ -1,1 +1,9 @@
 ﻿https://github.com/Bunny83/SimpleJSON
+
+
+                UI.WindowBegin("Head", ref windowPose, new Vec2(20, 0) * U.cm, UIWin.Normal);
+                Pose head = Input.Head;
+                UI.Label(String.Format("POS xyz: {0,9:F6} {1,9:F6} {2,9:F6}\nDirection: {3,9:F6} {4,9:F6} {5,9:F6}", 
+                        head.position.x, head.position.y, head.position.z,
+                        head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
+                UI.WindowEnd();
