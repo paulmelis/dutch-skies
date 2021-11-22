@@ -20,34 +20,38 @@ namespace DutchSkies
                 //displayPreference = DisplayMode.Flatscreen,
                 //noFlatscreenFallback = true,
             };
+
             if (!SK.Initialize(settings))
                 Environment.Exit(1);
 
-            // Create assets used by the app
-            Pose cubePose = new Pose(0, 0, -0.5f, Quat.Identity);
-
-            Model plane_model = Model.FromFile("Airplane.scaled.glb");
-            if (plane_model == null)
-                Log.Err("Could not load plane model");
-
-            const float plane_size_m = 0.01f;
-
-            plane_model.RootNode.LocalTransform = plane_model.RootNode.LocalTransform * Matrix.S(plane_size_m) * Matrix.R(90f, 0f, 0f);
-
             // Map
+
+            const float REALWORLD_MAP_WIDTH = 1.5f; // meters
 
             OSMMap osm_map = new OSMMap();
 
             Tex map_texture = Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
             // XXX should the map be square? or aspect based on resolution?
-            float map_geo_height = 1f * osm_map.height / osm_map.width;
-            float map_scale_km_to_scene = 1f / osm_map.width;
-            Log.Info($"Map geometry size = {1} x {map_geo_height}");
-            Mesh map_quad = Mesh.GeneratePlane(new Vec2(1f, map_geo_height), -Vec3.Forward, Vec3.Up);
+            float map_geo_height = REALWORLD_MAP_WIDTH * osm_map.height / osm_map.width;
+            float map_scale_km_to_scene = REALWORLD_MAP_WIDTH / osm_map.width;
+            Log.Info($"Map geometry size = {REALWORLD_MAP_WIDTH} x {map_geo_height}");
+            Mesh map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, map_geo_height), -Vec3.Forward, Vec3.Up);
             Material map_material = Default.Material.Copy();
             map_material[MatParamName.DiffuseTex] = map_texture;
             // Disable backface culling on the map for now
             map_material.FaceCull = Cull.None;
+
+            // Create assets used by the app
+            Model plane_model = Model.FromFile("Airplane-cleaned.rotated.glb");
+            if (plane_model == null)
+                Log.Err("Could not load plane model");
+
+            const float plane_size_m = 0.015f;  // Decent size
+
+            // Rotate and scale plane model to put it in the XY plane, with the nose pointing in the -Z direction (check this)
+            plane_model.RootNode.LocalTransform = plane_model.RootNode.LocalTransform * Matrix.S(plane_size_m); // * Matrix.R(90f, 0f, 0f);
+
+            // Floor (for non-seethrough devices)
 
             Matrix floorTransform = Matrix.TS(0, -1.5f, 0, new Vec3(30, 0.1f, 30));
             Material floorMaterial = new Material(Shader.FromFile("floor.hlsl"));
@@ -55,6 +59,8 @@ namespace DutchSkies
 
             TextAlign alignX = TextAlign.XLeft;
             TextAlign alignY = TextAlign.YTop;
+
+            // Data update thread
 
             ConcurrentQueue<JSONNode> data_updates = new ConcurrentQueue<JSONNode>();
             var data_thread = new Thread(FetchPlaneUpdates);
@@ -72,8 +78,7 @@ namespace DutchSkies
 
             Pose windowPose = new Pose(-.4f, 0, 0, Quat.LookDir(1, 0, 1));
 
-            Dictionary<string, Vec3> plane_positions = new Dictionary<string, Vec3>();
-            Dictionary<string, float> plane_headings = new Dictionary<string, float>();
+            Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
 
             // Core application loop
             while (SK.Step(() =>
@@ -104,7 +109,7 @@ namespace DutchSkies
 
                 // Update plane data, if any
 
-                if (!data_updates.IsEmpty)
+                while (!data_updates.IsEmpty)
                 {
                     JSONNode root_node;
                     // XXX check?
@@ -113,15 +118,18 @@ namespace DutchSkies
                     JSONNode states = root_node["states"];
                     Log.Info("Got {0} new states", states.Count);
 
+                    float update_time = Time.Totalf;
+
                     for (int i = 0; i < states.Count; i++)
                     {
                         JSONNode plane = states[i];
 
                         string id = plane[0];                   // 24-bit ICAO address as string
-                        float lon = plane[5];
-                        float lat = plane[6];
-                        float heading = plane[10];              // 0 - 360
-                        float height = plane[13] * 0.001f;      // Kilometers
+
+                        if (!plane_data.ContainsKey(id))
+                            plane_data[id] = new PlaneData(id, osm_map);
+
+                        plane_data[id].ProcessDataUpdate(update_time, plane);
 
 #if false
                         // Compute plane position in Earth-centric model
@@ -133,12 +141,15 @@ namespace DutchSkies
                         p = osm_map.EarthToMapCentric.Transform(M.Transform(p));
                         Log.Info($"plane {i}; lat = {lat}, lon = {lon}, height = {height}; p = {p} (map-centric, km)");
 #endif
+
+#if false
                         float x = 0f, y = 0f,  z = 0f;
                         osm_map.Project(ref x, ref y, lon, lat);
                         plane_positions[id] = new Vec3(x, y, height) * map_scale_km_to_scene;
                         Log.Info($"plane {i}; lat = {lat}, lon = {lon}, height = {height}; x = {x}; y = {z}");
 
                         plane_headings[id] = heading;
+#endif
                     }
                 }
 
@@ -149,23 +160,33 @@ namespace DutchSkies
                 map_quad.Draw(map_material, Matrix.Identity);
 
                 // Plane models
-                // XXX should really apply the x rot and scale to orient/scale the model on the loaded model itself
-                foreach (KeyValuePair<string,Vec3> item in plane_positions)
-                    plane_model.Draw(Matrix.R(0f, 0f, -plane_headings[item.Key]) * Matrix.T(item.Value));
 
-                // Plane lines
-                foreach (var pos in plane_positions.Values)
-                    Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f,0f,0f), 0.001f);
+                float draw_time = Time.Totalf;
+
+                foreach (var plane in plane_data.Values)
+                {
+                    plane.Update(draw_time);
+
+                    //Lines.AddAxis(new Pose(plane.computed_position * map_scale_km_to_scene, Quat.FromAngles(0f, 0f, -plane.last_heading)));
+                    plane_model.Draw(Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(plane.computed_position * map_scale_km_to_scene));
+                }
+
+                // Plane lines onto ground
+                foreach (var plane in plane_data.Values)
+                {
+                    var pos = plane.computed_position * map_scale_km_to_scene;
+                    Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
+                }
 
                 Hierarchy.Pop();
             })) ;
             SK.Shutdown();
         }
-        static async void FetchPlaneUpdates(object data)
+        static async void FetchPlaneUpdates(object update_queue_obj)
         {
             const string URL = "https://opensky-network.org/api/states/all?lamin=50.492&lomin=2.856&lamax=53.883&lomax=7.535";
 
-            ConcurrentQueue<JSONNode> update_queue = data as ConcurrentQueue<JSONNode>;
+            ConcurrentQueue<JSONNode> update_queue = update_queue_obj as ConcurrentQueue<JSONNode>;
 
             while (true)
             {
@@ -185,7 +206,7 @@ namespace DutchSkies
                     Log.Info("(data fetch): Exception " + e.Message);
                 }
 
-                Thread.Sleep(5 * 1000);
+                Thread.Sleep(10 * 1000);
             }
         }
     }

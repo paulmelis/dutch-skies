@@ -108,6 +108,7 @@
     <PackageReference Include="StereoKit" Version="0.3.*" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Assets\Airplane-cleaned.rotated.glb" />
     <None Include="Assets\Airplane.scaled.glb" />
     <None Include="Assets\Cosmonaut.glb" />
   </ItemGroup>

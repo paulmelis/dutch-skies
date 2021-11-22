@@ -10,8 +10,9 @@ public class Projection
     const float LON_TO_X = RANGE / 360.0f;
     const float RADIANS_OVER_DEGREES = MathF.PI / 180.0f;
 
-    // WGS84 -> Mercator (OSM)
+    // WGS84 (EPSG:4326) -> Web Mercator (OSM, EPSG:3857)
     // Output units are *meters*
+    // EPSG:3857 has +X to the right, +Y up, with Y=0 at the equator
     public static void epsg4326_to_epsg3857(ref float x, ref float y, float lon, float lat)
     {
         // Note: this is a cylindrical projection, i.e. distances in X will usually be far off except near the equator

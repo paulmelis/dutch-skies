@@ -117,7 +117,7 @@ public class OSMMap
         float r = Projection.RADIUS_KILOMETERS * MathF.Cos(center_lat / 180.0f * MathF.PI);    // Radius at center latitude in kilometers
         width = (current_configuration.max_lon - current_configuration.min_lon) / 360.0f * 2.0f * MathF.PI * r;
         height = 1.0f * current_configuration.image_height / current_configuration.image_width * width;
-        Log.Info("map size (kilometers) = " + width + " x " + height);
+        Log.Info("Map size (kilometers) = " + width + " x " + height);
 
         // XXX this gives an approximate x,y range
         float xx = 0.0f, yy = 0.0f;
@@ -126,33 +126,24 @@ public class OSMMap
         Projection.epsg4326_to_epsg3857(ref xx, ref min_y, center_lon, current_configuration.min_lat);
         Projection.epsg4326_to_epsg3857(ref xx, ref max_y, center_lon, current_configuration.max_lat);
 
-        Log.Info("X range: " + min_x + ", " + max_x);
-        Log.Info("Y range: " + min_y + ", " + max_y);
+        Log.Info("Map X range: " + min_x + ", " + max_x);
+        Log.Info("Map Y range: " + min_y + ", " + max_y);
 
-        // Map plane geometry is 10x10 units in the scene, scale to give it the correct size in kilometers 
-        /*
-        transform.localScale = new Vec3(
-            0.1f * width,
-            1.0f,
-            0.1f * height
-        );
-        */
+        // EPSG:4326 lon 5, lat 52 -> EPSG:3857 556597.45, 6800125.45 -> -18.68516, -17.84164 (NL map centric, center = 5.27, 52.13)
+        //Project(ref xx, ref yy, 5f, 52f);
+        //Log.Info($"lon 5, lat 52 -> {xx}, {yy}");
     }
 
     // Output x and y are in kilometers, relative to the map center
     public void Project(ref float x, ref float y, float lon, float lat)
     {
-        // Straight-forward linear interpolation isn't good enough for z
-        //x = ((lon - MIN_LON) / (MAX_LON - MIN_LON) - 0.5f) * width;
-        //z = ((lat - MIN_LAT) / (MAX_LAT - MIN_LAT) - 0.5f) * height;       
-
         float xx = 0.0f;
         float yy = 0.0f;
 
         Projection.epsg4326_to_epsg3857(ref xx, ref yy, lon, lat);
-        Log.Info($"project() {lon}, {lat} -> x {xx}, y {yy}");
+        //Log.Info($"project() {lon}, {lat} -> x {xx}, y {yy}");
 
-        // XXX can precompute x and z extents
+        // XXX can precompute x and y extents
         x = ((xx - min_x) / (max_x - min_x) - 0.5f) * width;
         y = ((yy - min_y) / (max_y - min_y) - 0.5f) * height;
     }
