@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net.Http;
 using System.Threading;
 using SimpleJSON;
@@ -12,6 +13,9 @@ namespace DutchSkies
     {
         static void Main(string[] args)
         {
+            // To get , as thousand separator
+            CultureInfo.CurrentCulture = CultureInfo.CreateSpecificCulture("en-US");
+
             // Initialize StereoKit
             SKSettings settings = new SKSettings
             {
@@ -38,7 +42,7 @@ namespace DutchSkies
             Mesh map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, map_geo_height), -Vec3.Forward, Vec3.Up);
             Material map_material = Default.Material.Copy();
             map_material[MatParamName.DiffuseTex] = map_texture;
-            // Disable backface culling on the map for now
+            // Disable backface culling on the map for now, for debugging
             map_material.FaceCull = Cull.None;
 
             // Create assets used by the app
@@ -56,9 +60,6 @@ namespace DutchSkies
             Matrix floorTransform = Matrix.TS(0, -1.5f, 0, new Vec3(30, 0.1f, 30));
             Material floorMaterial = new Material(Shader.FromFile("floor.hlsl"));
             floorMaterial.Transparency = Transparency.Blend;
-
-            TextAlign alignX = TextAlign.XLeft;
-            TextAlign alignY = TextAlign.YTop;
 
             // Data update thread
 
@@ -80,6 +81,9 @@ namespace DutchSkies
 
             Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
 
+            TextStyle text_style = Text.MakeStyle(Default.Font, 0.5f * U.cm, new Color(1f, 0f, 0f));
+            JSONNode root_node;
+
             // Core application loop
             while (SK.Step(() =>
             {
@@ -97,22 +101,10 @@ namespace DutchSkies
                 UI.WindowEnd();
 #endif
 
-#if false
-                if (plane_model != null)
-                {
-                    UI.Handle("Cube", ref cubePose, plane_model.Bounds);
-                    plane_model.Draw(cubePose.ToMatrix());
-                }
-                else
-                    Text.Add("No model!", Matrix.TR(new Vec3(0, .1f, 0), Quat.LookDir(0, 0, 1)), TextAlign.Center, alignX | alignY);
-#endif
-
-                // Update plane data, if any
+                // Process received plane data, if any
 
                 while (!data_updates.IsEmpty)
                 {
-                    JSONNode root_node;
-                    // XXX check?
                     data_updates.TryDequeue(out root_node);
 
                     JSONNode states = root_node["states"];
@@ -124,7 +116,8 @@ namespace DutchSkies
                     {
                         JSONNode plane = states[i];
 
-                        string id = plane[0];                   // 24-bit ICAO address as string
+                        // 24-bit ICAO address as string
+                        string id = plane[0];                   
 
                         if (!plane_data.ContainsKey(id))
                             plane_data[id] = new PlaneData(id, osm_map);
@@ -141,19 +134,12 @@ namespace DutchSkies
                         p = osm_map.EarthToMapCentric.Transform(M.Transform(p));
                         Log.Info($"plane {i}; lat = {lat}, lon = {lon}, height = {height}; p = {p} (map-centric, km)");
 #endif
-
-#if false
-                        float x = 0f, y = 0f,  z = 0f;
-                        osm_map.Project(ref x, ref y, lon, lat);
-                        plane_positions[id] = new Vec3(x, y, height) * map_scale_km_to_scene;
-                        Log.Info($"plane {i}; lat = {lat}, lon = {lon}, height = {height}; x = {x}; y = {z}");
-
-                        plane_headings[id] = heading;
-#endif
                     }
                 }
 
+                //
                 // Draw map and planes
+                //
 
                 Hierarchy.Push(Matrix.R(-90f, 0f, 0f) * Matrix.T(Vec3.Forward * 1) * Matrix.T(Vec3.Up * -0.7f));
 
@@ -171,6 +157,32 @@ namespace DutchSkies
                     plane_model.Draw(Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(plane.computed_position * map_scale_km_to_scene));
                 }
 
+                // Plane information
+                foreach (var plane in plane_data.Values)
+                {
+                    float vrate = plane.last_vertical_rate;
+                    string vstring = " ";
+
+                    if (vrate > 1f)
+                        vstring = $"▲ {vrate:F0} m/s";
+                    else if (vrate < 1f)
+                        vstring = $"▼ {-vrate:F0} m/s";
+
+                    Vec3 pos = plane.computed_position;
+
+                    TextAlign align = TextAlign.XLeft | TextAlign.YTop;
+                    if (pos.z < 7.0f)
+                        align = TextAlign.XLeft | TextAlign.YBottom;
+
+                    Text.Add(
+                        $"{plane.callsign}\n{plane.last_speed*3.6f:N0} km/h\n{plane.last_height:N0} m\n{vstring}", 
+                        Matrix.R(-90f,180f,0f) * Matrix.T(pos*map_scale_km_to_scene),
+                        text_style,
+                        align,
+                        TextAlign.XLeft | TextAlign.YTop,
+                        -0.006f, -0.007f);
+                }
+                    
                 // Plane lines onto ground
                 foreach (var plane in plane_data.Values)
                 {
@@ -179,7 +191,8 @@ namespace DutchSkies
                 }
 
                 Hierarchy.Pop();
-            })) ;
+            }));
+
             SK.Shutdown();
         }
         static async void FetchPlaneUpdates(object update_queue_obj)
