@@ -54,18 +54,6 @@ public class OSMMap
             12, 3584, 2048
         );
 
-        // Home
-        configurations["home"] = new MapConfiguration(
-            52.350860f, 52.353796f, 4.930115f, 4.937668f, 
-            19, 2816, 1792
-        );
-
-        // Office
-       configurations["office"] = new MapConfiguration(
-            52.355474f, 52.358409f, 4.951401f, 4.958954f,
-            19, 2816, 1792
-        );
-
         Switch("netherlands");
     }
 
