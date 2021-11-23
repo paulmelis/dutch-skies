@@ -5,7 +5,7 @@
 public class Projection
 {
     public const float RADIUS_METERS = 6378136.98f;
-    public const float RADIUS_KILOMETERS = 6378.13698f;
+    public const float RADIUS_KILOMETERS = RADIUS_METERS / 1000f;
     const float RANGE = RADIUS_METERS * MathF.PI * 2.0f;
     const float LON_TO_X = RANGE / 360.0f;
     const float RADIANS_OVER_DEGREES = MathF.PI / 180.0f;

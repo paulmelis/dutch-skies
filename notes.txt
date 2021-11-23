@@ -9,3 +9,10 @@ fix plane pitch
                         head.position.x, head.position.y, head.position.z,
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
+
+
+
+
+sky view:
+
+R(heading) * T(position[world-units]) * 
