@@ -3,16 +3,30 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Threading;
 using SimpleJSON;
 using StereoKit;
 
 namespace DutchSkies
 {
-    class Program
-    { 
-        enum DetailLevel { NONE, CALLSIGN, FULL };
+    public class ObserverData
+    {
+        public float lat, lon;
+        public float floor_altitude;  // meters
 
+        public ObserverData()
+        {
+            // SURF building at Amsterdam Science Park
+            lat = 52.357036140185144f;
+            lon = 4.954487434653384f;
+            floor_altitude = /* street level */ -3.64f + 3f /* one floor */;
+        }
+    };
+
+    class Program
+    {
+        enum DetailLevel { NONE, CALLSIGN, FULL };
         static void Main(string[] args)
         {
             // To get , as thousand separator
@@ -30,7 +44,8 @@ namespace DutchSkies
             if (!SK.Initialize(settings))
                 Environment.Exit(1);
 
-            Renderer.SetClip(0.08f, 500000f);
+            Renderer.SetClip(0.08f, 5000f);
+            Renderer.EnableSky = false;
 
             // Map
 
@@ -64,6 +79,8 @@ namespace DutchSkies
             Material plane_marker_material = Default.Material.Copy();
             plane_marker_material[MatParamName.ColorTint] = new Color(0f, 0f, 1f);
 
+            ObserverData observer = new ObserverData();
+
             // Floor (for non-seethrough devices)
 
             Matrix floorTransform = Matrix.TS(0, -1.5f, 0, new Vec3(30, 0.1f, 30));
@@ -88,7 +105,8 @@ namespace DutchSkies
 
             Pose windowPose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
             DetailLevel detail_level = DetailLevel.FULL;
-            bool show_vlines = true;
+            bool        show_vlines = true;
+            bool        show_flight_units = false;
 
             Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
 
@@ -114,8 +132,10 @@ namespace DutchSkies
                     if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
                     UI.SameLine();
                     if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
+
+                    UI.Toggle("Vertical lines", ref show_vlines);
                     UI.SameLine();
-                UI.Toggle("Plane lines", ref show_vlines);
+                    UI.Toggle("Flight units", ref show_flight_units);
                 UI.WindowEnd();
 
                 // Process received plane data, if any
@@ -137,20 +157,9 @@ namespace DutchSkies
                         string id = plane[0];                   
 
                         if (!plane_data.ContainsKey(id))
-                            plane_data[id] = new PlaneData(id, osm_map);
+                            plane_data[id] = new PlaneData(id);
 
-                        plane_data[id].ProcessDataUpdate(update_time, plane);
-
-#if false
-                        // Compute plane position in Earth-centric model
-                        Matrix M = Matrix.R(-(90f-lat), 0f, 0f) * Matrix.R(0f, lon, 0f);
-                        Vec3 p = new Vec3(0f, Projection.RADIUS_KILOMETERS + 0.001f * height, 0f);
-                        Log.Info($"e = {M.Transform(p)}");
-
-                        // Compute map-local position (in kilometers)
-                        p = osm_map.EarthToMapCentric.Transform(M.Transform(p));
-                        Log.Info($"plane {i}; lat = {lat}, lon = {lon}, height = {height}; p = {p} (map-centric, km)");
-#endif
+                        plane_data[id].ProcessDataUpdate(update_time, plane, osm_map, observer);
                     }
                 }
 
@@ -164,7 +173,7 @@ namespace DutchSkies
 
                 // Plane models
 
-                float draw_time = Time.Totalf;
+                double draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
 
                 foreach (var plane in plane_data.Values)
                 {
@@ -178,6 +187,7 @@ namespace DutchSkies
                     }
                     else
                     {
+                        // XXX could set z to 0, as there seem to be cases where a plane is marked on-ground, but has an incorrect altitude value
                         plane_ground_marker.Draw(plane_marker_material, Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(plane.computed_map_position * map_scale_km_to_scene));
                     }
                 }
@@ -208,11 +218,32 @@ namespace DutchSkies
 
                         float vrate = plane.last_vertical_rate;
                         string vstring = " ";
+                        string astring = "";
+                        string sstring = "";
 
-                        if (vrate > 1f)
-                            vstring = $"▲ {vrate:F0} m/s";
-                        else if (vrate < -1f)
-                            vstring = $"▼ {-vrate:F0} m/s";
+                        if (show_flight_units)
+                        {
+                            sstring = $"{plane.last_velocity*1.94384449f:N0} kn";
+
+                            int fl = (int)MathF.Round(plane.computed_altitude / 30.48f);
+                            astring = $"FL {fl:D3}";
+
+                            vrate = vrate / 0.3048f * 60f;
+                            if (vrate > 1f)
+                                vstring = $"▲ {vrate:F0} ft/min";
+                            else if (vrate < -1f)
+                                vstring = $"▼ {-vrate:F0} ft/min";
+                        }
+                        else
+                        {
+                            sstring = $"{plane.last_velocity * 3.6f:N0} km / h";
+                            astring = $"{plane.computed_altitude:N0} m";
+
+                            if (vrate > 1f)
+                                vstring = $"▲ {vrate:F0} m/s";
+                            else if (vrate < -1f)
+                                vstring = $"▼ {-vrate:F0} m/s";
+                        }
 
                         Vec3 pos = plane.computed_map_position;
 
@@ -220,12 +251,8 @@ namespace DutchSkies
                         if (pos.z < 7.5f)
                             pos_align = TextAlign.XLeft | TextAlign.YBottom;
 
-                        string astring = $"{plane.computed_altitude:N0} m";
-                        if (!plane.geometric_altitude)
-                            astring += " (B)";
-
                         Text.Add(
-                            $"{plane.callsign}\n{plane.last_heading:F0}°\n{plane.last_velocity * 3.6f:N0} km/h\n{astring}\n{vstring}",
+                            $"{plane.callsign}\n{plane.last_heading:F0}°\n{sstring}\n{astring}\n{vstring}",
                             Matrix.R(-90f, 180f, 0f) * Matrix.T(pos * map_scale_km_to_scene),
                             text_style,
                             pos_align,
@@ -247,7 +274,9 @@ namespace DutchSkies
 
                 Hierarchy.Pop();
 
+                //
                 // Draw planes in sky
+                //
 
                 // XXX assume HL is oriented with -Z pointing north
 
@@ -261,11 +290,30 @@ namespace DutchSkies
                     if (pos.z < 0f)
                         continue;
 
-                    // Plane with length 100 meter, larger than an A380 ;-)
-                    plane_model.Draw(Matrix.S(100f) * Matrix.R(0f,0f,-plane.last_heading) * Matrix.T(pos));
-                    //Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
+                    if (plane.sky_distance > 3f)
+                    {
+                        // To avoid large clipping distances move plane along the line from plane to viewer,
+                        // with a smaller plane model to avoid a weird scaling visual issues
+
+                        // Vector from head to plane 
+                        //Vec3 v = pos - Input.Head.position;
+                        //v.Normalize();
+
+                        //pos = Input.Head.position + 3000f * v;
+                        pos *= 3f / plane.sky_distance;
+                        Log.Info($"[{plane.callsign}] position scaled to {pos}");
+
+                        plane_model.Draw(Matrix.S(30f) * Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(pos));
+                    }
+                    else
+                    {
+                        // Plane with length 100 meter, larger than an A380 ;-)
+                        plane_model.Draw(Matrix.S(100f) * Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(pos));
+                        //Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
+                    }
                 }
 
+                // Vertical lines
                 foreach (var plane in plane_data.Values)
                 {
                     var pos = plane.computed_sky_position;
@@ -274,7 +322,63 @@ namespace DutchSkies
                     if (pos.z < 0f)
                         continue;
 
-                    Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 1f);
+                    if (plane.sky_distance > 3f)
+                    {
+                        // To avoid large clipping distances move plane along the line from plane to viewer,
+                        // scaling the plane to avoid a weird visual size
+                        pos *= 3f / plane.sky_distance;
+                    }
+
+                    Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 3f);
+                }
+
+                // Path lines
+                foreach (var plane in plane_data.Values)
+                {
+                    var cur_pos = plane.computed_sky_position;
+
+                    // Don't bother with planes below the horizon
+                    if (cur_pos.z < 0f)
+                        continue;
+
+                    var prev_pos = plane.previous_sky_position;
+
+                    if (plane.sky_distance > 3f)
+                    {
+                        // To avoid large clipping distances move plane along the line from plane to viewer,
+                        // scaling the plane to avoid a weird visual size
+                        cur_pos *= 3f / plane.sky_distance;
+                        prev_pos *= 3f / plane.sky_distance;
+                    }
+
+                    Lines.Add(prev_pos, cur_pos, new Color(0.4f, 1f, 0.4f), 3f);
+                }
+
+                // Text labels
+                // XXX broken!
+                TextStyle text_style_sky = Text.MakeStyle(Default.Font, 10f * U.cm, new Color(1f, 0f, 0f));
+                foreach (var plane in plane_data.Values)
+                {
+                    var pos = plane.computed_sky_position;
+
+                    // Don't bother with planes below the horizon
+                    if (pos.z < 0f)
+                        continue;
+
+                    if (plane.sky_distance > 3f)
+                    {
+                        // To avoid large clipping distances move plane along the line from plane to viewer,
+                        // scaling the plane to avoid a weird visual size
+                        pos *= 3f / plane.sky_distance;
+                    }
+
+                    Text.Add(
+                        $"{plane.callsign}",
+                        Matrix.R(-90f, 0f, 0f) * Matrix.T(pos),
+                        text_style_sky,
+                        TextAlign.XLeft | TextAlign.YTop,
+                        TextAlign.XLeft | TextAlign.YTop,
+                        -0.01f, 0f);
                 }
 
                 Hierarchy.Pop();
