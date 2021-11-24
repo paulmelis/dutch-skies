@@ -290,7 +290,7 @@ namespace DutchSkies
                     if (pos.z < 0f)
                         continue;
 
-                    if (plane.sky_distance > 3f)
+                    if (plane.observer_distance > 3f)
                     {
                         // To avoid large clipping distances move plane along the line from plane to viewer,
                         // with a smaller plane model to avoid a weird scaling visual issues
@@ -300,7 +300,7 @@ namespace DutchSkies
                         //v.Normalize();
 
                         //pos = Input.Head.position + 3000f * v;
-                        pos *= 3f / plane.sky_distance;
+                        pos *= 3f / plane.observer_distance;
                         Log.Info($"[{plane.callsign}] position scaled to {pos}");
 
                         plane_model.Draw(Matrix.S(30f) * Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(pos));
@@ -322,14 +322,15 @@ namespace DutchSkies
                     if (pos.z < 0f)
                         continue;
 
-                    if (plane.sky_distance > 3f)
+                    if (plane.observer_distance > 3f)
                     {
                         // To avoid large clipping distances move plane along the line from plane to viewer,
                         // scaling the plane to avoid a weird visual size
-                        pos *= 3f / plane.sky_distance;
+                        pos *= 3f / plane.observer_distance;
                     }
 
-                    Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 3f);
+                    // Starts slight below plane to make room for text
+                    Lines.Add(new Vec3(pos.x, pos.y, pos.z-75f), new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 3f);
                 }
 
                 // Path lines
@@ -343,20 +344,19 @@ namespace DutchSkies
 
                     var prev_pos = plane.previous_sky_position;
 
-                    if (plane.sky_distance > 3f)
+                    if (plane.observer_distance > 3f)
                     {
                         // To avoid large clipping distances move plane along the line from plane to viewer,
                         // scaling the plane to avoid a weird visual size
-                        cur_pos *= 3f / plane.sky_distance;
-                        prev_pos *= 3f / plane.sky_distance;
+                        cur_pos *= 3f / plane.observer_distance;
+                        prev_pos *= 3f / plane.observer_distance;
                     }
 
                     Lines.Add(prev_pos, cur_pos, new Color(0.4f, 1f, 0.4f), 3f);
                 }
 
                 // Text labels
-                // XXX broken!
-                TextStyle text_style_sky = Text.MakeStyle(Default.Font, 10f * U.cm, new Color(1f, 0f, 0f));
+                TextStyle text_style_sky = Text.MakeStyle(Default.Font, 20f * U.m, new Color(1f, 0f, 0f));
                 foreach (var plane in plane_data.Values)
                 {
                     var pos = plane.computed_sky_position;
@@ -365,20 +365,20 @@ namespace DutchSkies
                     if (pos.z < 0f)
                         continue;
 
-                    if (plane.sky_distance > 3f)
+                    if (plane.observer_distance > 3f)
                     {
                         // To avoid large clipping distances move plane along the line from plane to viewer,
                         // scaling the plane to avoid a weird visual size
-                        pos *= 3f / plane.sky_distance;
+                        pos *= 3f / plane.observer_distance;
                     }
 
                     Text.Add(
-                        $"{plane.callsign}",
-                        Matrix.R(-90f, 0f, 0f) * Matrix.T(pos),
+                        $"{plane.callsign}\n({plane.observer_distance:F0} km)",
+                        Matrix.R(90f, 0f, 0f) * Matrix.T(pos),
                         text_style_sky,
+                        TextAlign.XCenter | TextAlign.YTop,
                         TextAlign.XLeft | TextAlign.YTop,
-                        TextAlign.XLeft | TextAlign.YTop,
-                        -0.01f, 0f);
+                        0f, -10f);
                 }
 
                 Hierarchy.Pop();

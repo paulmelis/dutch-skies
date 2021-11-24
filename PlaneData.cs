@@ -42,9 +42,9 @@ namespace DutchSkies
         // Extrapolated position and orientation
         public Vec3 computed_map_position;  // Map units (kilometers)
         public Vec3 computed_sky_position;  // Meters
-        public float sky_distance;          // Kilometers
         public float computed_altitude;     // Meters
         public float computed_climb_angle;  // Degrees
+        public float observer_distance;     // Kilometers
 
         public Vec3 previous_map_position;
         public Vec3 previous_sky_position;
@@ -167,9 +167,10 @@ namespace DutchSkies
                 Matrix.T(0f, 0f, -(Projection.RADIUS_KILOMETERS + observer.floor_altitude * 0.001f));
 
             last_sky_position = M.Transform(p) * 1000f;
+
             // XXX distance from projection center, not head position, but should relatively be only very little off
-            sky_distance = MathF.Sqrt(last_sky_position.x * last_sky_position.x + last_sky_position.y * last_sky_position.y) / 1000f;
-            Log.Info($"[{callsign}] lat {last_lat:F6}, lon {last_lon:F6} -> p = {last_sky_position.x:F6}, {last_sky_position.y:F6}, {last_sky_position.z:F6}; dist {sky_distance:F0} km (sky position)");
+            observer_distance = MathF.Sqrt(last_sky_position.x * last_sky_position.x + last_sky_position.y * last_sky_position.y) / 1000f;
+            //Log.Info($"[{callsign}] lat {last_lat:F6}, lon {last_lon:F6} -> p = {last_sky_position.x:F6}, {last_sky_position.y:F6}, {last_sky_position.z:F6}; dist {sky_distance:F0} km (sky position)");
 
             if (first_data)
             {
