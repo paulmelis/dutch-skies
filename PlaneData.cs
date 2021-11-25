@@ -136,7 +136,7 @@ namespace DutchSkies
                 last_vertical_rate / 1000.0f
             );
 
-            // Maquette mode
+            // Map
             // Simple projection, based on map projection (disregards Earth curvature)
 
             float last_x = 0f, last_y = 0f;
@@ -169,7 +169,7 @@ namespace DutchSkies
             last_sky_position = M.Transform(p) * 1000f;
 
             // XXX distance from projection center, not head position, but should relatively be only very little off
-            observer_distance = MathF.Sqrt(last_sky_position.x * last_sky_position.x + last_sky_position.y * last_sky_position.y) / 1000f;
+            observer_distance = last_sky_position.Length / 1000f;
             //Log.Info($"[{callsign}] lat {last_lat:F6}, lon {last_lon:F6} -> p = {last_sky_position.x:F6}, {last_sky_position.y:F6}, {last_sky_position.z:F6}; dist {sky_distance:F0} km (sky position)");
 
             if (first_data)

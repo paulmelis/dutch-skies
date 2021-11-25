@@ -136,7 +136,7 @@ namespace DutchSkies
                 UI.Toggle("Vertical lines", ref show_vlines);
                 UI.SameLine();
                 UI.Toggle("Flight units", ref show_flight_units);
-                UI.WindowEnd();
+                // UI continues below!
 
                 // Process received plane data, if any
 
@@ -178,23 +178,28 @@ namespace DutchSkies
 
                 // Planes
 
+                int num_map_planes = 0;
+
                 foreach (var plane in plane_data.Values)
                 {
+                    if (plane.updateState == PlaneData.UpdateState.MISSING)
+                        continue;
+
                     plane.Update(draw_time);
+                    num_map_planes++;
 
                     var pos = Matrix.R(-90f,0f,0f) * plane.computed_map_position * map_scale_km_to_scene;
 
-                    if (!plane.on_ground)
+                    if (plane.on_ground)
                     {
-                        //Lines.AddAxis(new Pose(plane.computed_position * map_scale_km_to_scene, Quat.FromAngles(0f, 0f, -plane.last_heading)));
-                        plane_model.Draw(Matrix.S(plane_size_m) * Matrix.R(-90f, 0f, 0f) * Matrix.R(-plane.computed_climb_angle * 2f, 0f, 0f)
-                            * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
-                    }
-                    else
-                    {
-                        // XXX could set z to 0, as there seem to be cases where a plane is marked on-ground, but has an incorrect altitude value
+                        // XXX could set y to 0, as there seem to be cases where a plane is marked on-ground, but has an incorrect altitude value
                         plane_ground_marker.Draw(plane_marker_material, Matrix.R(-90f, 0f, 0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                        continue;
                     }
+
+                    //Lines.AddAxis(new Pose(plane.computed_position * map_scale_km_to_scene, Quat.FromAngles(0f, 0f, -plane.last_heading)));
+                    plane_model.Draw(Matrix.S(plane_size_m) * Matrix.R(-90f, 0f, 0f) * Matrix.R(-plane.computed_climb_angle * 2f, 0f, 0f)
+                        * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
 
                     // Plane information
 
@@ -210,9 +215,6 @@ namespace DutchSkies
                     }
                     else if (detail_level == DetailLevel.FULL)
                     {
-                        if (plane.on_ground)
-                            continue;
-
                         float vrate = plane.last_vertical_rate;
                         string vstring = " ";
                         string astring = "";
@@ -350,6 +352,9 @@ namespace DutchSkies
                         TextAlign.XCenter | TextAlign.YTop,
                         0f, -30f);
                 }
+
+                UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
+                UI.WindowEnd();
 
             }));
 
