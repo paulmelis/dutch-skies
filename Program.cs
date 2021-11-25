@@ -44,7 +44,7 @@ namespace DutchSkies
             if (!SK.Initialize(settings))
                 Environment.Exit(1);
 
-            Renderer.SetClip(0.08f, 5000f);
+            Renderer.SetClip(0.08f, 10000f);
             Renderer.EnableSky = false;
 
             // Map
@@ -272,19 +272,20 @@ namespace DutchSkies
                 // Assume Forward (-Z) is pointing North
                 //
 
-                Hierarchy.Push(Matrix.R(-90f, 0f, 0f));
-
                 TextStyle text_style_sky = Text.MakeStyle(Default.Font, 20f * U.m, new Color(1f, 0f, 0f));
 
                 Vec3 head_pos = Input.Head.position;
 
                 foreach (var plane in plane_data.Values)
                 {
-                    var pos = plane.computed_sky_position;
-                    var prev_pos = plane.previous_sky_position;
+                    var pos = Matrix.R(-90f, 0f, 0f).Transform(plane.computed_sky_position);
+                    var prev_pos = Matrix.R(-90f, 0f, 0f).Transform(plane.previous_sky_position);
+
+                    if (plane.on_ground)
+                        continue;
 
                     // Don't bother with planes below the horizon
-                    if (pos.z < 0f)
+                    if (pos.y < 0f)
                         continue;
 
                     // Plane
@@ -301,17 +302,17 @@ namespace DutchSkies
                         pos *= 3f / plane.observer_distance;
                         Log.Info($"[{plane.callsign}] position scaled to {pos}");
 
-                        plane_model.Draw(Matrix.S(30f) * Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(pos));
+                        plane_model.Draw(Matrix.S(30f) * Matrix.R(-90f,0f,0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                     }
                     else
                     {
                         // Plane with length 100 meter, larger than an A380 ;-)
-                        plane_model.Draw(Matrix.S(100f) * Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(pos));
+                        plane_model.Draw(Matrix.S(100f) * Matrix.R(-90f, 0f, 0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                         //Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
                     }
 
                     // Starts slightly below plane to make room for text
-                    Lines.Add(new Vec3(pos.x, pos.y, pos.z-75f), new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 3f);
+                    Lines.Add(new Vec3(pos.x, pos.y-75f, pos.z), new Vec3(pos.x, 0f, pos.z), new Color(1f, 0f, 0f), 3f);
 
                     if (plane.observer_distance > 3f)
                     {
@@ -323,18 +324,24 @@ namespace DutchSkies
                     Lines.Add(prev_pos, pos, new Color(0.4f, 1f, 0.4f), 3f);
 
                     // Text labels
-                    Quat textquat = Quat.LookAt(pos, head_pos - Matrix.R(90f, 0f, 0f)*pos, Vec3.UnitX);
+                    Quat textquat = Quat.LookAt(pos, head_pos - pos, Vec3.UnitX);
 
                     Text.Add(
-                        $"{plane.callsign}\n({plane.observer_distance:F0} km)",
-                        Matrix.R(90f, 0f, 0f) * /* Matrix.R(textquat) * */ Matrix.T(pos),
+                        $"({plane.observer_distance:F0} km)",
+                         Matrix.T(pos),
                         text_style_sky,
                         TextAlign.XCenter | TextAlign.YTop,
                         TextAlign.XLeft | TextAlign.YTop,
-                        0f, -10f);
-                }
+                        0f, 40f);
 
-                Hierarchy.Pop();
+                    Text.Add(
+                        $"{plane.callsign}\n{plane.computed_altitude:N0} m",
+                        Matrix.T(pos),
+                        text_style_sky,
+                        TextAlign.XCenter | TextAlign.YTop,
+                        TextAlign.XLeft | TextAlign.YTop,
+                        0f, -30f);
+                }
 
             }));
 
