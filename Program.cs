@@ -300,6 +300,7 @@ namespace DutchSkies
 
                         //pos = Input.Head.position + 3000f * v;
                         pos *= 3f / plane.observer_distance;
+                        prev_pos *= 3f / plane.observer_distance;
                         Log.Info($"[{plane.callsign}] position scaled to {pos}");
 
                         plane_model.Draw(Matrix.S(30f) * Matrix.R(-90f,0f,0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
@@ -311,16 +312,10 @@ namespace DutchSkies
                         //Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
                     }
 
-                    // Starts slightly below plane to make room for text
+                    // Vertical line, start slightly below plane to make room for text
                     Lines.Add(new Vec3(pos.x, pos.y-75f, pos.z), new Vec3(pos.x, 0f, pos.z), new Color(1f, 0f, 0f), 3f);
 
-                    if (plane.observer_distance > 3f)
-                    {
-                        // To avoid large clipping distances move plane along the line from plane to viewer,
-                        // scaling the plane to avoid a weird visual size
-                        prev_pos *= 3f / plane.observer_distance;
-                    }
-
+                    // Track line
                     Lines.Add(prev_pos, pos, new Color(0.4f, 1f, 0.4f), 3f);
 
                     // Text labels

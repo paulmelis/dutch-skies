@@ -12,3 +12,7 @@
 
 show number of planes in UI
 
+check use of geometric altitude for sky mode
+
+
+reuse common matrices, such as rotx 90
