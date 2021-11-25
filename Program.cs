@@ -105,8 +105,9 @@ namespace DutchSkies
 
             Pose windowPose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
             DetailLevel detail_level = DetailLevel.FULL;
-            bool        show_vlines = true;
-            bool        show_flight_units = false;
+            bool show_map_vlines = true, show_sky_vlines = false;
+            bool show_flight_units = false;
+            int num_map_planes = 0;
 
             Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
 
@@ -121,22 +122,6 @@ namespace DutchSkies
 
                 // World origin (for debugging)
                 Lines.AddAxis(Pose.Identity, 0.1f);
-
-                // UI
-
-                UI.WindowBegin("Controls", ref windowPose, new Vec2(35, 0) * U.cm, UIWin.Normal);
-                UI.Label("Plane details");
-                UI.SameLine();
-                if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
-                UI.SameLine();
-                if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
-                UI.SameLine();
-                if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
-
-                UI.Toggle("Vertical lines", ref show_vlines);
-                UI.SameLine();
-                UI.Toggle("Flight units", ref show_flight_units);
-                // UI continues below!
 
                 // Process received plane data, if any
 
@@ -177,8 +162,8 @@ namespace DutchSkies
                 map_quad.Draw(map_material, Matrix.R(-90f, 0f, 0f));
 
                 // Planes
-
-                int num_map_planes = 0;
+                
+                num_map_planes = 0;
 
                 foreach (var plane in plane_data.Values)
                 {
@@ -263,7 +248,7 @@ namespace DutchSkies
 
                     // Plane lines vertically to the ground position
 
-                    if (show_vlines)
+                    if (show_map_vlines)
                         Lines.Add(pos, new Vec3(pos.x, 0f, pos.z), new Color(1f, 0f, 0f), 0.001f);
                 }
 
@@ -274,7 +259,7 @@ namespace DutchSkies
                 // Assume Forward (-Z) is pointing North
                 //
 
-                TextStyle text_style_sky = Text.MakeStyle(Default.Font, 20f * U.m, new Color(1f, 0f, 0f));
+                TextStyle text_style_sky = Text.MakeStyle(Default.Font, 15f * U.m, new Color(1f, 0f, 0f));
 
                 foreach (var plane in plane_data.Values)
                 {
@@ -303,7 +288,7 @@ namespace DutchSkies
                         prev_pos *= 3f / plane.observer_distance;
                         Log.Info($"[{plane.callsign}] position scaled to {pos}");
 
-                        plane_model.Draw(Matrix.S(30f) * Matrix.R(-90f,0f,0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                        plane_model.Draw(Matrix.S(30f) * Matrix.R(-90f, 0f, 0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                     }
                     else
                     {
@@ -312,8 +297,11 @@ namespace DutchSkies
                         //Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
                     }
 
-                    // Vertical line, start slightly below plane to make room for text
-                    Lines.Add(new Vec3(pos.x, pos.y-120f, pos.z), new Vec3(pos.x, 0f, pos.z), new Color(1f, 0f, 0f), 3f);
+                    if (show_sky_vlines)
+                    {
+                        // Vertical line, start slightly below plane to make room for text
+                        Lines.Add(new Vec3(pos.x, pos.y - 120f, pos.z), new Vec3(pos.x, 0f, pos.z), new Color(1f, 0f, 0f), 3f);
+                    }
 
                     // Track line
                     Lines.Add(prev_pos, pos, new Color(0.4f, 1f, 0.4f), 3f);
@@ -342,7 +330,7 @@ namespace DutchSkies
                         text_style_sky,
                         TextAlign.XCenter | TextAlign.YTop,
                         TextAlign.XCenter | TextAlign.YTop,
-                        0f, 40f);
+                        0f, 30f);
 
                     Text.Add(
                         $"{plane.callsign}\n{astring}\n{sstring}",
@@ -350,9 +338,26 @@ namespace DutchSkies
                         text_style_sky,
                         TextAlign.XCenter | TextAlign.YTop,
                         TextAlign.XCenter | TextAlign.YTop,
-                        0f, -30f);
+                        0f, -25f);
                 }
 
+                // UI (drawn late, so we can show accurate statistics)
+
+                UI.WindowBegin("Controls", ref windowPose, new Vec2(35, 0) * U.cm, UIWin.Normal);
+                UI.Label("Plane details");
+                UI.SameLine();
+                if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
+                UI.SameLine();
+                if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
+                UI.SameLine();
+                if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
+
+                UI.Toggle("Flight units", ref show_flight_units);
+                UI.SameLine();
+                UI.Toggle("VLines (map)", ref show_map_vlines);
+                UI.SameLine();
+                UI.Toggle("VLines (sky)", ref show_sky_vlines);
+                
                 UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
                 UI.WindowEnd();
 
