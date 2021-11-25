@@ -13,9 +13,6 @@ namespace DutchSkies
         public const string UNKNOWN_CALLSIGN_STRING = "<unknown>";
 
         public enum UpdateState { NORMAL, LATE, MISSING };
-        public enum ViewMode { MAQUETTE, SKY };
-
-        public OSMMap map;
 
         // Last data received from opensky
 
