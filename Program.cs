@@ -168,12 +168,13 @@ namespace DutchSkies
                 //
 
                 double draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
+                Vec3 head_pos = Input.Head.position;
 
-                Hierarchy.Push(Matrix.R(-90f, 0f, 0f) * Matrix.T(Vec3.Forward * 1) * Matrix.T(Vec3.Up * -0.7f));
+                Hierarchy.Push(Matrix.T(1f * Vec3.Forward -0.7f * Vec3.Up));
 
                 // Map
 
-                map_quad.Draw(map_material, Matrix.Identity);
+                map_quad.Draw(map_material, Matrix.R(-90f, 0f, 0f));
 
                 // Planes
 
@@ -181,19 +182,18 @@ namespace DutchSkies
                 {
                     plane.Update(draw_time);
 
-                    var pos = plane.computed_map_position * map_scale_km_to_scene;
+                    var pos = Matrix.R(-90f,0f,0f) * plane.computed_map_position * map_scale_km_to_scene;
 
-                    // Plane model
                     if (!plane.on_ground)
                     {
                         //Lines.AddAxis(new Pose(plane.computed_position * map_scale_km_to_scene, Quat.FromAngles(0f, 0f, -plane.last_heading)));
-                        plane_model.Draw(Matrix.S(plane_size_m) * Matrix.R(-plane.computed_climb_angle * 2f, 0f, 0f)
-                            * Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(pos));
+                        plane_model.Draw(Matrix.S(plane_size_m) * Matrix.R(-90f, 0f, 0f) * Matrix.R(-plane.computed_climb_angle * 2f, 0f, 0f)
+                            * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                     }
                     else
                     {
                         // XXX could set z to 0, as there seem to be cases where a plane is marked on-ground, but has an incorrect altitude value
-                        plane_ground_marker.Draw(plane_marker_material, Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(pos));
+                        plane_ground_marker.Draw(plane_marker_material, Matrix.R(-90f, 0f, 0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                     }
 
                     // Plane information
@@ -202,7 +202,7 @@ namespace DutchSkies
                     {
                         Text.Add(
                             $"{plane.callsign}",
-                            Matrix.R(-90f, 180f, 0f) * Matrix.T(pos),
+                            Matrix.R(0f, 180f, 0f) * Matrix.T(pos),
                             text_style_map,
                             TextAlign.XLeft | TextAlign.YTop,
                             TextAlign.XLeft | TextAlign.YTop,
@@ -244,15 +244,15 @@ namespace DutchSkies
 
                         Vec3 text_pos = pos;
                         TextAlign pos_align = TextAlign.XLeft | TextAlign.YTop;
-                        if (pos.z < 0.05f)
+                        if (pos.y < 0.05f)
                         {
                             pos_align = TextAlign.XLeft | TextAlign.YBottom;
-                            text_pos.z = 0.01f;
+                            text_pos.y = 0.01f;
                         }
 
                         Text.Add(
                             $"{plane.callsign}\n{plane.last_heading:F0}°\n{sstring}\n{astring}\n{vstring}",
-                            Matrix.R(-90f, 180f, 0f) * Matrix.T(text_pos),
+                            Matrix.R(0f, 180f, 0f) * Matrix.T(text_pos),
                             text_style_map,
                             pos_align,
                             TextAlign.XLeft | TextAlign.YTop,
@@ -262,7 +262,7 @@ namespace DutchSkies
                     // Plane lines vertically to the ground position
 
                     if (show_vlines)
-                        Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
+                        Lines.Add(pos, new Vec3(pos.x, 0f, pos.z), new Color(1f, 0f, 0f), 0.001f);
                 }
 
                 Hierarchy.Pop();
@@ -273,8 +273,6 @@ namespace DutchSkies
                 //
 
                 TextStyle text_style_sky = Text.MakeStyle(Default.Font, 20f * U.m, new Color(1f, 0f, 0f));
-
-                Vec3 head_pos = Input.Head.position;
 
                 foreach (var plane in plane_data.Values)
                 {
@@ -313,28 +311,43 @@ namespace DutchSkies
                     }
 
                     // Vertical line, start slightly below plane to make room for text
-                    Lines.Add(new Vec3(pos.x, pos.y-75f, pos.z), new Vec3(pos.x, 0f, pos.z), new Color(1f, 0f, 0f), 3f);
+                    Lines.Add(new Vec3(pos.x, pos.y-120f, pos.z), new Vec3(pos.x, 0f, pos.z), new Color(1f, 0f, 0f), 3f);
 
                     // Track line
                     Lines.Add(prev_pos, pos, new Color(0.4f, 1f, 0.4f), 3f);
 
                     // Text labels
-                    Quat textquat = Quat.LookAt(pos, head_pos - pos, Vec3.UnitX);
+                    Quat textquat = Quat.LookAt(pos, head_pos, Vec3.UnitY);
+
+                    string astring = "";
+                    string sstring = "";
+
+                    if (show_flight_units)
+                    {
+                        sstring = $"{plane.last_velocity * 1.94384449f:N0} kn";
+                        int fl = (int)MathF.Round(plane.computed_altitude / 30.48f);
+                        astring = $"FL {fl:D3}";
+                    }
+                    else
+                    {
+                        sstring = $"{plane.last_velocity * 3.6f:N0} km / h";
+                        astring = $"{plane.computed_altitude:N0} m";
+                    }
 
                     Text.Add(
                         $"({plane.observer_distance:F0} km)",
-                         Matrix.T(pos),
+                        Matrix.R(textquat) * Matrix.T(pos),
                         text_style_sky,
                         TextAlign.XCenter | TextAlign.YTop,
-                        TextAlign.XLeft | TextAlign.YTop,
+                        TextAlign.XCenter | TextAlign.YTop,
                         0f, 40f);
 
                     Text.Add(
-                        $"{plane.callsign}\n{plane.computed_altitude:N0} m",
-                        Matrix.T(pos),
+                        $"{plane.callsign}\n{astring}\n{sstring}",
+                        Matrix.R(textquat) * Matrix.T(pos),
                         text_style_sky,
                         TextAlign.XCenter | TextAlign.YTop,
-                        TextAlign.XLeft | TextAlign.YTop,
+                        TextAlign.XCenter | TextAlign.YTop,
                         0f, -30f);
                 }
 
