@@ -110,7 +110,7 @@ namespace DutchSkies
 
             Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
 
-            TextStyle text_style = Text.MakeStyle(Default.Font, 0.5f * U.cm, new Color(1f, 0f, 0f));
+            TextStyle text_style_map = Text.MakeStyle(Default.Font, 0.5f * U.cm, new Color(1f, 0f, 0f));
             JSONNode root_node;
            
             // Core application loop
@@ -125,17 +125,17 @@ namespace DutchSkies
                 // UI
 
                 UI.WindowBegin("Controls", ref windowPose, new Vec2(35, 0) * U.cm, UIWin.Normal);
-                    UI.Label("Plane details");
-                    UI.SameLine();
-                    if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
-                    UI.SameLine();
-                    if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
-                    UI.SameLine();
-                    if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
+                UI.Label("Plane details");
+                UI.SameLine();
+                if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
+                UI.SameLine();
+                if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
+                UI.SameLine();
+                if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
 
-                    UI.Toggle("Vertical lines", ref show_vlines);
-                    UI.SameLine();
-                    UI.Toggle("Flight units", ref show_flight_units);
+                UI.Toggle("Vertical lines", ref show_vlines);
+                UI.SameLine();
+                UI.Toggle("Flight units", ref show_flight_units);
                 UI.WindowEnd();
 
                 // Process received plane data, if any
@@ -154,7 +154,7 @@ namespace DutchSkies
                         JSONNode plane = states[i];
 
                         // 24-bit ICAO address as string
-                        string id = plane[0];                   
+                        string id = plane[0];
 
                         if (!plane_data.ContainsKey(id))
                             plane_data[id] = new PlaneData(id);
@@ -167,51 +167,48 @@ namespace DutchSkies
                 // Draw map and planes
                 //
 
+                double draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
+
                 Hierarchy.Push(Matrix.R(-90f, 0f, 0f) * Matrix.T(Vec3.Forward * 1) * Matrix.T(Vec3.Up * -0.7f));
+
+                // Map
 
                 map_quad.Draw(map_material, Matrix.Identity);
 
-                // Plane models
-
-                double draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
+                // Planes
 
                 foreach (var plane in plane_data.Values)
                 {
                     plane.Update(draw_time);
 
+                    var pos = plane.computed_map_position * map_scale_km_to_scene;
+
+                    // Plane model
                     if (!plane.on_ground)
                     {
                         //Lines.AddAxis(new Pose(plane.computed_position * map_scale_km_to_scene, Quat.FromAngles(0f, 0f, -plane.last_heading)));
-                        plane_model.Draw(Matrix.S(plane_size_m) * Matrix.R(-plane.computed_climb_angle*2f, 0f, 0f) 
-                            * Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(plane.computed_map_position * map_scale_km_to_scene));
+                        plane_model.Draw(Matrix.S(plane_size_m) * Matrix.R(-plane.computed_climb_angle * 2f, 0f, 0f)
+                            * Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(pos));
                     }
                     else
                     {
                         // XXX could set z to 0, as there seem to be cases where a plane is marked on-ground, but has an incorrect altitude value
-                        plane_ground_marker.Draw(plane_marker_material, Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(plane.computed_map_position * map_scale_km_to_scene));
+                        plane_ground_marker.Draw(plane_marker_material, Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(pos));
                     }
-                }
 
-                // Plane information
+                    // Plane information
 
-                if (detail_level == DetailLevel.CALLSIGN)
-                {
-                    foreach (var plane in plane_data.Values)
+                    if (detail_level == DetailLevel.CALLSIGN)
                     {
-                        Vec3 pos = plane.computed_map_position;
-
                         Text.Add(
                             $"{plane.callsign}",
-                            Matrix.R(-90f, 180f, 0f) * Matrix.T(pos * map_scale_km_to_scene),
-                            text_style,
+                            Matrix.R(-90f, 180f, 0f) * Matrix.T(pos),
+                            text_style_map,
                             TextAlign.XLeft | TextAlign.YTop,
                             TextAlign.XLeft | TextAlign.YTop,
                             -0.01f, 0f);
                     }
-                }
-                else if (detail_level == DetailLevel.FULL)
-                {
-                    foreach (var plane in plane_data.Values)
+                    else if (detail_level == DetailLevel.FULL)
                     {
                         if (plane.on_ground)
                             continue;
@@ -223,7 +220,7 @@ namespace DutchSkies
 
                         if (show_flight_units)
                         {
-                            sstring = $"{plane.last_velocity*1.94384449f:N0} kn";
+                            sstring = $"{plane.last_velocity * 1.94384449f:N0} kn";
 
                             int fl = (int)MathF.Round(plane.computed_altitude / 30.48f);
                             astring = $"FL {fl:D3}";
@@ -245,51 +242,52 @@ namespace DutchSkies
                                 vstring = $"▼ {-vrate:F0} m/s";
                         }
 
-                        Vec3 pos = plane.computed_map_position;
-
+                        Vec3 text_pos = pos;
                         TextAlign pos_align = TextAlign.XLeft | TextAlign.YTop;
-                        if (pos.z < 7.5f)
+                        if (pos.z < 0.05f)
+                        {
                             pos_align = TextAlign.XLeft | TextAlign.YBottom;
+                            text_pos.z = 0.01f;
+                        }
 
                         Text.Add(
                             $"{plane.callsign}\n{plane.last_heading:F0}°\n{sstring}\n{astring}\n{vstring}",
-                            Matrix.R(-90f, 180f, 0f) * Matrix.T(pos * map_scale_km_to_scene),
-                            text_style,
+                            Matrix.R(-90f, 180f, 0f) * Matrix.T(text_pos),
+                            text_style_map,
                             pos_align,
                             TextAlign.XLeft | TextAlign.YTop,
                             -0.006f, 0f);
                     }
-                }
 
-                // Plane lines vertically to the ground position
+                    // Plane lines vertically to the ground position
 
-                if (show_vlines)
-                {
-                    foreach (var plane in plane_data.Values)
-                    {
-                        var pos = plane.computed_map_position * map_scale_km_to_scene;
+                    if (show_vlines)
                         Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
-                    }
                 }
 
                 Hierarchy.Pop();
 
                 //
                 // Draw planes in sky
+                // Assume Forward (-Z) is pointing North
                 //
 
-                // XXX assume HL is oriented with -Z pointing north
-
                 Hierarchy.Push(Matrix.R(-90f, 0f, 0f));
+
+                TextStyle text_style_sky = Text.MakeStyle(Default.Font, 20f * U.m, new Color(1f, 0f, 0f));
+
+                Vec3 head_pos = Input.Head.position;
 
                 foreach (var plane in plane_data.Values)
                 {
                     var pos = plane.computed_sky_position;
+                    var prev_pos = plane.previous_sky_position;
 
                     // Don't bother with planes below the horizon
                     if (pos.z < 0f)
                         continue;
 
+                    // Plane
                     if (plane.observer_distance > 3f)
                     {
                         // To avoid large clipping distances move plane along the line from plane to viewer,
@@ -311,70 +309,25 @@ namespace DutchSkies
                         plane_model.Draw(Matrix.S(100f) * Matrix.R(0f, 0f, -plane.last_heading) * Matrix.T(pos));
                         //Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
                     }
-                }
 
-                // Vertical lines
-                foreach (var plane in plane_data.Values)
-                {
-                    var pos = plane.computed_sky_position;
-
-                    // Don't bother with planes below the horizon
-                    if (pos.z < 0f)
-                        continue;
-
-                    if (plane.observer_distance > 3f)
-                    {
-                        // To avoid large clipping distances move plane along the line from plane to viewer,
-                        // scaling the plane to avoid a weird visual size
-                        pos *= 3f / plane.observer_distance;
-                    }
-
-                    // Starts slight below plane to make room for text
+                    // Starts slightly below plane to make room for text
                     Lines.Add(new Vec3(pos.x, pos.y, pos.z-75f), new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 3f);
-                }
-
-                // Path lines
-                foreach (var plane in plane_data.Values)
-                {
-                    var cur_pos = plane.computed_sky_position;
-
-                    // Don't bother with planes below the horizon
-                    if (cur_pos.z < 0f)
-                        continue;
-
-                    var prev_pos = plane.previous_sky_position;
 
                     if (plane.observer_distance > 3f)
                     {
                         // To avoid large clipping distances move plane along the line from plane to viewer,
                         // scaling the plane to avoid a weird visual size
-                        cur_pos *= 3f / plane.observer_distance;
                         prev_pos *= 3f / plane.observer_distance;
                     }
 
-                    Lines.Add(prev_pos, cur_pos, new Color(0.4f, 1f, 0.4f), 3f);
-                }
+                    Lines.Add(prev_pos, pos, new Color(0.4f, 1f, 0.4f), 3f);
 
-                // Text labels
-                TextStyle text_style_sky = Text.MakeStyle(Default.Font, 20f * U.m, new Color(1f, 0f, 0f));
-                foreach (var plane in plane_data.Values)
-                {
-                    var pos = plane.computed_sky_position;
-
-                    // Don't bother with planes below the horizon
-                    if (pos.z < 0f)
-                        continue;
-
-                    if (plane.observer_distance > 3f)
-                    {
-                        // To avoid large clipping distances move plane along the line from plane to viewer,
-                        // scaling the plane to avoid a weird visual size
-                        pos *= 3f / plane.observer_distance;
-                    }
+                    // Text labels
+                    Quat textquat = Quat.LookAt(pos, head_pos - Matrix.R(90f, 0f, 0f)*pos, Vec3.UnitX);
 
                     Text.Add(
                         $"{plane.callsign}\n({plane.observer_distance:F0} km)",
-                        Matrix.R(90f, 0f, 0f) * Matrix.T(pos),
+                        Matrix.R(90f, 0f, 0f) * /* Matrix.R(textquat) * */ Matrix.T(pos),
                         text_style_sky,
                         TextAlign.XCenter | TextAlign.YTop,
                         TextAlign.XLeft | TextAlign.YTop,

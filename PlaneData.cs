@@ -155,8 +155,6 @@ namespace DutchSkies
             // Compute transform needed to rotate and translate observer location (lat, lon) located
             // on the Earth surface onto (0, 0, 0), matching the local Up axis at (lat, lon) to the +Z axis
 
-            Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + last_altitude_km);
-
             Matrix M =
                 Matrix.R(0f, 0f, -last_heading)
                 *
@@ -165,6 +163,8 @@ namespace DutchSkies
                 Matrix.R(0f, last_lon - observer.lon, 0f)
                 *
                 Matrix.T(0f, 0f, -(Projection.RADIUS_KILOMETERS + observer.floor_altitude * 0.001f));
+
+            Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + last_altitude_km);
 
             last_sky_position = M.Transform(p) * 1000f;
 
