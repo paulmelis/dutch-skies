@@ -1,8 +1,5 @@
 ﻿https://github.com/Bunny83/SimpleJSON
 
-fix plane pitch
-
-
                 UI.WindowBegin("Head", ref windowPose, new Vec2(20, 0) * U.cm, UIWin.Normal);
                 Pose head = Input.Head;
                 UI.Label(String.Format("POS xyz: {0,9:F6} {1,9:F6} {2,9:F6}\nDirection: {3,9:F6} {4,9:F6} {5,9:F6}", 
@@ -13,6 +10,5 @@ fix plane pitch
 
 
 
-sky view:
+show number of planes in UI
 
-R(heading) * T(position[world-units]) * 
