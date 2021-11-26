@@ -32,7 +32,7 @@ namespace DutchSkies
         public float center_lat, center_lon;
         public float width, height;             // kilometers
 
-        public float min_x, max_x;              // EPSG 3857 extents
+        public float min_x, max_x;              // EPSG 3857 extents, in meters
         public float min_y, max_y;
         public float x_extent, y_extent;
 
@@ -107,7 +107,11 @@ namespace DutchSkies
             // Compute width of map at center latitude
             float r = Projection.RADIUS_KILOMETERS * MathF.Cos(center_lat / 180.0f * MathF.PI);    // Radius at center latitude in kilometers
             width = (current_configuration.max_lon - current_configuration.min_lon) / 360.0f * 2.0f * MathF.PI * r;
-            height = 1.0f * current_configuration.image_height / current_configuration.image_width * width;
+
+            // Height based on map aspect in pixels: 360.3565
+            // Height based on latitudes: 360.1501
+            //height = 1.0f * current_configuration.image_height / current_configuration.image_width * width;
+            height = 1.0f * (current_configuration.max_lat - current_configuration.min_lat) / 360.0f * 2.0f * MathF.PI * Projection.RADIUS_KILOMETERS;
             Log.Info("Map size (kilometers) = " + width + " x " + height);
 
             // This gives an approximate (but reasonable) X, Y range
@@ -128,7 +132,7 @@ namespace DutchSkies
             //Log.Info($"lon 5, lat 52 -> {xx}, {yy}");
         }
 
-        // Output x and y are in kilometers, relative to the map center
+        // Output x and y are in *kilometers*, relative to the map center
         public void Project(ref float x, ref float y, float lon, float lat)
         {
             float xx = 0.0f;

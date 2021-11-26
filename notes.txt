@@ -10,6 +10,9 @@
 
 
 
+rotate map text
+
+indicator for HL temperature and framerate?
 
 check use of geometric altitude for sky mode
 

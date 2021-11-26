@@ -139,6 +139,8 @@ namespace DutchSkies
             float last_x = 0f, last_y = 0f;
             map.Project(ref last_x, ref last_y, last_lon, last_lat);
 
+            Log.Info($"[{id}] {last_lat:F6}, {last_lon:F6} -> {last_x:F6}, {last_y:F6}");
+
             float last_altitude_km = last_altitude / 1000f;
 
             last_map_position = new Vec3(last_x, last_y, last_altitude_km);
@@ -152,22 +154,26 @@ namespace DutchSkies
             // Compute transform needed to rotate and translate observer location (lat, lon) located
             // on the Earth surface onto (0, 0, 0), matching the local Up axis at (lat, lon) to the +Z axis
 
+            // XXX a number of these can be precomputed and stored in ObserverData
             Matrix M =
-                Matrix.R(0f, 0f, -last_heading)
-                *
-                Matrix.R(observer.lat - last_lat, 0f, 0f)
+                Matrix.R(-last_lat, 0f, 0f)
                 *
                 Matrix.R(0f, last_lon - observer.lon, 0f)
                 *
+                Matrix.R(observer.lat, 0f, 0f)
+                *
+                // XXX Should also include have-above-floor distance, but the effect will be minimal
                 Matrix.T(0f, 0f, -(Projection.RADIUS_KILOMETERS + observer.floor_altitude * 0.001f));
 
             Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + last_altitude_km);
 
-            last_sky_position = M.Transform(p) * 1000f;
+            last_sky_position = M.Transform(p);
 
             // XXX distance from projection center, not head position, but should relatively be only very little off
-            observer_distance = last_sky_position.Length / 1000f;
+            observer_distance = last_sky_position.Length;
             //Log.Info($"[{callsign}] lat {last_lat:F6}, lon {last_lon:F6} -> p = {last_sky_position.x:F6}, {last_sky_position.y:F6}, {last_sky_position.z:F6}; dist {sky_distance:F0} km (sky position)");
+
+            last_sky_position *= 1000f;
 
             if (first_data)
             {
