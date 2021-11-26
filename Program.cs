@@ -107,13 +107,18 @@ namespace DutchSkies
             DetailLevel detail_level = DetailLevel.FULL;
             bool show_map_vlines = true, show_sky_vlines = false;
             bool show_flight_units = false;
+            bool show_track_lines = true;
             int num_map_planes = 0;
 
             Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
 
             TextStyle text_style_map = Text.MakeStyle(Default.Font, 0.5f * U.cm, new Color(1f, 0f, 0f));
             JSONNode root_node;
-           
+
+            int fps_num_frames = 0;
+            float fps_start_time = Time.Totalf;
+            float fps = 0f;
+
             // Core application loop
             while (SK.Step(() =>
             {
@@ -154,15 +159,17 @@ namespace DutchSkies
 
                 double draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
                 Vec3 head_pos = Input.Head.position;
+                const float track_line_thickness = 0.001f;
+                Color32 track_line_color = new Color32(0, 0, 255, 255);
 
-                Hierarchy.Push(Matrix.T(1f * Vec3.Forward -0.7f * Vec3.Up));
+                Hierarchy.Push(Matrix.T(1f * Vec3.Forward - 0.7f * Vec3.Up));
 
                 // Map
 
                 map_quad.Draw(map_material, Matrix.R(-90f, 0f, 0f));
 
                 // Planes
-                
+
                 num_map_planes = 0;
 
                 foreach (var plane in plane_data.Values)
@@ -173,7 +180,7 @@ namespace DutchSkies
                     plane.Update(draw_time);
                     num_map_planes++;
 
-                    var pos = Matrix.R(-90f,0f,0f) * plane.computed_map_position * map_scale_km_to_scene;
+                    var pos = Matrix.R(-90f, 0f, 0f) * plane.computed_map_position * map_scale_km_to_scene;
 
                     if (plane.on_ground)
                     {
@@ -250,6 +257,16 @@ namespace DutchSkies
 
                     if (show_map_vlines)
                         Lines.Add(pos, new Vec3(pos.x, 0f, pos.z), new Color(1f, 0f, 0f), 0.001f);
+
+                    // Historical track
+                    if (show_track_lines && plane.map_positions.Count >= 2)
+                    {
+                        LinePoint[] lp = new LinePoint[plane.map_positions.Count];
+                        int idx = 0;
+                        foreach (Vec3 p in plane.map_positions)
+                            lp[idx++] = new LinePoint(Matrix.R(-90f, 0f, 0f) * p * map_scale_km_to_scene, track_line_color, track_line_thickness);
+                        Lines.Add(lp);
+                    }
                 }
 
                 Hierarchy.Pop();
@@ -341,6 +358,15 @@ namespace DutchSkies
                         0f, -25f);
                 }
 
+                fps_num_frames++;
+                float now = Time.Totalf;
+                if (now - fps_start_time > 0.5f)
+                {
+                    fps = fps_num_frames / (now - fps_start_time);
+                    fps_num_frames = 0;
+                    fps_start_time = now;
+                }
+
                 // UI (drawn late, so we can show accurate statistics)
 
                 UI.WindowBegin("Controls", ref windowPose, new Vec2(35, 0) * U.cm, UIWin.Normal);
@@ -352,13 +378,17 @@ namespace DutchSkies
                 UI.SameLine();
                 if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
 
+                UI.Toggle("Track lines", ref show_track_lines);
+
                 UI.Toggle("Flight units", ref show_flight_units);
                 UI.SameLine();
                 UI.Toggle("VLines (map)", ref show_map_vlines);
                 UI.SameLine();
                 UI.Toggle("VLines (sky)", ref show_sky_vlines);
-                
+
                 UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
+                UI.SameLine();
+                UI.Text($"{fps:F1} FPS", TextAlign.BottomRight);
                 UI.WindowEnd();
 
             }));

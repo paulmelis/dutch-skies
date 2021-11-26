@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using SimpleJSON;
 using StereoKit;
 
@@ -36,6 +37,9 @@ namespace DutchSkies
         protected Vec3 last_sky_position;   // Sky-centric location (units = km, origin = observer location)
         protected Vec3 last_delta;          // Change in x, y, z (units = km/s)
 
+        // OpenSky data
+        public List<Vec3> map_positions;
+
         // Extrapolated position and orientation
         public Vec3 computed_map_position;  // Map units (kilometers)
         public Vec3 computed_sky_position;  // Meters
@@ -56,6 +60,7 @@ namespace DutchSkies
             last_altitude = 0f;
             using_geometric_altitude = false;
             first_data = true;
+            map_positions = new List<Vec3>();
         }
 
         public void ProcessDataUpdate(float session_time_received, JSONNode node, OSMMap map, ObserverData observer)
@@ -145,6 +150,8 @@ namespace DutchSkies
 
             last_map_position = new Vec3(last_x, last_y, last_altitude_km);
             computed_map_position = last_map_position;
+            if (!on_ground)
+                map_positions.Add(last_map_position);
 
             // Given spherical Earth right-handed model with 
             // - Radius = R = RADIUS_KILOMETERS
