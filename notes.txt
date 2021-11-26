@@ -8,14 +8,24 @@
                 UI.WindowEnd();
 
 
+combine map and sky parts where possible
+
+late/missing indicator
+
+align opensky query area with map area
+
+why so many inactive planes, even at the start?
 
 simplify plane model
 
-rotate map text
+rotate map text based on head pos
 
 indicator for HL temperature and framerate?
 
 check use of geometric altitude for sky mode
 
+allow map speciication, including image, through qr code
 
-reuse common matrices, such as rotx 90
+fps graph
+
+reset track lines button (+ max length?)

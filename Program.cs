@@ -51,6 +51,10 @@ namespace DutchSkies
 
             const float REALWORLD_MAP_WIDTH = 1.5f; // meters
 
+            Matrix ROT_MIN90_X = Matrix.R(-90f, 0f, 0f);
+            Matrix ROT_180_Y = Matrix.R(0f, 180f, 0f);
+            Matrix MAP_PLACEMENT_XFORM = Matrix.T(1f * Vec3.Forward - 0.7f * Vec3.Up);
+
             OSMMap osm_map = new OSMMap();
 
             Tex map_texture = Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
@@ -70,6 +74,7 @@ namespace DutchSkies
                 Log.Err("Could not load plane model");
 
             const float plane_size_m = 0.015f;  // Decent size
+            Matrix MAP_SCALE_PLANE_SIZE = Matrix.S(plane_size_m);
 
             // Rotate and scale plane model to put it in the XY plane, with the nose pointing in the -Z direction (check this)
             //plane_model.RootNode.LocalTransform = plane_model.RootNode.LocalTransform * Matrix.S(plane_size_m); // * Matrix.R(90f, 0f, 0f);
@@ -112,9 +117,15 @@ namespace DutchSkies
             bool show_track_lines = true;
             int num_map_planes = 0;
 
+            const float track_line_thickness = 0.001f;
+            Color32 track_line_color = new Color32(0, 0, 255, 255);
+            Color VLINE_COLOR = new Color(1f, 0f, 0f);
+            Color SKY_TRACK_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
+
             Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
 
             TextStyle text_style_map = Text.MakeStyle(Default.Font, 0.5f * U.cm, new Color(1f, 0f, 0f));
+            TextStyle text_style_sky = Text.MakeStyle(Default.Font, 15f * U.m, new Color(1f, 0f, 0f));
             JSONNode root_node;
 
             int fps_num_frames = 0;
@@ -130,7 +141,9 @@ namespace DutchSkies
                 // World origin (for debugging)
                 Lines.AddAxis(Pose.Identity, 0.1f);
 
+                //
                 // Process received plane data, if any
+                //
 
                 while (!data_updates.IsEmpty)
                 {
@@ -161,15 +174,13 @@ namespace DutchSkies
 
                 double draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
                 Vec3 head_pos = Input.Head.position;
-                const float track_line_thickness = 0.001f;
-                Color32 track_line_color = new Color32(0, 0, 255, 255);
-
-                Hierarchy.Push(Matrix.T(1f * Vec3.Forward - 0.7f * Vec3.Up));
+                
+                Hierarchy.Push(MAP_PLACEMENT_XFORM);
 
                 // Map
 
                 if (map_visible)
-                    map_quad.Draw(map_material, Matrix.R(-90f, 0f, 0f));
+                    map_quad.Draw(map_material, ROT_MIN90_X);
 
                 // Planes
 
@@ -183,29 +194,36 @@ namespace DutchSkies
                     plane.Update(draw_time);
                     num_map_planes++;
 
-                    var pos = Matrix.R(-90f, 0f, 0f) * plane.computed_map_position * map_scale_km_to_scene;
+                    var pos = ROT_MIN90_X * plane.computed_map_position * map_scale_km_to_scene;
 
                     if (plane.on_ground)
                     {
                         // XXX could set y to 0, as there seem to be cases where a plane is marked on-ground, but has an incorrect altitude value
-                        plane_ground_marker.Draw(plane_marker_material, Matrix.R(-90f, 0f, 0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                        plane_ground_marker.Draw(plane_marker_material, ROT_MIN90_X * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                         continue;
                     }
 
                     if (map_show_planes)
                     {
                         //Lines.AddAxis(new Pose(plane.computed_position * map_scale_km_to_scene, Quat.FromAngles(0f, 0f, -plane.last_heading)));
-                        plane_model.Draw(Matrix.S(plane_size_m) * Matrix.R(-90f, 0f, 0f) * Matrix.R(-plane.computed_climb_angle * 2f, 0f, 0f)
+                        plane_model.Draw(MAP_SCALE_PLANE_SIZE * ROT_MIN90_X * Matrix.R(-plane.computed_climb_angle * 2f, 0f, 0f)
                             * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                     }
 
                     // Plane information
 
-                    if (detail_level == DetailLevel.CALLSIGN)
+                    // XXX also for sky planes?
+                    string callsign = "${plane.callsign}";
+                    if (plane.updateState == PlaneData.UpdateState.LATE)
+                        callsign += "*";
+                    else if (plane.updateState == PlaneData.UpdateState.MISSING)
+                        callsign = "(" + callsign + ")";
+
+                        if (detail_level == DetailLevel.CALLSIGN)
                     {
                         Text.Add(
                             $"{plane.callsign}",
-                            Matrix.R(0f, 180f, 0f) * Matrix.T(pos),
+                           ROT_180_Y * Matrix.T(pos),
                             text_style_map,
                             TextAlign.XLeft | TextAlign.YTop,
                             TextAlign.XLeft | TextAlign.YTop,
@@ -252,7 +270,7 @@ namespace DutchSkies
 
                         Text.Add(
                             $"{plane.callsign}\n{plane.last_heading:F0}°\n{sstring}\n{astring}\n{vstring}",
-                            Matrix.R(0f, 180f, 0f) * Matrix.T(text_pos),
+                            ROT_180_Y * Matrix.T(text_pos),
                             text_style_map,
                             pos_align,
                             TextAlign.XLeft | TextAlign.YTop,
@@ -262,7 +280,7 @@ namespace DutchSkies
                     // Plane lines vertically to the ground position
 
                     if (show_map_vlines)
-                        Lines.Add(pos, new Vec3(pos.x, 0f, pos.z), new Color(1f, 0f, 0f), 0.001f);
+                        Lines.Add(pos, new Vec3(pos.x, 0f, pos.z), VLINE_COLOR, 0.001f);
 
                     // Historical track
                     if (show_track_lines && plane.map_positions.Count >= 2)
@@ -270,7 +288,7 @@ namespace DutchSkies
                         LinePoint[] lp = new LinePoint[plane.map_positions.Count];
                         int idx = 0;
                         foreach (Vec3 p in plane.map_positions)
-                            lp[idx++] = new LinePoint(Matrix.R(-90f, 0f, 0f) * p * map_scale_km_to_scene, track_line_color, track_line_thickness);
+                            lp[idx++] = new LinePoint(ROT_MIN90_X * p * map_scale_km_to_scene, track_line_color, track_line_thickness);
                         Lines.Add(lp);
                     }
                 }
@@ -282,12 +300,10 @@ namespace DutchSkies
                 // Assume Forward (-Z) is pointing North
                 //
 
-                TextStyle text_style_sky = Text.MakeStyle(Default.Font, 15f * U.m, new Color(1f, 0f, 0f));
-
                 foreach (var plane in plane_data.Values)
                 {
-                    var pos = Matrix.R(-90f, 0f, 0f).Transform(plane.computed_sky_position);
-                    var prev_pos = Matrix.R(-90f, 0f, 0f).Transform(plane.previous_sky_position);
+                    var pos = ROT_MIN90_X.Transform(plane.computed_sky_position);
+                    var prev_pos = ROT_MIN90_X.Transform(plane.previous_sky_position);
 
                     if (plane.on_ground)
                         continue;
@@ -313,12 +329,12 @@ namespace DutchSkies
                             prev_pos *= 3f / plane.observer_distance;
                             Log.Info($"[{plane.callsign}] position scaled to {pos}");
 
-                            plane_model.Draw(Matrix.S(30f) * Matrix.R(-90f, 0f, 0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                            plane_model.Draw(Matrix.S(30f) * ROT_MIN90_X * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                         }
                         else
                         {
                             // Plane with length 100 meter, larger than an A380 ;-)
-                            plane_model.Draw(Matrix.S(100f) * Matrix.R(-90f, 0f, 0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                            plane_model.Draw(Matrix.S(100f) * ROT_MIN90_X * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                             //Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
                         }
                     }
@@ -327,11 +343,11 @@ namespace DutchSkies
                     if (show_sky_vlines)
                     {
                         // Vertical line, start slightly below plane to make room for text
-                        Lines.Add(new Vec3(pos.x, pos.y - 120f, pos.z), new Vec3(pos.x, 0f, pos.z), new Color(1f, 0f, 0f), 3f);
+                        Lines.Add(new Vec3(pos.x, pos.y - 120f, pos.z), new Vec3(pos.x, 0f, pos.z), VLINE_COLOR, 3f);
                     }
 
                     // Track line
-                    Lines.Add(prev_pos, pos, new Color(0.4f, 1f, 0.4f), 3f);
+                    Lines.Add(prev_pos, pos, SKY_TRACK_LINE_COLOR, 3f);
 
                     // Text labels
                     Quat textquat = Quat.LookAt(pos, head_pos, Vec3.UnitY);
@@ -418,7 +434,7 @@ namespace DutchSkies
         }
         static async void FetchPlaneUpdates(object update_queue_obj)
         {
-            const string URL = "https://opensky-network.org/api/states/all?lamin=50.492&lomin=2.856&lamax=53.883&lomax=7.535";
+            const string URL = "https://opensky-network.org/api/states/all?lamin50.513427&lomin=2.812500&lamax=53.748711&lomax=7.734375";
 
             ConcurrentQueue<JSONNode> update_queue = update_queue_obj as ConcurrentQueue<JSONNode>;
 
