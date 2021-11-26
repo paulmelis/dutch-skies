@@ -105,6 +105,8 @@ namespace DutchSkies
 
             Pose windowPose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
             DetailLevel detail_level = DetailLevel.FULL;
+            bool map_visible = true;
+            bool map_show_planes = true, sky_show_planes = true;
             bool show_map_vlines = true, show_sky_vlines = false;
             bool show_flight_units = false;
             bool show_track_lines = true;
@@ -166,7 +168,8 @@ namespace DutchSkies
 
                 // Map
 
-                map_quad.Draw(map_material, Matrix.R(-90f, 0f, 0f));
+                if (map_visible)
+                    map_quad.Draw(map_material, Matrix.R(-90f, 0f, 0f));
 
                 // Planes
 
@@ -189,9 +192,12 @@ namespace DutchSkies
                         continue;
                     }
 
-                    //Lines.AddAxis(new Pose(plane.computed_position * map_scale_km_to_scene, Quat.FromAngles(0f, 0f, -plane.last_heading)));
-                    plane_model.Draw(Matrix.S(plane_size_m) * Matrix.R(-90f, 0f, 0f) * Matrix.R(-plane.computed_climb_angle * 2f, 0f, 0f)
-                        * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                    if (map_show_planes)
+                    {
+                        //Lines.AddAxis(new Pose(plane.computed_position * map_scale_km_to_scene, Quat.FromAngles(0f, 0f, -plane.last_heading)));
+                        plane_model.Draw(Matrix.S(plane_size_m) * Matrix.R(-90f, 0f, 0f) * Matrix.R(-plane.computed_climb_angle * 2f, 0f, 0f)
+                            * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                    }
 
                     // Plane information
 
@@ -290,29 +296,33 @@ namespace DutchSkies
                     if (pos.y < 0f)
                         continue;
 
-                    // Plane
-                    if (plane.observer_distance > 3f)
+                    if (sky_show_planes)
                     {
-                        // To avoid large clipping distances move plane along the line from plane to viewer,
-                        // with a smaller plane model to avoid a weird scaling visual issues
+                        // Plane
+                        if (plane.observer_distance > 3f)
+                        {
+                            // To avoid large clipping distances move plane along the line from plane to viewer,
+                            // with a smaller plane model to avoid a weird scaling visual issues
 
-                        // Vector from head to plane 
-                        //Vec3 v = pos - Input.Head.position;
-                        //v.Normalize();
+                            // Vector from head to plane 
+                            //Vec3 v = pos - Input.Head.position;
+                            //v.Normalize();
 
-                        //pos = Input.Head.position + 3000f * v;
-                        pos *= 3f / plane.observer_distance;
-                        prev_pos *= 3f / plane.observer_distance;
-                        Log.Info($"[{plane.callsign}] position scaled to {pos}");
+                            //pos = Input.Head.position + 3000f * v;
+                            pos *= 3f / plane.observer_distance;
+                            prev_pos *= 3f / plane.observer_distance;
+                            Log.Info($"[{plane.callsign}] position scaled to {pos}");
 
-                        plane_model.Draw(Matrix.S(30f) * Matrix.R(-90f, 0f, 0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                            plane_model.Draw(Matrix.S(30f) * Matrix.R(-90f, 0f, 0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                        }
+                        else
+                        {
+                            // Plane with length 100 meter, larger than an A380 ;-)
+                            plane_model.Draw(Matrix.S(100f) * Matrix.R(-90f, 0f, 0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                            //Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
+                        }
                     }
-                    else
-                    {
-                        // Plane with length 100 meter, larger than an A380 ;-)
-                        plane_model.Draw(Matrix.S(100f) * Matrix.R(-90f, 0f, 0f) * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
-                        //Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
-                    }
+
 
                     if (show_sky_vlines)
                     {
@@ -370,6 +380,16 @@ namespace DutchSkies
                 // UI (drawn late, so we can show accurate statistics)
 
                 UI.WindowBegin("Controls", ref windowPose, new Vec2(35, 0) * U.cm, UIWin.Normal);
+
+                UI.Toggle("Flight units", ref show_flight_units);
+
+                UI.PushId("map");
+                UI.Label("Map:");
+                UI.Toggle("Visible", ref map_visible);
+                UI.SameLine();
+                UI.Toggle("Planes", ref map_show_planes);
+                UI.SameLine();
+                UI.Toggle("VLines", ref show_map_vlines);
                 UI.Label("Plane details");
                 UI.SameLine();
                 if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
@@ -377,14 +397,15 @@ namespace DutchSkies
                 if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
                 UI.SameLine();
                 if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
-
                 UI.Toggle("Track lines", ref show_track_lines);
+                UI.PopId();
 
-                UI.Toggle("Flight units", ref show_flight_units);
+                UI.PushId("sky");
+                UI.Label("Sky:");
+                UI.Toggle("Planes", ref sky_show_planes);
                 UI.SameLine();
-                UI.Toggle("VLines (map)", ref show_map_vlines);
-                UI.SameLine();
-                UI.Toggle("VLines (sky)", ref show_sky_vlines);
+                UI.Toggle("VLines", ref show_sky_vlines);
+                UI.PopId();
 
                 UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
                 UI.SameLine();
