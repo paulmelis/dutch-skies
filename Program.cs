@@ -14,13 +14,22 @@ namespace DutchSkies
     {
         public float lat, lon;
         public float floor_altitude;  // meters
+        public Vec3 map_position;
 
         public ObserverData()
         {
             // SURF building at Amsterdam Science Park
             lat = 52.357036140185144f;
             lon = 4.954487434653384f;
-            floor_altitude = /* street level */ -3.64f + 3f /* one floor */;
+            floor_altitude = /* street level */ -3.64f + 4f /* one floor */;
+        }
+
+        public void update_map_position(OSMMap map)
+        {
+            float x = 0f, y = 0f;
+            map.Project(ref x, ref y, lon, lat);
+            map_position = new Vec3(x, y, floor_altitude/1000f);
+            Log.Info($"observer map pos = {x:F6}, {y:F6}");
         }
     };
 
@@ -85,6 +94,10 @@ namespace DutchSkies
             plane_marker_material[MatParamName.ColorTint] = new Color(0f, 0f, 1f);
 
             ObserverData observer = new ObserverData();
+            observer.update_map_position(osm_map);
+            Mesh observer_marker = Mesh.GenerateCylinder(0.001f, 0.01f, Vec3.UnitY, 8);
+            Material observer_marker_material = Default.Material.Copy();
+            observer_marker_material[MatParamName.ColorTint] = new Color(0f, 1f, 0f);
 
             // Floor (for non-seethrough devices)
 
@@ -292,6 +305,12 @@ namespace DutchSkies
                         Lines.Add(lp);
                     }
                 }
+
+
+                // Observer location
+
+                Vec3 observer_pos = ROT_MIN90_X.Transform(observer.map_position) * map_scale_km_to_scene;
+                observer_marker.Draw(observer_marker_material, Matrix.T(0f,0.005f,0f) * Matrix.T(observer_pos));
 
                 Hierarchy.Pop();
 
