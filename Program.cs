@@ -434,7 +434,7 @@ namespace DutchSkies
         }
         static async void FetchPlaneUpdates(object update_queue_obj)
         {
-            const string URL = "https://opensky-network.org/api/states/all?lamin50.513427&lomin=2.812500&lamax=53.748711&lomax=7.734375";
+            const string URL = "https://opensky-network.org/api/states/all?lamin=50.513427&lomin=2.812500&lamax=53.748711&lomax=7.734375";
 
             ConcurrentQueue<JSONNode> update_queue = update_queue_obj as ConcurrentQueue<JSONNode>;
 

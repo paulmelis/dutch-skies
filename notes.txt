@@ -24,7 +24,10 @@ indicator for HL temperature and framerate?
 
 check use of geometric altitude for sky mode
 
-allow map speciication, including image, through qr code
+allow map speciication, including image?, through qr code
+- map name (for UI)
+- lat/lon extents
+- either: zoom level (OSM), or URL to custom map image
 
 fps graph
 
