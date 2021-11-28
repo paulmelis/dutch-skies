@@ -41,7 +41,7 @@ XXX
 
 ## License
 
-All files, except those listed under the Attributions section below, are licensed
+All files, except those listed under the Attributions section, are licensed
 under a Creative Commons [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 license, which is summarized below. See LICENSE.txt for the full licensing terms. 
 
