@@ -45,7 +45,7 @@ All files, except those listed under the Attributions section below, are license
 under a Creative Commons [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 license, which is summarized below. See LICENSE.txt for the full licensing terms. 
 
-* You are free to:
+You are free to:
 
 * Share - copy and redistribute the material in any medium or format
 
@@ -140,12 +140,11 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
 * SimpleJSON.cs is from the [SimpleJSON](https://github.com/Bunny83/SimpleJSON) repository.
   See SimpleJSON-LICENSE.txt for the original license.
   
-* Airplane 3D model based on a model retrieved from Google Poly (which it was still active) 
+* Airplane 3D model based on a model retrieved from Google Poly (while it was still active) 
   under the name "Airplane", originally licensed under a [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) 
   license. The included model is an edited version of the retrieved model. 
 
 * Compass rose adapted from https://commons.wikimedia.org/wiki/File:Windrose.svg,
   original (Windrose.original.svg) and redistributed file (Windrose.svg) licensed 
-  under [Creative Commons Attribution-Share Alike 3.0 Unported]
-  (https://creativecommons.org/licenses/by-sa/3.0/deed.en).
+  under [Creative Commons Attribution-Share Alike 3.0 Unported](https://creativecommons.org/licenses/by-sa/3.0/deed.en).
   
