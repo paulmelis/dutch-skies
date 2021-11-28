@@ -76,7 +76,7 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
 
 ## FAQ
 
-* **In Sky Mode the virtual planes are not aligned very well with the real-world planes!**
+* **The sky-mode virtual planes are not aligned very well with the real-world planes!**
 
   Yes, this is expected and almost unavoidable, although the virtual overlay
   can be tweak to be fairly close to the real planes. It certainly should be accurate enough
@@ -120,7 +120,7 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
   
   For a different area in the world it might make more sense to includ height, though.
   
-* **Why not use a (3D) terrain service, such as Bing Maps? **
+* **Why not use a (3D) terrain service, such as Bing Maps?**
 
   Indeed, there is the Stereo Kit [Bing Maps sample](https://github.com/maluoi/StereoKit-BingMaps),
   although I did not try that, nor looked at the code. The reason is that it
