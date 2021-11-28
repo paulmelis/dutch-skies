@@ -5,7 +5,23 @@
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
 
+refactor map and data handling
+
+observer position should stand out more (red-white pole?). plus, don't draw
+if the map doesn't include the location.
+
 add log window
+
+provide orientation trimming
+
+allow map speciication, including image?, through qr code
+- map name (for UI)
+- lat/lon extents
+- either: zoom level (OSM), or URL to custom map image
+
+reset track lines button (+ max length?)
+
+rotate map text based on head pos
 
 combine map and sky parts where possible
 
@@ -15,24 +31,17 @@ align opensky query area with map area
 
 why so many inactive planes, even at the start?
 
-rotate map text based on head pos
-
 indicator for HL temperature?
 
 check use of geometric altitude for sky mode
 
-allow map speciication, including image?, through qr code
-- map name (for UI)
-- lat/lon extents
-- either: zoom level (OSM), or URL to custom map image
 
 fps graph
 
-reset track lines button (+ max length?)
+
 
 
 HoloLens2 doesn't support GPS Sensor, but an app can acquire the user's current location via Wi-Fi. It is less precise but more likely to be available indoors. You can invoke the Windows Runtime API Geolocator.GetGeopositionAsync method in the Windows.Devices.Geolocation namespace to retrieve the current location of the device.
 https://docs.microsoft.com/en-us/uwp/api/windows.devices.geolocation.geolocator.getgeopositionasync?view=winrt-22000#Windows_Devices_Geolocation_Geolocator_GetGeopositionAsync
 
 
-provide orientation trimming
