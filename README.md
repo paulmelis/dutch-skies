@@ -75,6 +75,14 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
 
 ## FAQ
 
+* **The planes seem to be jump a bit every few seconds**
+
+  Updated plane location data from the OpenSky Network is only retrieved every few seconds. 
+  The movemement of the virtual planes in extrapolated based on the last received data, 
+  so might be a little bit off until the next set of data points is retrieved.
+  
+  Also see the next question.
+
 * **The sky-mode virtual planes are not aligned very well with the real-world planes!**
 
   Yes, this is expected and almost unavoidable, although the virtual overlay
@@ -106,7 +114,7 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
      
      But setting the *orientation* of the virtual world with any precision is a bit 
      tricky, and any rotation away from true North will be quite noticeable, as the 
-     virtual planes will be either behind or in front of their real planes.    
+     virtual planes will be either behind or in front of their real planes.
 
 * **How about including terrain height in the map?**
 
