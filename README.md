@@ -1,6 +1,8 @@
 # Dutch Skies - A Mixed Reality view of air traffic over The Netherlands
 
 
+XXX Submitted to the [Mixed Reality Challenge: StereoKit (C# and OpenXR)](https://mixed-reality-stereokit.devpost.com/)
+
 
 Dutch Skies is Copyright (C) 2021 Paul Melis, SURF (paul.melis@surf.nl)
 
@@ -74,7 +76,7 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
 
 ## FAQ
 
-* In Sky Mode the virtual planes are not aligned very well with the real-world planes!
+* **In Sky Mode the virtual planes are not aligned very well with the real-world planes!**
 
   Yes, this is expected and almost unavoidable, although the virtual overlay
   can be tweak to be fairly close to the real planes. It certainly should be accurate enough
@@ -107,7 +109,7 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
      tricky, and any rotation away from true North will be quite noticeable, as the 
      virtual planes will be either behind or in front of their real planes.    
 
-* How about including terrain height in the map?
+* **How about including terrain height in the map?**
 
   For the case of The Netherlands this doesn't make much sense. The highest
   "mountain" in The Netherlands is 321m high (the Vaalserberg). The lowest point
@@ -118,7 +120,7 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
   
   For a different area in the world it might make more sense to includ height, though.
   
-* Why not use a (3D) terrain service, such as Bing Maps? 
+* **Why not use a (3D) terrain service, such as Bing Maps? **
 
   Indeed, there is the Stereo Kit [Bing Maps sample](https://github.com/maluoi/StereoKit-BingMaps),
   although I did not try that, nor looked at the code. The reason is that it
@@ -129,10 +131,13 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
   use and customize. It does not need registration, nor an API key. Adding your
   own maps is fairly easy, see XXX.
 
-* Why not simply hard-code OpenStreetMap tile downloading in the code?
+* **Why not simply hard-code OpenStreetMap tile downloading in the code? Why the indirection
+  with the JSON files?**
 
-  This is against the OSM [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/),
-  or at least, it's strongly discouraged.
+  Hardcoding the URLs of OSM tile servers is against the OSM [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/),
+  or at least, it's strongly discouraged. And using the JSON file to specify tile
+  servers allows future extensions to use other tile schemes and servers, or even
+  use a XXX [local OSM cache](osmcache).
   
 
 ## Attributions
