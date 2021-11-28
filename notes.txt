@@ -12,9 +12,11 @@ combine map and sky parts where possible
 
 late/missing indicator
 
-align opensky query area with map area
-
 why so many inactive planes, even at the start?
+ah, seems these are planes that are in the query results, yet haven't have data updates in a long time?
+e.g. directly after startup:
+[SK info] Marking plane 484257 (KT) LATE, as we haven't had data updates in 279.398s
+[SK info] Marking plane 06e010 (RWD701) LATE, as we haven't had data updates in 131.398s
 
 simplify plane model
 
@@ -32,3 +34,6 @@ allow map speciication, including image?, through qr code
 fps graph
 
 reset track lines button (+ max length?)
+
+combining images
+https://www.codeproject.com/Articles/502249/Combineplusseveralplusimagesplustoplusformplusaplu

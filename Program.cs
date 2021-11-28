@@ -66,16 +66,24 @@ namespace DutchSkies
 
             OSMMap osm_map = new OSMMap();
 
-            Tex map_texture = Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
+            Tex map_texture = null; // Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
             // XXX should the map be square? or aspect based on resolution?
             float map_geo_height = REALWORLD_MAP_WIDTH * osm_map.height / osm_map.width;
             float map_scale_km_to_scene = REALWORLD_MAP_WIDTH / osm_map.width;
             Log.Info($"Map geometry size = {REALWORLD_MAP_WIDTH} x {map_geo_height}");
             Mesh map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, map_geo_height), -Vec3.Forward, Vec3.Up);
             Material map_material = Default.Material.Copy();
+#if false
             map_material[MatParamName.DiffuseTex] = map_texture;
             // Disable backface culling on the map for now, for debugging
             map_material.FaceCull = Cull.None;
+#endif
+            ConcurrentQueue<byte[]> map_updates = new ConcurrentQueue<byte[]>();
+
+            var map_thread = new Thread(OSMTiles.FetchMapTiles);
+            map_thread.IsBackground = true;
+            map_thread.Start(new Tuple<ConcurrentQueue<byte[]>, MapConfiguration>(map_updates, osm_map.current_configuration));
+            Log.Info("Data thread started");
 
             // Create assets used by the app
             Model plane_model = Model.FromFile("Airplane-cleaned.rotated.glb");
@@ -141,6 +149,8 @@ namespace DutchSkies
             TextStyle text_style_sky = Text.MakeStyle(Default.Font, 15f * U.m, new Color(1f, 0f, 0f));
             JSONNode root_node;
 
+            byte[] map_image;
+
             int fps_num_frames = 0;
             float fps_start_time = Time.Totalf;
             float fps = 0f;
@@ -160,6 +170,14 @@ namespace DutchSkies
 
                 while (!data_updates.IsEmpty)
                 {
+                    if (map_updates.TryDequeue(out map_image))
+                    {
+                        Log.Info("Got updated map image!");
+                        map_material[MatParamName.DiffuseTex] = Tex.FromMemory(map_image);
+                        // Disable backface culling on the map for now, for debugging
+                        map_material.FaceCull = Cull.None;
+                    }
+
                     data_updates.TryDequeue(out root_node);
 
                     JSONNode states = root_node["states"];
@@ -346,7 +364,7 @@ namespace DutchSkies
                             //pos = Input.Head.position + 3000f * v;
                             pos *= 3f / plane.observer_distance;
                             prev_pos *= 3f / plane.observer_distance;
-                            Log.Info($"[{plane.callsign}] position scaled to {pos}");
+                            //Log.Info($"[{plane.callsign}] position scaled to {pos}");
 
                             plane_model.Draw(Matrix.S(30f) * ROT_MIN90_X * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                         }
