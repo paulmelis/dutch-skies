@@ -137,7 +137,7 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
   Hardcoding the URLs of OSM tile servers is against the OSM [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/),
   or at least, it's strongly discouraged. And using the JSON file to specify tile
   servers allows future extensions to use other tile schemes and servers, or even
-  use a XXX [local OSM cache](osmcache).
+  use a [local OSM cache](https://github.com/paulmelis/osmcache).
   
 
 ## Attributions
