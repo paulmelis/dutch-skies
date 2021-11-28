@@ -40,7 +40,6 @@ to view a different area yourself.
 XXX
 
 
-
 ## License
 
 All files, except those listed under the Attributions section, are licensed
@@ -79,7 +78,7 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
 * **The sky-mode virtual planes are not aligned very well with the real-world planes!**
 
   Yes, this is expected and almost unavoidable, although the virtual overlay
-  can be tweak to be fairly close to the real planes. It certainly should be accurate enough
+  can be tweaked to be fairly close to the real planes. It certainly should be accurate enough
   to track and identify the real planes without too much trouble.
   
   There are (at least) three reasons for the mismatch:
@@ -90,7 +89,7 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
      field in the [REST API](https://openskynetwork.github.io/opensky-api/rest.html)).
      In that one second a fast-flying plane will move quite a bit across the sky. 
      So even though the position is given with precision, the exact moment of *when* 
-     the plane was at that position is not known with much precision. 
+     the plane was at that position is not known accurately enough. 
      
   2. As the data from the OpenSky Network only provides a plane's location at some
      moment in the past, a prediction needs to be made where the plane is *right now*, in order
@@ -111,19 +110,20 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
 
 * **How about including terrain height in the map?**
 
-  For the case of The Netherlands this doesn't make much sense. The highest
+  For the case of The Netherlands this doesn't have much value. The highest
   "mountain" in The Netherlands is 321m high (the Vaalserberg). The lowest point
   is around 6.74m *below* sea level. The default map is around 315km wide, shown
   at 1.5m physical size in the MR world. That translates to 210m of height
-  per *millimeter* of map. So the height difference for The Netherlands would amount
-  to less than 2 millimeters in MR, not really worth it.
+  per *millimeter* of physical (MR) map size. So the height difference for The 
+  Netherlands would amount to less than 2 millimeters in MR, not really worth it.
   
-  For a different area in the world it might make more sense to includ height, though.
+  For a different area in the world, or when using a much smaller map of mountain
+  terrain, it might make more sense to include height, though.
   
 * **Why not use a (3D) terrain service, such as Bing Maps?**
 
   Indeed, there is the Stereo Kit [Bing Maps sample](https://github.com/maluoi/StereoKit-BingMaps),
-  although I did not try that, nor looked at the code. The reason is that it
+  although I did not try it, nor looked at the code. The reason is that it
   requires a Bing Maps API key, plus it would base this code on non-free (and commercial)
   software. The same would hold for other similar services.
   
@@ -134,9 +134,9 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
 * **Why not simply hard-code OpenStreetMap tile downloading in the code? Why the indirection
   with the JSON files?**
 
-  Hardcoding the URLs of OSM tile servers is against the OSM [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/),
+  Hardcoding the URLs of OSM tile servers in the code is against the OSM [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/),
   or at least, it's strongly discouraged. And using the JSON file to specify tile
-  servers allows future extensions to use other tile schemes and servers, or even
+  servers allows future extensions to use other tile schemes and servers, or to 
   use a [local OSM cache](https://github.com/paulmelis/osmcache).
   
 
