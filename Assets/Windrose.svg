@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.0"
+   width="726"
+   height="726"
+   id="windrose"
+   sodipodi:version="0.32"
+   inkscape:version="1.1.1 (3bf5ae0d25, 2021-09-20, custom)"
+   sodipodi:docname="Windrose-edited.svg"
+   inkscape:output_extension="org.inkscape.output.svg.inkscape"
+   inkscape:export-filename="/home/melis/concepts/dutch-skies/Assets/Windrose.png"
+   inkscape:export-xdpi="67.699997"
+   inkscape:export-ydpi="67.699997"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <metadata
+     id="metadata124">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <sodipodi:namedview
+     inkscape:window-height="989"
+     inkscape:window-width="1920"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     guidetolerance="10.0"
+     gridtolerance="10.0"
+     objecttolerance="10.0"
+     borderopacity="1.0"
+     bordercolor="#666666"
+     pagecolor="#ffffff"
+     id="base"
+     inkscape:zoom="0.5"
+     inkscape:cx="329"
+     inkscape:cy="406"
+     inkscape:window-x="0"
+     inkscape:window-y="33"
+     inkscape:current-layer="windrose"
+     inkscape:pagecheckerboard="0"
+     showgrid="false"
+     fit-margin-top="20"
+     fit-margin-left="20"
+     fit-margin-right="20"
+     fit-margin-bottom="20"
+     inkscape:window-maximized="1" />
+  <defs
+     id="defs4" />
+  <g
+     id="g2294"
+     transform="translate(-33.846328,-29.579174)">
+    <path
+       d="M 400,400 V 335 L 555,245 Z"
+       style="fill:#000000;stroke:#000000;stroke-width:1"
+       id="pfeil-rechtsoben-oben" />
+    <path
+       d="m 400,400 h 65 l 90,-155 z"
+       style="fill:#ffffff;fill-rule:evenodd;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       id="pfeil-rechtsoben-rechts" />
+    <path
+       d="m 400,400 h 65 l 90,155 z"
+       style="fill:#000000;stroke:#000000;stroke-width:1"
+       id="pfeil-rechtsunten-rechts" />
+    <path
+       d="m 400,400 v 65 l 155,90 z"
+       style="fill:#ffffff;stroke:#000000;stroke-width:1"
+       id="pfeil-rechtsunten-unten" />
+    <path
+       d="m 400,400 v 65 l -155,90 z"
+       style="fill:#000000;stroke:#000000;stroke-width:1"
+       id="pfeil-linksunten-unten" />
+    <path
+       d="M 400,400 H 335 L 245,555 Z"
+       style="fill:#ffffff;stroke:#000000;stroke-width:1"
+       id="pfeil-linksunten-links" />
+    <path
+       d="M 400,400 H 335 L 245,245 Z"
+       style="fill:#000000;stroke:#000000;stroke-width:1"
+       id="pfeil-linksoben-links" />
+    <path
+       d="M 400,400 V 335 L 245,245 Z"
+       style="fill:#ffffff;stroke:#000000;stroke-width:1"
+       id="pfeil-linksoben-oben" />
+    <path
+       d="m 400,100 -45,255 45,45 z"
+       style="fill:#000000;stroke:#000000;stroke-width:1"
+       id="pfeil-oben-links" />
+    <path
+       d="m 400,100 45,255 -45,45 z"
+       style="fill:#ffffff;stroke:#000000;stroke-width:1"
+       id="pfeil-oben-rechts" />
+    <path
+       d="M 700,400 445,355 400,400 Z"
+       style="fill:#000000;stroke:#000000;stroke-width:1"
+       id="pfeil-rechts-oben" />
+    <path
+       d="M 700,400 445,445 400,400 Z"
+       style="fill:#ffffff;stroke:#000000;stroke-width:1"
+       id="pfeil-rechts-unten" />
+    <path
+       d="M 400,700 445,445 400,400 Z"
+       style="fill:#000000;stroke:#000000;stroke-width:1"
+       id="pfeil-unten-rechts" />
+    <path
+       d="M 400,700 355,445 400,400 Z"
+       style="fill:#ffffff;stroke:#000000;stroke-width:1"
+       id="pfeil-unten-links" />
+    <path
+       d="m 100,400 255,45 45,-45 z"
+       style="fill:#000000;stroke:#000000;stroke-width:1"
+       id="pfeil-links-unten" />
+    <path
+       d="m 100,400 255,-45 45,45 z"
+       style="fill:#ffffff;stroke:#000000;stroke-width:1"
+       id="pfeil-links-oben" />
+  </g>
+  <text
+     xml:space="preserve"
+     style="font-size:42.6667px;line-height:10.1292px;font-family:'Ekushey Bangla';-inkscape-font-specification:'Ekushey Bangla';letter-spacing:0px;word-spacing:0px;fill:#000000;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="350.78329"
+     y="51.604023"
+     id="text2490"><tspan
+       sodipodi:role="line"
+       id="tspan2488"
+       x="350.78329"
+       y="51.604023"
+       style="font-size:42.6667px">N</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:42.6667px;line-height:10.1292px;font-family:'Ekushey Bangla';-inkscape-font-specification:'Ekushey Bangla';letter-spacing:0px;word-spacing:0px;fill:#000000;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="679.73016"
+     y="385.72202"
+     id="text5390"><tspan
+       sodipodi:role="line"
+       id="tspan5388"
+       x="679.73016"
+       y="385.72202"
+       style="font-size:42.6667px">E</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:42.6667px;line-height:10.1292px;font-family:'Ekushey Bangla';-inkscape-font-specification:'Ekushey Bangla';letter-spacing:0px;word-spacing:0px;fill:#000000;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="350.79944"
+     y="712.62531"
+     id="text5876"><tspan
+       sodipodi:role="line"
+       id="tspan5874"
+       x="350.79944"
+       y="712.62531"
+       style="font-size:42.6667px">S</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:42.6667px;line-height:10.1292px;font-family:'Ekushey Bangla';-inkscape-font-specification:'Ekushey Bangla';letter-spacing:0px;word-spacing:0px;fill:#000000;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="19.561333"
+     y="386.35599"
+     id="text6872"><tspan
+       sodipodi:role="line"
+       id="tspan6870"
+       x="19.561333"
+       y="386.35599"
+       style="font-size:42.6667px">W</tspan></text>
+</svg>
