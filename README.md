@@ -17,18 +17,16 @@ In order to build the application you will need:
 In order to test Dutch Skies in mixed reality you will need a Microsoft HoloLens,
 preferably version 2.
 
-
 ## Disclaimers
 
 Dutch Skies has not been tested outside of Amsterdam, The Netherlands. So with
 different geographical locations some bugs will probably surface :) I'm especially 
-curious if it works without issue on the Southern Hemisphere when using a custom
+curious if it works without issues on the Southern Hemisphere when using a custom
 map or sky-mode location (see below).
 
 This application has only been tested with a Microsoft HoloLens 2. It might
 also work on other devices. Running it in StereoKit desktop mode also works, but that 
 does not really provide the full experience.
-
 
 ## How to use a custom map or sky-mode location
 
@@ -38,40 +36,6 @@ so this should provide some interesting views out-of-the-box. But you might want
 to view a different area yourself.
 
 XXX
-
-
-## License
-
-All files, except those listed under the Attributions section, are licensed
-under a Creative Commons [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
-license, which is summarized below. See LICENSE.txt for the full licensing terms. 
-
-You are free to:
-
-* Share - copy and redistribute the material in any medium or format
-
-* Adapt - remix, transform, and build upon the material 
-
-Under the following terms:
-
-* Attribution - You must give appropriate credit, provide a link to the license, and 
-  indicate if changes were made. You may do so in any reasonable manner, but not in 
-  any way that suggests the licensor endorses you or your use. 
-
-* NonCommercial - You may not use the material for commercial purposes. 
-
-* ShareAlike - If you remix, transform, or build upon the material, you must 
-  distribute your contributions under the same license as the original. 
-  
-* No additional restrictions - You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits. 
-
-
-### OpenSky Network real-time data
-
-Note that this application makes use of the [OpenSky Network](https://opensky-network.org/)
-as a real-time data provider. As such, when using this application, you are bound to
-its [General Terms of Use & Data License Agreement](https://opensky-network.org/about/terms-of-use).
-
 
 ## FAQ
 
@@ -148,12 +112,42 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
   use a [local OSM cache](https://github.com/paulmelis/osmcache).
   
 
-## Attributions
+## License
+
+All files, except those listed under the Attributions subsection, are licensed
+under a Creative Commons [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+license, which is summarized below. See LICENSE.txt for the full licensing terms. 
+
+You are free to:
+
+* Share - copy and redistribute the material in any medium or format
+
+* Adapt - remix, transform, and build upon the material 
+
+Under the following terms:
+
+* Attribution - You must give appropriate credit, provide a link to the license, and 
+  indicate if changes were made. You may do so in any reasonable manner, but not in 
+  any way that suggests the licensor endorses you or your use. 
+
+* NonCommercial - You may not use the material for commercial purposes. 
+
+* ShareAlike - If you remix, transform, or build upon the material, you must 
+  distribute your contributions under the same license as the original. 
+  
+* No additional restrictions - You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits. 
+
+### Attributions
+
+* The map files under `Assets\Maps` are generated from [OpenStreetMap](www.openstreetmap.org) tiles,
+  using the `Scripts/osm.py` script. The tiles, and the derived map images, have credit "(C) OpenStreetMap contributors"
+  and are distributed under the [Open Data Commons Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/).
+  See [here](https://www.openstreetmap.org/copyright) for more info.
 
 * SimpleJSON.cs is from the [SimpleJSON](https://github.com/Bunny83/SimpleJSON) repository.
   See SimpleJSON-LICENSE.txt for the original license.
   
-* Airplane 3D model based on a model retrieved from Google Poly (while it was still active) 
+* The airplane 3D model is based on a model file retrieved from Google Poly (while it was still active) 
   under the name "Airplane", originally licensed under a [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) 
   license. The included model is an edited version of the retrieved model. 
 
@@ -161,3 +155,8 @@ its [General Terms of Use & Data License Agreement](https://opensky-network.org/
   original (Windrose.original.svg) and redistributed file (Windrose.svg) licensed 
   under [Creative Commons Attribution-Share Alike 3.0 Unported](https://creativecommons.org/licenses/by-sa/3.0/deed.en).
   
+### OpenSky Network real-time data
+
+Note that this application makes use of the [OpenSky Network](https://opensky-network.org/)
+as a real-time data provider. As such, when using this application, you are bound to
+its [General Terms of Use & Data License Agreement](https://opensky-network.org/about/terms-of-use).
