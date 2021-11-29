@@ -91,6 +91,10 @@ XXX
   
   For a different area in the world, or when using a much smaller map of mountain
   terrain, it might make more sense to include height, though.
+
+* **How about showing the Earth's curvature in the map?**
+
+  XXX
   
 * **Why not use a (3D) terrain service, such as Bing Maps?**
 

@@ -133,9 +133,9 @@ namespace DutchSkies
             if (last_velocity > 1.0e-6f)
                 computed_climb_angle = -MathF.Atan(last_vertical_rate / last_velocity) / MathF.PI * 180.0f;
 
-            // Compute speed vectors used for extrapolating position
-            float speed_km_s = last_velocity / 1000.0f;                    // m/s -> km/s
-                                                                           // XXX any point to interpolate this? we don't have an angular (i.e. heading rate) speed
+            // Compute speed vectors used for extrapolating position, m/s -> km/s
+            float speed_km_s = last_velocity / 1000.0f;
+            // XXX any point to interpolate this? we don't have an angular (i.e. heading rate) speed
             float heading_radians = last_heading * MathF.PI / 180f;
 
             // In km/s
@@ -162,6 +162,8 @@ namespace DutchSkies
             if (!on_ground)
                 map_positions.Add(last_map_position);
 
+            // Sky position, based on barometric altitude
+
             // Given spherical Earth right-handed model with 
             // - Radius = R = RADIUS_KILOMETERS
             // - +Y axis through the north pole
@@ -178,13 +180,12 @@ namespace DutchSkies
                 *
                 Matrix.R(observer.lat, 0f, 0f)
                 *
-                // XXX Should also include have-above-floor distance, but the effect will be minimal
-                Matrix.T(0f, 0f, -(Projection.RADIUS_KILOMETERS + observer.floor_altitude * 0.001f));
+                // XXX Should also include head-above-floor distance, but the effect will be minimal
+                Matrix.T(0f, 0f, -(Projection.RADIUS_METERS + observer.floor_altitude + 1.5f));
 
-            Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + last_geometric_altitude_km);
-
-            // Sky position is based on barometric altitude
-            last_sky_position = M.Transform(p) * 1000f;
+            Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + last_geometric_altitude);
+            
+            last_sky_position = M.Transform(p);
 
             // XXX distance from projection center, not head position, but should relatively be only very little off
             observer_distance = last_sky_position.Length / 1000f;
@@ -209,7 +210,6 @@ namespace DutchSkies
             }
 
             // In both NORMAL and LATE data states we keep the plane moving
-
             // Extrapolate positions based on last data received
             float t_diff = (float)(update_time - update_timestamp);
             computed_barometric_altitude = last_barometric_altitude + t_diff * last_vertical_rate;

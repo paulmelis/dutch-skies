@@ -21,16 +21,20 @@ namespace DutchSkies
         {
             public string id;
             public float lat, lon;
-            public float altitude;
+            public float top_altitude;
+            public float bottom_altitude;
+            public float height;
             public Vec3 map_position;
             public Vec3 sky_position;
 
-            public Landmark(string id, float lat, float lon, float alt)
+            public Landmark(string id, float lat, float lon, float topalt, float botalt=0f)
             {
                 this.id = id;
                 this.lat = lat;
                 this.lon = lon;
-                this.altitude = alt;
+                this.top_altitude = topalt;
+                this.bottom_altitude = botalt;
+                height = topalt - botalt;
                 map_position = new Vec3();
                 sky_position = new Vec3();                
             }
@@ -41,7 +45,7 @@ namespace DutchSkies
             // SURF building at Amsterdam Science Park
             lat = 52.357036140185144f;
             lon = 4.954487434653384f;
-            floor_altitude = /* street level */ -3.64f + 4f /* one floor */;
+            floor_altitude = /* street level */ -3.56f + 4f /* one floor */;
             landmarks = new Dictionary<string, Landmark>();
         }
 
@@ -59,11 +63,11 @@ namespace DutchSkies
                 Landmark landmark = item.Value;
                 float landmark_lat = landmark.lat;
                 float landmark_lon = landmark.lon;
-                float landmark_altitude = landmark.altitude;
+                float landmark_top_altitude = landmark.top_altitude;
 
                 // Map position (unused currently)
                 map.Project(ref x, ref y, landmark_lon, landmark_lat);
-                item.Value.map_position = new Vec3(x, y, landmark_altitude / 1000f);
+                item.Value.map_position = new Vec3(x, y, landmark_top_altitude / 1000f);
 
                 M = Matrix.R(-landmark_lat, 0f, 0f)
                     *
@@ -74,7 +78,7 @@ namespace DutchSkies
                     // XXX Should also include have-above-floor distance, but the effect will be minimal
                     Matrix.T(0f, 0f, -(Projection.RADIUS_KILOMETERS + floor_altitude * 0.001f));
 
-                Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + landmark_altitude*0.001f);
+                Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + landmark_top_altitude * 0.001f);
 
                 landmark.sky_position = M.Transform(p) * 1000f;
             }
@@ -545,9 +549,10 @@ namespace DutchSkies
                 {
                     foreach (KeyValuePair<string, ObserverData.Landmark> item in observer.landmarks)
                     {
-                        Vec3 pos = ROT_MIN90_X.Transform(item.Value.sky_position);
+                        ObserverData.Landmark landmark = item.Value;
+                        Vec3 pos = ROT_MIN90_X.Transform(landmark.sky_position);
 
-                        Lines.Add(pos, new Vec3(pos.x, 0f, pos.z), LANDMARK_VLINE_COLOR, 0.5f);
+                        Lines.Add(pos, new Vec3(pos.x, pos.y-landmark.height, pos.z), LANDMARK_VLINE_COLOR, 0.5f);
 
                         Quat textquat = Quat.LookAt(pos, head_pos, Vec3.UnitY);
                         Text.Add(
@@ -573,9 +578,11 @@ namespace DutchSkies
                     fps_start_time = now;
                 }
 
+                //
                 // UI (drawn late, so we can show accurate statistics)
+                //
 
-                UI.WindowBegin("Controls", ref windowPose, new Vec2(40, 0) * U.cm, UIWin.Normal);
+                UI.WindowBegin("Controls", ref windowPose, new Vec2(50, 0) * U.cm, UIWin.Normal);
 
                 UI.Toggle("Flight units", ref show_flight_units);
 
@@ -611,21 +618,21 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Toggle("Landmarks", ref sky_show_landmarks);
 
-                UI.Label("Trim");
+                UI.Label("Y Trim");
                 UI.SameLine();
-                if (UI.Button("-5")) sky_y_trim -= 50;
+                if (UI.Button("< 5")) sky_y_trim -= 50;
                 UI.SameLine();
-                if (UI.Button("-1")) sky_y_trim -= 10;
+                if (UI.Button("< 1")) sky_y_trim -= 10;
                 UI.SameLine();
-                if (UI.Button("-⅒")) sky_y_trim -= 1;
+                if (UI.Button("< ⅒")) sky_y_trim -= 1;
                 UI.SameLine();
                 if (UI.Button("Z")) sky_y_trim = 0;
                 UI.SameLine();
-                if (UI.Button("+⅒")) sky_y_trim += 1;                
+                if (UI.Button("⅒ >")) sky_y_trim += 1;                
                 UI.SameLine();
-                if (UI.Button("+1")) sky_y_trim += 10;
+                if (UI.Button("1 >")) sky_y_trim += 10;
                 UI.SameLine();
-                if (UI.Button("+5")) sky_y_trim += 50;
+                if (UI.Button("5 >")) sky_y_trim += 50;
 
                 UI.PopId();
 

@@ -18,13 +18,12 @@ e.g. directly after startup:
 observer position should stand out more (red-white pole?). plus, don't draw
 if the map doesn't include the location.
 
-provide orientation trimming
-
 delete missing planes (but keep track of number deleted)
 add late and forgotten count
 on ground
 
 delete track for planes on ground
+reset track lines button (+ max length?)
 
 allow text size selection
 
@@ -37,8 +36,6 @@ allow map speciication, including image?, through qr code
 - lat/lon extents
 - either: zoom level (OSM), or URL to custom map image
 
-reset track lines button (+ max length?)
-
 rotate map text based on head pos
 
 combine map and sky parts where possible
@@ -47,18 +44,9 @@ late/missing indicator
 
 align opensky query area with map area
 
-why so many inactive planes, even at the start?
-
-indicator for HL temperature?
-
-check use of geometric altitude for sky mode
-
-
 fps graph
-
-reset track lines button (+ max length?)
-
 
 HoloLens2 doesn't support GPS Sensor, but an app can acquire the user's current location via Wi-Fi. It is less precise but more likely to be available indoors. You can invoke the Windows Runtime API Geolocator.GetGeopositionAsync method in the Windows.Devices.Geolocation namespace to retrieve the current location of the device.
 https://docs.microsoft.com/en-us/uwp/api/windows.devices.geolocation.geolocator.getgeopositionasync?view=winrt-22000#Windows_Devices_Geolocation_Geolocator_GetGeopositionAsync
 
+allow settings to be specified in qr codes, for easy demo setup
