@@ -49,10 +49,10 @@ if __name__ == '__main__':
     zoom = 10
     
     # Schiphol
-    name = 'schiphol'
-    lat_range = [52.106505, 52.536273]
-    lon_range = [4.130859, 5.361328]
-    zoom = 12
+    #name = 'schiphol'
+    #lat_range = [52.106505, 52.536273]
+    #lon_range = [4.130859, 5.361328]
+    #zoom = 12
     
     # Determine tiles needed
     lat = 0.5*(lat_range[0]+lat_range[1])

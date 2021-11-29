@@ -33,6 +33,31 @@ namespace DutchSkies
         }
     };
 
+    public class MapConfiguration
+    {
+        public MapConfiguration(string name, float minlat, float maxlat, float minlon, float maxlon, int zm, int width, int height)
+        {
+            this.name = name;
+            this.min_lat = minlat;
+            this.max_lat = maxlat;
+            this.min_lon = minlon;
+            this.max_lon = maxlon;
+            this.zoom = zm;
+            this.image_width = width;
+            this.image_height = height;
+            this.texture = null;
+        }
+
+        public string name;
+        public float min_lat, max_lat;
+        public float min_lon, max_lon;
+        public int zoom;
+
+        public Tex texture;
+        public int image_width, image_height;
+    }
+
+
     class Program
     {
         enum DetailLevel { NONE, CALLSIGN, FULL };
@@ -56,7 +81,7 @@ namespace DutchSkies
             Renderer.SetClip(0.08f, 10000f);
             Renderer.EnableSky = false;
 
-            // Map
+            // Maps
 
             const float REALWORLD_MAP_WIDTH = 1.5f; // meters
 
@@ -64,8 +89,33 @@ namespace DutchSkies
             Matrix ROT_180_Y = Matrix.R(0f, 180f, 0f);
             Matrix MAP_PLACEMENT_XFORM = Matrix.T(1f * Vec3.Forward - 0.7f * Vec3.Up);
 
+            // Configurations
+
+            Dictionary<string, MapConfiguration> map_configurations = new Dictionary<string, MapConfiguration>();
+
+            // Whole of the Netherlands
+            map_configurations["netherlands"] = new MapConfiguration(
+                "The Netherlands",
+                50.513427f, 53.748711f, 2.812500f, 7.734375f,
+                10, 3584, 3840
+            );
+
+            map_configurations["netherlands"].texture = Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
+
+            // Schiphol
+            map_configurations["schiphol"] = new MapConfiguration(
+                "Schiphol Airport",
+                52.052490f, 52.536273f, 4.042969f, 5.361328f,
+                12, 3840, 2304
+            );
+
+            map_configurations["schiphol"].texture = Tex.FromFile("Maps\\schiphol-lon-4.042969-5.361328-lat-52.052490-52.536273-c-4.702148-52.294382-z12-3840x2304.png");
+
+            // Map
             OSMMap osm_map = new OSMMap();
 
+            // Set current map
+            osm_map.Switch(map_configurations["netherlands"]);
             float map_geo_height = REALWORLD_MAP_WIDTH * osm_map.height / osm_map.width;
             float map_scale_km_to_scene = REALWORLD_MAP_WIDTH / osm_map.width;
             Log.Info($"Map geometry size = {REALWORLD_MAP_WIDTH} x {map_geo_height}");
@@ -74,8 +124,8 @@ namespace DutchSkies
 
             ConcurrentQueue<byte[]> map_updates = new ConcurrentQueue<byte[]>();
 
-#if false
-            Tex map_texture = Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
+#if true
+            Tex map_texture = osm_map.current_configuration.texture;
             map_material[MatParamName.DiffuseTex] = map_texture;
             // Disable backface culling on the map for now, for debugging
             map_material.FaceCull = Cull.None;
@@ -326,7 +376,7 @@ namespace DutchSkies
                 }
 
 
-                // Observer location
+                // Observer location (on map)
 
                 Vec3 observer_pos = ROT_MIN90_X.Transform(observer.map_position) * map_scale_km_to_scene;
                 observer_marker.Draw(observer_marker_material, Matrix.T(0f,0.005f,0f) * Matrix.T(observer_pos));
@@ -462,9 +512,8 @@ namespace DutchSkies
                 UI.Toggle("VLines", ref show_sky_vlines);
                 UI.PopId();
 
-                UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
-                UI.SameLine();
-                UI.Text($"{fps:F1} FPS", TextAlign.BottomRight);
+                UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");                
+                UI.Text($"{fps:F1} FPS");
                 UI.WindowEnd();
 
             }));

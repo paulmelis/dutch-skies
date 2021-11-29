@@ -4,28 +4,6 @@ using StereoKit;
 
 namespace DutchSkies
 {
-    public struct MapConfiguration
-    {
-        public MapConfiguration(string name, float minlat, float maxlat, float minlon, float maxlon, int zm, int width, int height)
-        {
-            this.name = name;
-            this.min_lat = minlat;
-            this.max_lat = maxlat;
-            this.min_lon = minlon;
-            this.max_lon = maxlon;
-            this.zoom = zm;
-            this.image_width = width;
-            this.image_height = height;
-        }
-
-        public string name;
-        public float min_lat, max_lat;
-        public float min_lon, max_lon;
-        public int zoom;
-
-        public int image_width, image_height;
-    }
-
     public class OSMMap
     {
         public MapConfiguration current_configuration;
@@ -40,38 +18,19 @@ namespace DutchSkies
 
         public Matrix EarthToMapCentric;
 
-        protected Dictionary<string, MapConfiguration> configurations;
-
         public OSMMap()
         {
-            configurations = new Dictionary<string, MapConfiguration>();
-
-            // Whole of the Netherlands
-            configurations["netherlands"] = new MapConfiguration(
-                "The Netherlands",
-                50.513427f, 53.748711f, 2.812500f, 7.734375f,
-                10, 3584, 3840
-            );
-                
-            // Schiphol
-            configurations["schiphol"] = new MapConfiguration(
-                "Schiphol Airport",
-                52.106505f, 52.536273f, 4.130859f, 5.361328f,
-                12, 3584, 2048
-            );
-
-            Switch("netherlands");
         }
 
-        public void Switch(string name)
+        public void Switch(MapConfiguration config)
         {
-            Log.Info("OSMMap.Switch " + name);
+            Log.Info($"OSMMap.Switch to {config.name}");
 
             // XXX Update texture on map geometry
 
             // Update projection and such
-            current_configuration = configurations[name];
-            current_configuration_name = name;
+            current_configuration = config;
+            current_configuration_name = config.name;
 
             this.center_lat = 0.5f * (current_configuration.min_lat + current_configuration.max_lat);
             this.center_lon = 0.5f * (current_configuration.min_lon + current_configuration.max_lon);
