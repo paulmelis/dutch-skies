@@ -181,9 +181,9 @@ namespace DutchSkies
             DetailLevel detail_level = DetailLevel.FULL;
             bool map_visible = true;
             bool map_show_planes = true, sky_show_planes = true;
-            bool show_map_vlines = true, show_sky_vlines = false;
+            bool map_show_vlines = true, sky_show_vlines = false;
             bool show_flight_units = false;
-            bool show_track_lines = true;
+            bool map_show_track_lines = true;
             int num_map_planes = 0;
 
             const float track_line_thickness = 0.001f;
@@ -199,7 +199,6 @@ namespace DutchSkies
             Tuple<string, object> update;
             string update_type;
             JSONNode root_node;
-            byte[] map_image;
 
             int fps_num_frames = 0;
             float fps_start_time = Time.Totalf;
@@ -221,16 +220,19 @@ namespace DutchSkies
                 while (!updates.IsEmpty)
                 {
                     updates.TryDequeue(out update);
-                    Log.Info($"Got update (type '{update.Item1}')");
+                    update_type = update.Item1;
 
-                    if (update.Item1 == "map_image")
+                    Log.Info($"Got update (type '{update_type}')");
+
+                    if (update_type == "map_image")
                     {
+                        // XXX need to handle image update that doesn't match current map
                         Log.Info("Got updated map image!");
                         map_material[MatParamName.DiffuseTex] = Tex.FromMemory(update.Item2 as byte[]);
                         // Disable backface culling on the map for now, for debugging
                         map_material.FaceCull = Cull.None;
                     }
-                    else if (update.Item1 == "plane_data")
+                    else if (update_type == "plane_data")
                     {
                         root_node = update.Item2 as JSONNode;
                         JSONNode states = root_node["states"];
@@ -364,11 +366,11 @@ namespace DutchSkies
 
                     // Plane lines vertically to the ground position
 
-                    if (show_map_vlines)
+                    if (map_show_vlines)
                         Lines.Add(pos, new Vec3(pos.x, 0f, pos.z), VLINE_COLOR, 0.001f);
 
                     // Historical track
-                    if (show_track_lines && plane.map_positions.Count >= 2)
+                    if (map_show_track_lines && plane.map_positions.Count >= 2)
                     {
                         LinePoint[] lp = new LinePoint[plane.map_positions.Count];
                         int idx = 0;
@@ -431,7 +433,7 @@ namespace DutchSkies
                     }
 
 
-                    if (show_sky_vlines)
+                    if (sky_show_vlines)
                     {
                         // Vertical line, start slightly below plane to make room for text
                         Lines.Add(new Vec3(pos.x, pos.y - 120f, pos.z), new Vec3(pos.x, 0f, pos.z), VLINE_COLOR, 3f);
@@ -496,9 +498,9 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Toggle("Planes", ref map_show_planes);
                 UI.SameLine();
-                UI.Toggle("VLines", ref show_map_vlines);
+                UI.Toggle("VLines", ref map_show_vlines);
                 UI.SameLine();
-                UI.Toggle("Track lines", ref show_track_lines);
+                UI.Toggle("Track lines", ref map_show_track_lines);
                 UI.Label("Plane details");
                 UI.SameLine();
                 if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
@@ -512,7 +514,7 @@ namespace DutchSkies
                 UI.Label("Sky:");
                 UI.Toggle("Planes", ref sky_show_planes);
                 UI.SameLine();
-                UI.Toggle("VLines", ref show_sky_vlines);
+                UI.Toggle("VLines", ref sky_show_vlines);
                 UI.PopId();
 
                 UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");                
