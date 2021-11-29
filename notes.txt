@@ -1,6 +1,4 @@
-﻿https://github.com/Bunny83/SimpleJSON
-
-                UI.WindowBegin("Head", ref windowPose, new Vec2(20, 0) * U.cm, UIWin.Normal);
+﻿                UI.WindowBegin("Head", ref windowPose, new Vec2(20, 0) * U.cm, UIWin.Normal);
                 Pose head = Input.Head;
                 UI.Label(String.Format("POS xyz: {0,9:F6} {1,9:F6} {2,9:F6}\nDirection: {3,9:F6} {4,9:F6} {5,9:F6}", 
                         head.position.x, head.position.y, head.position.z,
@@ -8,9 +6,9 @@
                 UI.WindowEnd();
 
 
-combine map and sky parts where possible
+move track lines next to vlines button
 
-late/missing indicator
+refactor map and data handling
 
 why so many inactive planes, even at the start?
 ah, seems these are planes that are in the query results, yet haven't have data updates in a long time?
@@ -18,22 +16,52 @@ e.g. directly after startup:
 [SK info] Marking plane 484257 (KT) LATE, as we haven't had data updates in 279.398s
 [SK info] Marking plane 06e010 (RWD701) LATE, as we haven't had data updates in 131.398s
 
-simplify plane model
+observer position should stand out more (red-white pole?). plus, don't draw
+if the map doesn't include the location.
 
-rotate map text based on head pos
+add log window
 
-indicator for HL temperature and framerate?
+provide orientation trimming
 
-check use of geometric altitude for sky mode
+delete missing planes (but keep track of number deleted)
+add late and forgotten count
+on ground
+
+delete track for planes on ground
+
+allow text size selection
+
+callsign-only text is too low
+
+highlight airport locations
 
 allow map speciication, including image?, through qr code
 - map name (for UI)
 - lat/lon extents
 - either: zoom level (OSM), or URL to custom map image
 
+reset track lines button (+ max length?)
+
+rotate map text based on head pos
+
+combine map and sky parts where possible
+
+late/missing indicator
+
+align opensky query area with map area
+
+why so many inactive planes, even at the start?
+
+indicator for HL temperature?
+
+check use of geometric altitude for sky mode
+
+
 fps graph
 
 reset track lines button (+ max length?)
 
-combining images
-https://www.codeproject.com/Articles/502249/Combineplusseveralplusimagesplustoplusformplusaplu
+
+HoloLens2 doesn't support GPS Sensor, but an app can acquire the user's current location via Wi-Fi. It is less precise but more likely to be available indoors. You can invoke the Windows Runtime API Geolocator.GetGeopositionAsync method in the Windows.Devices.Geolocation namespace to retrieve the current location of the device.
+https://docs.microsoft.com/en-us/uwp/api/windows.devices.geolocation.geolocator.getgeopositionasync?view=winrt-22000#Windows_Devices_Geolocation_Geolocator_GetGeopositionAsync
+
