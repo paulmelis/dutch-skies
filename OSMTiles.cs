@@ -42,9 +42,9 @@ namespace DutchSkies
         {
             const int TILE_SIZE = 256;
 
-            Tuple<ConcurrentQueue<byte[]>, MapConfiguration> args = (Tuple<ConcurrentQueue<byte[]>, MapConfiguration>) tuple;
+            Tuple<ConcurrentQueue<Tuple<string,object>>, MapConfiguration> args = (Tuple<ConcurrentQueue<Tuple<string,object>>, MapConfiguration>) tuple;
 
-            ConcurrentQueue<byte[]> output_queue = args.Item1;
+            ConcurrentQueue<Tuple<string,object>> output_queue = args.Item1;
             MapConfiguration map_configuration = args.Item2;
 
             // Determine tiles needed
@@ -161,7 +161,7 @@ namespace DutchSkies
             full_map_pixels[16] = 24;                       // Pixel depth in bits
             full_map_pixels[17] = 1 << 5;                   // Image descriptor (Y-flip)
             
-            output_queue.Enqueue(full_map_pixels);
+            output_queue.Enqueue(new Tuple<string,object>("map_image", full_map_pixels));
 
             /*
             Windows.Storage.StorageFolder storageFolder = Windows.Storage.ApplicationData.Current.LocalFolder;

@@ -122,9 +122,10 @@ namespace DutchSkies
             Mesh map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, map_geo_height), -Vec3.Forward, Vec3.Up);
             Material map_material = Default.Material.Copy();
 
-            ConcurrentQueue<byte[]> map_updates = new ConcurrentQueue<byte[]>();
+            // Update queue
+            ConcurrentQueue<Tuple<string, object>> updates = new ConcurrentQueue<Tuple<string, object>>();
 
-#if true
+#if false
             Tex map_texture = osm_map.current_configuration.texture;
             map_material[MatParamName.DiffuseTex] = map_texture;
             // Disable backface culling on the map for now, for debugging
@@ -133,19 +134,16 @@ namespace DutchSkies
             Tex map_texture = null;
             var map_thread = new Thread(OSMTiles.FetchMapTiles);
             map_thread.IsBackground = true;
-            map_thread.Start(new Tuple<ConcurrentQueue<byte[]>, MapConfiguration>(map_updates, osm_map.current_configuration));
+            map_thread.Start(new Tuple<ConcurrentQueue<Tuple<string,object>>, MapConfiguration>(updates, osm_map.current_configuration));
             Log.Info("Map tile fetch thread started");
 #endif
-            // Create assets used by the app
+            // Plane 3D model
             Model plane_model = Model.FromFile("Airplane-cleaned.rotated.glb");
             if (plane_model == null)
                 Log.Err("Could not load plane model");
 
-            const float plane_size_m = 0.015f;  // Decent size
-            Matrix MAP_SCALE_PLANE_SIZE = Matrix.S(plane_size_m);
-
-            // Rotate and scale plane model to put it in the XY plane, with the nose pointing in the -Z direction (check this)
-            //plane_model.RootNode.LocalTransform = plane_model.RootNode.LocalTransform * Matrix.S(plane_size_m); // * Matrix.R(90f, 0f, 0f);
+            const float PLANE_SIZE_M = 0.015f;  // Decent size
+            Matrix MAP_SCALE_PLANE_SIZE = Matrix.S(PLANE_SIZE_M);
 
             // XXX need to figure out why the marker needs to be much smaller compared to the plane model, doesn't make sense
             Mesh plane_ground_marker = Mesh.GenerateCylinder(0.001f, 0.002f, Vec3.UnitY, 8);
@@ -153,6 +151,7 @@ namespace DutchSkies
             plane_marker_material[MatParamName.ColorTint] = new Color(0f, 0f, 1f);
 
             ObserverData observer = new ObserverData();
+            // XXX needs to update when switching maps
             observer.update_map_position(osm_map);
             Mesh observer_marker = Mesh.GenerateCylinder(0.001f, 0.01f, Vec3.UnitY, 8);
             Material observer_marker_material = Default.Material.Copy();
@@ -164,12 +163,10 @@ namespace DutchSkies
             Material floorMaterial = new Material(Shader.FromFile("floor.hlsl"));
             floorMaterial.Transparency = Transparency.Blend;
 
-            // Data update thread
-
-            ConcurrentQueue<JSONNode> data_updates = new ConcurrentQueue<JSONNode>();
+            // Launch data update thread            
             var data_thread = new Thread(FetchPlaneUpdates);
             data_thread.IsBackground = true;
-            data_thread.Start(data_updates);
+            data_thread.Start(updates);
             Log.Info("Data thread started");
 
             // Initial head pose in physical space is apparently taken as origin, with
@@ -198,8 +195,10 @@ namespace DutchSkies
 
             TextStyle text_style_map = Text.MakeStyle(Default.Font, 0.5f * U.cm, new Color(1f, 0f, 0f));
             TextStyle text_style_sky = Text.MakeStyle(Default.Font, 15f * U.m, new Color(1f, 0f, 0f));
-            JSONNode root_node;
 
+            Tuple<string, object> update;
+            string update_type;
+            JSONNode root_node;
             byte[] map_image;
 
             int fps_num_frames = 0;
@@ -219,34 +218,38 @@ namespace DutchSkies
                 // Process received plane data, if any
                 //
 
-                while (!data_updates.IsEmpty)
+                while (!updates.IsEmpty)
                 {
-                    if (map_updates.TryDequeue(out map_image))
+                    updates.TryDequeue(out update);
+                    Log.Info($"Got update (type '{update.Item1}')");
+
+                    if (update.Item1 == "map_image")
                     {
                         Log.Info("Got updated map image!");
-                        map_material[MatParamName.DiffuseTex] = Tex.FromMemory(map_image);
+                        map_material[MatParamName.DiffuseTex] = Tex.FromMemory(update.Item2 as byte[]);
                         // Disable backface culling on the map for now, for debugging
                         map_material.FaceCull = Cull.None;
                     }
-
-                    data_updates.TryDequeue(out root_node);
-
-                    JSONNode states = root_node["states"];
-                    Log.Info("Got {0} new states", states.Count);
-
-                    float update_time = Time.Totalf;
-
-                    for (int i = 0; i < states.Count; i++)
+                    else if (update.Item1 == "plane_data")
                     {
-                        JSONNode plane = states[i];
+                        root_node = update.Item2 as JSONNode;
+                        JSONNode states = root_node["states"];
+                        Log.Info("Got {0} new states", states.Count);
 
-                        // 24-bit ICAO address as string
-                        string id = plane[0];
+                        float update_time = Time.Totalf;
 
-                        if (!plane_data.ContainsKey(id))
-                            plane_data[id] = new PlaneData(id);
+                        for (int i = 0; i < states.Count; i++)
+                        {
+                            JSONNode plane = states[i];
 
-                        plane_data[id].ProcessDataUpdate(update_time, plane, osm_map, observer);
+                            // 24-bit ICAO address as string
+                            string id = plane[0];
+
+                            if (!plane_data.ContainsKey(id))
+                                plane_data[id] = new PlaneData(id);
+
+                            plane_data[id].ProcessDataUpdate(update_time, plane, osm_map, observer);
+                        }
                     }
                 }
 
@@ -524,7 +527,7 @@ namespace DutchSkies
         {
             const string URL = "https://opensky-network.org/api/states/all?lamin=50.513427&lomin=2.812500&lamax=53.748711&lomax=7.734375";
 
-            ConcurrentQueue<JSONNode> update_queue = update_queue_obj as ConcurrentQueue<JSONNode>;
+            ConcurrentQueue<Tuple<string,object>> update_queue = update_queue_obj as ConcurrentQueue<Tuple<string, object>>;
 
             while (true)
             {
@@ -537,7 +540,7 @@ namespace DutchSkies
                     Log.Info("(data fetch): " + body);
 
                     JSONNode root_node = JSON.Parse(body);
-                    update_queue.Enqueue(root_node);
+                    update_queue.Enqueue(new Tuple<string,object>("plane_data", root_node));
                 }
                 catch (HttpRequestException e)
                 {
