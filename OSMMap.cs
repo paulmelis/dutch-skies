@@ -6,8 +6,9 @@ namespace DutchSkies
 {
     public struct MapConfiguration
     {
-        public MapConfiguration(float minlat, float maxlat, float minlon, float maxlon, int zm, int width, int height)
+        public MapConfiguration(string name, float minlat, float maxlat, float minlon, float maxlon, int zm, int width, int height)
         {
+            this.name = name;
             this.min_lat = minlat;
             this.max_lat = maxlat;
             this.min_lon = minlon;
@@ -17,6 +18,7 @@ namespace DutchSkies
             this.image_height = height;
         }
 
+        public string name;
         public float min_lat, max_lat;
         public float min_lon, max_lon;
         public int zoom;
@@ -44,14 +46,16 @@ namespace DutchSkies
         {
             configurations = new Dictionary<string, MapConfiguration>();
 
-            // Whole of the Netherlands, center south-west of Soest
+            // Whole of the Netherlands
             configurations["netherlands"] = new MapConfiguration(
+                "The Netherlands",
                 50.513427f, 53.748711f, 2.812500f, 7.734375f,
                 10, 3584, 3840
             );
-
+                
             // Schiphol
             configurations["schiphol"] = new MapConfiguration(
+                "Schiphol Airport",
                 52.106505f, 52.536273f, 4.130859f, 5.361328f,
                 12, 3584, 2048
             );

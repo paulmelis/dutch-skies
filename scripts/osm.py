@@ -43,14 +43,16 @@ if __name__ == '__main__':
     # larger than requested, as tiles are not clipped.
     
     # Netherlands
-    lat_range = [50.6, 53.7]
-    lon_range = [2.856, 7.535]
-    zoom = 8
+    name = 'netherlands'
+    lat_range = [50.513427, 53.748711]
+    lon_range = [2.812500, 7.734375]
+    zoom = 10
     
     # Schiphol
-    #lat_range = [52.1226, 52.4995]
-    #lon_range = [4.2022, 5.3447]
-    #zoom = 12
+    name = 'schiphol'
+    lat_range = [52.106505, 52.536273]
+    lon_range = [4.130859, 5.361328]
+    zoom = 12
     
     # Determine tiles needed
     lat = 0.5*(lat_range[0]+lat_range[1])
@@ -62,7 +64,7 @@ if __name__ == '__main__':
     mini = coordinate_to_tile(lat, lon_range[0], zoom)[0]
     maxi = coordinate_to_tile(lat, lon_range[1], zoom)[0]
 
-    print(mini, maxi, minj, maxj)
+    print('tile range: i = %d-%d, j=%d,%d' % (mini, maxi, minj, maxj))
 
     nrows = maxj - minj + 1
     ncols = maxi - mini + 1
@@ -90,7 +92,7 @@ if __name__ == '__main__':
     osm_idx = 0
     for j in range(minj, maxj+1):
         for i in range(mini, maxi+1):
-            sys.stdout.write('%d,%d ' % (i, j))
+            sys.stdout.write('(%d,%d) ' % (i, j))
             sys.stdout.flush()
 
             url = "http://%s.tile.openstreetmap.org/%d/%d/%d.png" % \
@@ -111,8 +113,8 @@ if __name__ == '__main__':
     sys.stdout.write('\nWriting output image...')
     sys.stdout.flush()
 
-    img.save('map-lon-%.6f-%.6f-lat-%.6f-%.6f-c-%.6f-%.6f-z%d-%dx%d.png' % \
-        (minlon, maxlon, minlat, maxlat, center_lon, center_lat, zoom, img.size[0], img.size[1]))
+    img.save('%s-lon-%.6f-%.6f-lat-%.6f-%.6f-c-%.6f-%.6f-z%d-%dx%d.png' % \
+        (name, minlon, maxlon, minlat, maxlat, center_lon, center_lat, zoom, img.size[0], img.size[1]))
 
     sys.stdout.write('done\n')
     sys.stdout.flush()

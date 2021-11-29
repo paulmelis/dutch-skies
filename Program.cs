@@ -66,25 +66,26 @@ namespace DutchSkies
 
             OSMMap osm_map = new OSMMap();
 
-            Tex map_texture = null; // Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
-            // XXX should the map be square? or aspect based on resolution?
             float map_geo_height = REALWORLD_MAP_WIDTH * osm_map.height / osm_map.width;
             float map_scale_km_to_scene = REALWORLD_MAP_WIDTH / osm_map.width;
             Log.Info($"Map geometry size = {REALWORLD_MAP_WIDTH} x {map_geo_height}");
             Mesh map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, map_geo_height), -Vec3.Forward, Vec3.Up);
             Material map_material = Default.Material.Copy();
+
+            ConcurrentQueue<byte[]> map_updates = new ConcurrentQueue<byte[]>();
+
 #if false
+            Tex map_texture = Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
             map_material[MatParamName.DiffuseTex] = map_texture;
             // Disable backface culling on the map for now, for debugging
             map_material.FaceCull = Cull.None;
-#endif
-            ConcurrentQueue<byte[]> map_updates = new ConcurrentQueue<byte[]>();
-
+#else
+            Tex map_texture = null;
             var map_thread = new Thread(OSMTiles.FetchMapTiles);
             map_thread.IsBackground = true;
             map_thread.Start(new Tuple<ConcurrentQueue<byte[]>, MapConfiguration>(map_updates, osm_map.current_configuration));
-            Log.Info("Data thread started");
-
+            Log.Info("Map tile fetch thread started");
+#endif
             // Create assets used by the app
             Model plane_model = Model.FromFile("Airplane-cleaned.rotated.glb");
             if (plane_model == null)
@@ -105,7 +106,7 @@ namespace DutchSkies
             observer.update_map_position(osm_map);
             Mesh observer_marker = Mesh.GenerateCylinder(0.001f, 0.01f, Vec3.UnitY, 8);
             Material observer_marker_material = Default.Material.Copy();
-            observer_marker_material[MatParamName.ColorTint] = new Color(0f, 1f, 0f);
+            observer_marker_material[MatParamName.ColorTint] = new Color(1f, 0.5f, 0f);
 
             // Floor (for non-seethrough devices)
 
