@@ -5,8 +5,7 @@
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
 
-
-move track lines next to vlines button
+add log window
 
 refactor map and data handling
 
@@ -19,8 +18,6 @@ e.g. directly after startup:
 observer position should stand out more (red-white pole?). plus, don't draw
 if the map doesn't include the location.
 
-add log window
-
 provide orientation trimming
 
 delete missing planes (but keep track of number deleted)
@@ -31,7 +28,7 @@ delete track for planes on ground
 
 allow text size selection
 
-callsign-only text is too low
+callsign-only text is sometimes too low
 
 highlight airport locations
 

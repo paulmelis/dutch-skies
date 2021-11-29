@@ -444,14 +444,15 @@ namespace DutchSkies
                 UI.Toggle("Planes", ref map_show_planes);
                 UI.SameLine();
                 UI.Toggle("VLines", ref show_map_vlines);
+                UI.SameLine();
+                UI.Toggle("Track lines", ref show_track_lines);
                 UI.Label("Plane details");
                 UI.SameLine();
                 if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
                 UI.SameLine();
                 if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
                 UI.SameLine();
-                if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
-                UI.Toggle("Track lines", ref show_track_lines);
+                if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;                
                 UI.PopId();
 
                 UI.PushId("sky");
