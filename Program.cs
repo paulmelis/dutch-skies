@@ -15,6 +15,26 @@ namespace DutchSkies
         public float lat, lon;
         public float floor_altitude;  // meters
         public Vec3 map_position;
+        public Dictionary<string, Landmark> landmarks;
+
+        public class Landmark
+        {
+            public string id;
+            public float lat, lon;
+            public float altitude;
+            public Vec3 map_position;
+            public Vec3 sky_position;
+
+            public Landmark(string id, float lat, float lon, float alt)
+            {
+                this.id = id;
+                this.lat = lat;
+                this.lon = lon;
+                this.altitude = alt;
+                map_position = new Vec3();
+                sky_position = new Vec3();
+            }
+        };
 
         public ObserverData()
         {
@@ -30,6 +50,33 @@ namespace DutchSkies
             map.Project(ref x, ref y, lon, lat);
             map_position = new Vec3(x, y, floor_altitude/1000f);
             Log.Info($"observer map pos = {x:F6}, {y:F6}");
+
+            Matrix M;
+
+            foreach (KeyValuePair<string,Landmark> item in landmarks)
+            {
+                Landmark landmark = item.Value;
+                float landmark_lat = landmark.lat;
+                float landmark_lon = landmark.lon;
+                float landmark_altitude = landmark.altitude;
+
+                // Map position (unused currently)
+                map.Project(ref x, ref y, landmark_lon, landmark_lat);
+                item.Value.map_position = new Vec3(x, y, landmark_altitude / 1000f);
+
+                M = Matrix.R(-landmark_lat, 0f, 0f)
+                    *
+                    Matrix.R(0f, landmark_lon - lon, 0f)
+                    *
+                    Matrix.R(lat, 0f, 0f)
+                    *
+                    // XXX Should also include have-above-floor distance, but the effect will be minimal
+                    Matrix.T(0f, 0f, -(Projection.RADIUS_KILOMETERS + floor_altitude * 0.001f));
+
+                Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + landmark_altitude*0.001f);
+
+                landmark.sky_position = M.Transform(p) * 1000f;
+            }
         }
     };
 
@@ -125,12 +172,13 @@ namespace DutchSkies
             // Update queue
             ConcurrentQueue<Tuple<string, object>> updates = new ConcurrentQueue<Tuple<string, object>>();
 
-#if false
+#if true
             Tex map_texture = osm_map.current_configuration.texture;
             map_material[MatParamName.DiffuseTex] = map_texture;
             // Disable backface culling on the map for now, for debugging
             map_material.FaceCull = Cull.None;
 #else
+            // XXX map extent is off when dynamically tiles
             Tex map_texture = null;
             var map_thread = new Thread(OSMTiles.FetchMapTiles);
             map_thread.IsBackground = true;
@@ -179,22 +227,28 @@ namespace DutchSkies
 
             Pose windowPose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
             DetailLevel detail_level = DetailLevel.FULL;
+            bool show_flight_units = false;
             bool map_visible = true;
             bool map_show_planes = true, sky_show_planes = true;
-            bool map_show_vlines = true, sky_show_vlines = false;
-            bool show_flight_units = false;
+            bool map_show_vlines = true, sky_show_vlines = false;            
             bool map_show_track_lines = true;
+            bool map_show_observer = false;
+            bool sky_show_landmarks = true;
+            bool show_origin = false;
             int num_map_planes = 0;
+            int sky_y_trim = 0;         // In 0.1 degree increments
 
             const float track_line_thickness = 0.001f;
             Color32 track_line_color = new Color32(0, 0, 255, 255);
             Color VLINE_COLOR = new Color(1f, 0f, 0f);
             Color SKY_TRACK_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
+            Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);
 
             Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
 
             TextStyle text_style_map = Text.MakeStyle(Default.Font, 0.5f * U.cm, new Color(1f, 0f, 0f));
-            TextStyle text_style_sky = Text.MakeStyle(Default.Font, 15f * U.m, new Color(1f, 0f, 0f));
+            TextStyle text_style_sky = Text.MakeStyle(Default.Font, 15f * U.m, VLINE_COLOR);
+            TextStyle text_style_landmark = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
 
             Tuple<string, object> update;
             string update_type;
@@ -211,7 +265,8 @@ namespace DutchSkies
                     Default.MeshCube.Draw(floorMaterial, floorTransform);
 
                 // World origin (for debugging)
-                Lines.AddAxis(Pose.Identity, 0.1f);
+                if (show_origin)
+                    Lines.AddAxis(Pose.Identity, 0.1f);
 
                 //
                 // Process received plane data, if any
@@ -383,15 +438,20 @@ namespace DutchSkies
 
                 // Observer location (on map)
 
-                Vec3 observer_pos = ROT_MIN90_X.Transform(observer.map_position) * map_scale_km_to_scene;
-                observer_marker.Draw(observer_marker_material, Matrix.T(0f,0.005f,0f) * Matrix.T(observer_pos));
+                if (map_show_observer)
+                {
+                    Vec3 observer_pos = ROT_MIN90_X.Transform(observer.map_position) * map_scale_km_to_scene;
+                    observer_marker.Draw(observer_marker_material, Matrix.T(0f, 0.005f, 0f) * Matrix.T(observer_pos));
+                }
 
                 Hierarchy.Pop();
 
                 //
                 // Draw planes in sky
-                // Assume Forward (-Z) is pointing North
+                // Assumes Forward (-Z) is pointing North, although a manual trim is applied on top of that
                 //
+
+                Hierarchy.Push(Matrix.R(0f, sky_y_trim*0.1f, 0f));
 
                 foreach (var plane in plane_data.Values)
                 {
@@ -431,7 +491,6 @@ namespace DutchSkies
                             //Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
                         }
                     }
-
 
                     if (sky_show_vlines)
                     {
@@ -477,6 +536,31 @@ namespace DutchSkies
                         0f, -25f);
                 }
 
+                // Landmarks
+
+                if (sky_show_landmarks)
+                {
+                    foreach (KeyValuePair<string, ObserverData.Landmark> item in observer.landmarks)
+                    {
+                        Vec3 pos = ROT_MIN90_X.Transform(item.Value.sky_position);
+
+                        Lines.Add(pos, new Vec3(pos.x, 0f, pos.z), LANDMARK_VLINE_COLOR, 0.5f);
+
+                        Quat textquat = Quat.LookAt(pos, head_pos, Vec3.UnitY);
+                        Text.Add(
+                            $"{item.Key}",
+                            Matrix.R(textquat) * Matrix.T(pos),
+                            text_style_landmark,
+                            TextAlign.XCenter | TextAlign.YTop,
+                            TextAlign.XCenter | TextAlign.YTop,
+                            0f, 2f);
+                    }
+                }
+
+                Hierarchy.Pop();
+
+                // FPS counter
+
                 fps_num_frames++;
                 float now = Time.Totalf;
                 if (now - fps_start_time > 0.5f)
@@ -488,11 +572,12 @@ namespace DutchSkies
 
                 // UI (drawn late, so we can show accurate statistics)
 
-                UI.WindowBegin("Controls", ref windowPose, new Vec2(35, 0) * U.cm, UIWin.Normal);
+                UI.WindowBegin("Controls", ref windowPose, new Vec2(40, 0) * U.cm, UIWin.Normal);
 
                 UI.Toggle("Flight units", ref show_flight_units);
 
                 UI.PushId("map");
+
                 UI.Label("Map:");
                 UI.Toggle("Visible", ref map_visible);
                 UI.SameLine();
@@ -501,26 +586,55 @@ namespace DutchSkies
                 UI.Toggle("VLines", ref map_show_vlines);
                 UI.SameLine();
                 UI.Toggle("Track lines", ref map_show_track_lines);
+                UI.SameLine();
+                UI.Toggle("Observer", ref map_show_observer);
+
                 UI.Label("Plane details");
                 UI.SameLine();
                 if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
                 UI.SameLine();
                 if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
                 UI.SameLine();
-                if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;                
+                if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
+                
                 UI.PopId();
 
                 UI.PushId("sky");
+
                 UI.Label("Sky:");
                 UI.Toggle("Planes", ref sky_show_planes);
                 UI.SameLine();
                 UI.Toggle("VLines", ref sky_show_vlines);
+                UI.SameLine();
+                UI.Toggle("Landmarks", ref sky_show_landmarks);
+
+                UI.Label("Trim");
+                UI.SameLine();
+                if (UI.Button("-5")) sky_y_trim -= 50;
+                UI.SameLine();
+                if (UI.Button("-1")) sky_y_trim -= 10;
+                UI.SameLine();
+                if (UI.Button("-⅒")) sky_y_trim -= 1;
+                UI.SameLine();
+                if (UI.Button("Z")) sky_y_trim = 0;
+                UI.SameLine();
+                if (UI.Button("+⅒")) sky_y_trim += 1;                
+                UI.SameLine();
+                if (UI.Button("+1")) sky_y_trim += 10;
+                UI.SameLine();
+                if (UI.Button("+5")) sky_y_trim += 50;
+
                 UI.PopId();
 
-                UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");                
+                UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
+
+                UI.Label("Debug:");
+                UI.SameLine();
+                UI.Toggle("Origin", ref show_origin);
+                UI.SameLine();
+                // XXX log window
                 UI.Text($"{fps:F1} FPS");
                 UI.WindowEnd();
-
             }));
 
             SK.Shutdown();
