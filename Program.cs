@@ -244,7 +244,8 @@ namespace DutchSkies
             Color VLINE_COLOR = new Color(1f, 0f, 0f);
             Color SKY_TRACK_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
             Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);
-            const float SKY_SCALING_THRESHOLD = 5f;
+
+            const float SKY_SCALING_THRESHOLD = 3f;
             Matrix SKY_FAR_MODEL_SCALE = Matrix.S(30f);
             Matrix SKY_CLOSE_MODEL_SCALE = Matrix.S(60f);            
 
@@ -386,7 +387,7 @@ namespace DutchSkies
                         {
                             sstring = $"{plane.last_velocity * 1.94384449f:N0} kn";
 
-                            int fl = (int)MathF.Round(plane.computed_altitude / 30.48f);
+                            int fl = (int)MathF.Round(plane.computed_barometric_altitude / 30.48f);
                             astring = $"FL {fl:D3}";
 
                             vrate = vrate / 0.3048f * 60f;
@@ -398,7 +399,7 @@ namespace DutchSkies
                         else
                         {
                             sstring = $"{plane.last_velocity * 3.6f:N0} km / h";
-                            astring = $"{plane.computed_altitude:N0} m";
+                            astring = $"{plane.computed_barometric_altitude:N0} m";
 
                             if (vrate > 1f)
                                 vstring = $"▲ {vrate:F0} m/s";
@@ -512,13 +513,13 @@ namespace DutchSkies
                     if (show_flight_units)
                     {
                         sstring = $"{plane.last_velocity * 1.94384449f:N0} kn";
-                        int fl = (int)MathF.Round(plane.computed_altitude / 30.48f);
-                        astring = $"FL {fl:D3}";
+                        int fl = (int)MathF.Round(plane.computed_geometric_altitude / 30.48f);
+                        astring = $"FL {fl:D3} (G)";
                     }
                     else
                     {
                         sstring = $"{plane.last_velocity * 3.6f:N0} km / h";
-                        astring = $"{plane.computed_altitude:N0} m";
+                        astring = $"{plane.computed_geometric_altitude:N0} m (G)";
                     }
 
                     Text.Add(

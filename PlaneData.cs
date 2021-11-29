@@ -27,14 +27,16 @@ namespace DutchSkies
 
         public float last_lat, last_lon;    // degrees
         public float last_heading;          // [0,360[ degrees
-        public float last_altitude;         // meters
-        public bool using_geometric_altitude;
+        public float last_geometric_altitude;         // meters
+        public bool have_geometric_altitude;
+        public float last_barometric_altitude;         // meters
+        public bool have_barometric_altitude;
         public float last_velocity;         // m/s
         public float last_vertical_rate;    // m/s
         public bool on_ground;
 
         protected Vec3 last_map_position;   // Map-centric location (units = km, origin = map origin)
-        protected Vec3 last_sky_position;   // Sky-centric location (units = km, origin = observer location)
+        protected Vec3 last_sky_position;   // Sky-centric location (units = m, origin = observer location)
         protected Vec3 last_delta;          // Change in x, y, z (units = km/s)
 
         // OpenSky data
@@ -43,7 +45,8 @@ namespace DutchSkies
         // Extrapolated position and orientation
         public Vec3 computed_map_position;  // Map units (kilometers)
         public Vec3 computed_sky_position;  // Meters
-        public float computed_altitude;     // Meters
+        public float computed_barometric_altitude;     // Meters
+        public float computed_geometric_altitude;
         public float computed_climb_angle;  // Degrees
         public float observer_distance;     // Kilometers
 
@@ -57,8 +60,10 @@ namespace DutchSkies
             this.id = id;
             updateState = UpdateState.NORMAL;
             callsign = UNKNOWN_CALLSIGN_STRING;
-            last_altitude = 0f;
-            using_geometric_altitude = false;
+            last_geometric_altitude = 0f;
+            last_barometric_altitude = 0f;
+            have_geometric_altitude = false;
+            have_barometric_altitude = false;
             first_data = true;
             map_positions = new List<Vec3>();
         }
@@ -104,18 +109,20 @@ namespace DutchSkies
             this.session_time_received = session_time_received;
             this.update_timestamp = time_position;
 
+            have_geometric_altitude = have_barometric_altitude = false;
+
             last_lon = node[5];             // 4. ...
             last_lat = node[6];             // 52. ...
             last_heading = node[10];        // 0-360
-            if (node[7] != null)
+            if (node[7] != null)            // barometric altitude (meters)
             {
-                last_altitude = node[7];    // barometric altitude (meters)
-                using_geometric_altitude = false;
+                last_geometric_altitude = node[7];    
+                have_geometric_altitude = true;
             }
-            else if (node[13] != null)
+            if (node[13] != null)      // geometric altitude (meters)
             {
-                last_altitude = node[13];   // geometric altitude (meters)
-                using_geometric_altitude = true;
+                last_barometric_altitude = node[13];   
+                have_barometric_altitude = true;
             }
             last_velocity = node[9];        // velocity over ground (m/s)
             last_vertical_rate = node[11];  // vertical climb rate in m/s, >0 = climbing, <0 = descending
@@ -146,9 +153,11 @@ namespace DutchSkies
 
             Log.Info($"[{id}] {last_lat:F6}, {last_lon:F6} -> {last_x:F6}, {last_y:F6}");
 
-            float last_altitude_km = last_altitude / 1000f;
+            float last_geometric_altitude_km = last_geometric_altitude / 1000f;
+            float last_barometric_altitude_km = last_barometric_altitude / 1000f;
 
-            last_map_position = new Vec3(last_x, last_y, last_altitude_km);
+            // Map position is based on barometric altitude
+            last_map_position = new Vec3(last_x, last_y, last_barometric_altitude_km);
             computed_map_position = last_map_position;
             if (!on_ground)
                 map_positions.Add(last_map_position);
@@ -172,15 +181,14 @@ namespace DutchSkies
                 // XXX Should also include have-above-floor distance, but the effect will be minimal
                 Matrix.T(0f, 0f, -(Projection.RADIUS_KILOMETERS + observer.floor_altitude * 0.001f));
 
-            Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + last_altitude_km);
+            Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + last_geometric_altitude_km);
 
-            last_sky_position = M.Transform(p);
+            // Sky position is based on barometric altitude
+            last_sky_position = M.Transform(p) * 1000f;
 
             // XXX distance from projection center, not head position, but should relatively be only very little off
-            observer_distance = last_sky_position.Length;
+            observer_distance = last_sky_position.Length / 1000f;
             //Log.Info($"[{callsign}] lat {last_lat:F6}, lon {last_lon:F6} -> p = {last_sky_position.x:F6}, {last_sky_position.y:F6}, {last_sky_position.z:F6}; dist {sky_distance:F0} km (sky position)");
-
-            last_sky_position *= 1000f;
 
             if (first_data)
             {
@@ -204,7 +212,8 @@ namespace DutchSkies
 
             // Extrapolate positions based on last data received
             float t_diff = (float)(update_time - update_timestamp);
-            computed_altitude = last_altitude + t_diff * last_vertical_rate;
+            computed_barometric_altitude = last_barometric_altitude + t_diff * last_vertical_rate;
+            computed_geometric_altitude = last_geometric_altitude + t_diff * last_vertical_rate;
             computed_map_position = last_map_position + t_diff * last_delta;
             computed_sky_position = last_sky_position + t_diff * last_delta * 1000f;
 
