@@ -32,7 +32,7 @@ namespace DutchSkies
                 this.lon = lon;
                 this.altitude = alt;
                 map_position = new Vec3();
-                sky_position = new Vec3();
+                sky_position = new Vec3();                
             }
         };
 
@@ -42,6 +42,7 @@ namespace DutchSkies
             lat = 52.357036140185144f;
             lon = 4.954487434653384f;
             floor_altitude = /* street level */ -3.64f + 4f /* one floor */;
+            landmarks = new Dictionary<string, Landmark>();
         }
 
         public void update_map_position(OSMMap map)
@@ -243,12 +244,15 @@ namespace DutchSkies
             Color VLINE_COLOR = new Color(1f, 0f, 0f);
             Color SKY_TRACK_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
             Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);
-
-            Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
+            const float SKY_SCALING_THRESHOLD = 5f;
+            Matrix SKY_FAR_MODEL_SCALE = Matrix.S(30f);
+            Matrix SKY_CLOSE_MODEL_SCALE = Matrix.S(60f);            
 
             TextStyle text_style_map = Text.MakeStyle(Default.Font, 0.5f * U.cm, new Color(1f, 0f, 0f));
             TextStyle text_style_sky = Text.MakeStyle(Default.Font, 15f * U.m, VLINE_COLOR);
             TextStyle text_style_landmark = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
+
+            Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
 
             Tuple<string, object> update;
             string update_type;
@@ -468,27 +472,25 @@ namespace DutchSkies
                     if (sky_show_planes)
                     {
                         // Plane
-                        if (plane.observer_distance > 3f)
+                        if (plane.observer_distance > SKY_SCALING_THRESHOLD)
                         {
                             // To avoid large clipping distances move plane along the line from plane to viewer,
                             // with a smaller plane model to avoid a weird scaling visual issues
 
                             // Vector from head to plane 
-                            //Vec3 v = pos - Input.Head.position;
-                            //v.Normalize();
+                            Vec3 v = pos - Input.Head.position;
+                            v.Normalize();
 
-                            //pos = Input.Head.position + 3000f * v;
-                            pos *= 3f / plane.observer_distance;
-                            prev_pos *= 3f / plane.observer_distance;
+                            pos *= SKY_SCALING_THRESHOLD / plane.observer_distance;
+                            prev_pos *= SKY_SCALING_THRESHOLD / plane.observer_distance;
                             //Log.Info($"[{plane.callsign}] position scaled to {pos}");
 
-                            plane_model.Draw(Matrix.S(30f) * ROT_MIN90_X * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                            plane_model.Draw(SKY_FAR_MODEL_SCALE * ROT_MIN90_X * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                         }
                         else
                         {
-                            // Plane with length 100 meter, larger than an A380 ;-)
-                            plane_model.Draw(Matrix.S(100f) * ROT_MIN90_X * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
-                            //Lines.Add(pos, new Vec3(pos.x, pos.y, 0f), new Color(1f, 0f, 0f), 0.001f);
+                            // Plane is close, use model with "realistic" scale
+                            plane_model.Draw(SKY_CLOSE_MODEL_SCALE * ROT_MIN90_X * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                         }
                     }
 
@@ -639,6 +641,8 @@ namespace DutchSkies
 
             SK.Shutdown();
         }
+
+        // XXX need to make the extent dynamic, based on the current map
         static async void FetchPlaneUpdates(object update_queue_obj)
         {
             const string URL = "https://opensky-network.org/api/states/all?lamin=50.513427&lomin=2.812500&lamax=53.748711&lomax=7.734375";
