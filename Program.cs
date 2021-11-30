@@ -633,10 +633,13 @@ namespace DutchSkies
                     foreach (var plane in plane_data.Values)
                         plane.ClearTracks();
                 }
+                UI.SameLine();
+                UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
 
+                UI.HSeparator();
                 UI.PushId("map");
 
-                UI.Label("Map:");
+                UI.Labe("Map:");
                 UI.Toggle("Visible", ref map_visible);
                 UI.SameLine();
                 UI.Toggle("Planes", ref map_show_planes);
@@ -657,6 +660,7 @@ namespace DutchSkies
 
                 UI.PopId();
 
+                UI.HSeparator();
                 UI.PushId("sky");
 
                 UI.Label("Sky:");
@@ -686,8 +690,7 @@ namespace DutchSkies
 
                 UI.PopId();
 
-                UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
-
+                UI.HSeparator();
                 string time = DateTime.Now.ToString("HH:mm:ss");
                 UI.Label("Debug:");
                 UI.SameLine();
@@ -706,7 +709,6 @@ namespace DutchSkies
                 {
                     UI.WindowBegin("Log", ref log_window_pose, new Vec2(80, 0) * U.cm, UIWin.Normal);
                     UI.Text(log_text);
-                    UI.Text($"{log_window_pose.position}");
                     UI.WindowEnd();
                 }
             })) ;
