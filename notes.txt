@@ -5,9 +5,7 @@
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
 
-add log window
-
-toggle sky plane 3d model only, keep info and track
+add surf logo
 
 refactor map and data handling
 

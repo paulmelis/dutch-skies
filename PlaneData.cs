@@ -95,7 +95,7 @@ namespace DutchSkies
                 string s = ((string)(node[1])).Trim();
                 if (s != "")
                 {
-                    Log.Info($"Got callsign for {id}: {s}");
+                    //Log.Info($"Got callsign for {id}: {s}");
                     this.callsign = s;
                 }
             }
@@ -151,7 +151,7 @@ namespace DutchSkies
             float last_x = 0f, last_y = 0f;
             map.Project(ref last_x, ref last_y, last_lon, last_lat);
 
-            Log.Info($"[{id}] {last_lat:F6}, {last_lon:F6} -> {last_x:F6}, {last_y:F6}");
+            //Log.Info($"[{id}] {last_lat:F6}, {last_lon:F6} -> {last_x:F6}, {last_y:F6}");
 
             float last_geometric_altitude_km = last_geometric_altitude / 1000f;
             float last_barometric_altitude_km = last_barometric_altitude / 1000f;

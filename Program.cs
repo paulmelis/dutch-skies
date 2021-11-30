@@ -109,12 +109,16 @@ namespace DutchSkies
 
         public Tex texture;
         public int image_width, image_height;
-    }
+    };
 
 
     class Program
     {
         enum DetailLevel { NONE, CALLSIGN, FULL };
+
+        static List<string> log_lines = new List<string>();
+        static string log_text = "";
+
         static void Main(string[] args)
         {
             // To get , as thousand separator
@@ -132,6 +136,10 @@ namespace DutchSkies
             if (!SK.Initialize(settings))
                 Environment.Exit(1);
 
+            // Set up log window
+            Log.Subscribe(OnLog);
+
+            // Tweak renderer
             Renderer.SetClip(0.08f, 10000f);
             Renderer.EnableSky = false;
 
@@ -246,12 +254,15 @@ namespace DutchSkies
             // Green = Vec3.Up = +Y
             // Blue = Vec3.Forward = -Z (NOTE!)
 
-            Pose windowPose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
+            Pose main_window_pose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
+            Pose log_window_pose = new Pose(0.9f, -0.2f, 0f, Quat.LookDir(-1, 0, 1));
+
             DetailLevel detail_level = DetailLevel.FULL;
+            bool show_log_window = true;
             bool show_flight_units = false;
             bool map_visible = true;
             bool map_show_planes = true, sky_show_planes = true;
-            bool map_show_vlines = true, sky_show_vlines = false;            
+            bool map_show_vlines = true, sky_show_vlines = false;
             bool map_show_track_lines = true, sky_show_track_lines = true;
             bool map_show_observer = false;
             bool sky_show_landmarks = true;
@@ -267,7 +278,7 @@ namespace DutchSkies
 
             const float SKY_SCALING_THRESHOLD = 3f;
             Matrix SKY_FAR_MODEL_SCALE = Matrix.S(30f);
-            Matrix SKY_CLOSE_MODEL_SCALE = Matrix.S(60f);            
+            Matrix SKY_CLOSE_MODEL_SCALE = Matrix.S(60f);
 
             TextStyle text_style_map = Text.MakeStyle(Default.Font, 0.5f * U.cm, new Color(1f, 0f, 0f));
             TextStyle text_style_sky = Text.MakeStyle(Default.Font, 15f * U.m, VLINE_COLOR);
@@ -299,15 +310,17 @@ namespace DutchSkies
 
                 while (!updates.IsEmpty)
                 {
+                    // XXX handle error
+
                     updates.TryDequeue(out update);
                     update_type = update.Item1;
 
-                    Log.Info($"Got update (type '{update_type}')");
+                    Log.Info($"Update type '{update_type}'");
 
                     if (update_type == "map_image")
                     {
                         // XXX need to handle image update that doesn't match current map
-                        Log.Info("Got updated map image!");
+                        Log.Info("Got updated map image");
                         map_material[MatParamName.DiffuseTex] = Tex.FromMemory(update.Item2 as byte[]);
                         // Disable backface culling on the map for now, for debugging
                         map_material.FaceCull = Cull.None;
@@ -316,7 +329,7 @@ namespace DutchSkies
                     {
                         root_node = update.Item2 as JSONNode;
                         JSONNode states = root_node["states"];
-                        Log.Info("Got {0} new states", states.Count);
+                        Log.Info("Got {0} state updates", states.Count);
 
                         float update_time = Time.Totalf;
 
@@ -341,7 +354,7 @@ namespace DutchSkies
 
                 double draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
                 Vec3 head_pos = Input.Head.position;
-                
+
                 Hierarchy.Push(MAP_PLACEMENT_XFORM);
 
                 // Map
@@ -386,7 +399,7 @@ namespace DutchSkies
                     else if (plane.updateState == PlaneData.UpdateState.MISSING)
                         callsign = "(" + callsign + ")";
 
-                        if (detail_level == DetailLevel.CALLSIGN)
+                    if (detail_level == DetailLevel.CALLSIGN)
                     {
                         Text.Add(
                             $"{plane.callsign}",
@@ -476,7 +489,7 @@ namespace DutchSkies
                 // Assumes Forward (-Z) is pointing North, although a manual trim is applied on top of that
                 //
 
-                Hierarchy.Push(Matrix.R(0f, sky_y_trim*0.1f, 0f));
+                Hierarchy.Push(Matrix.R(0f, sky_y_trim * 0.1f, 0f));
 
                 bool scaled;
 
@@ -581,7 +594,7 @@ namespace DutchSkies
                         ObserverData.Landmark landmark = item.Value;
                         Vec3 pos = ROT_MIN90_X.Transform(landmark.sky_position);
 
-                        Lines.Add(pos, new Vec3(pos.x, pos.y-landmark.height, pos.z), LANDMARK_VLINE_COLOR, 0.5f);
+                        Lines.Add(pos, new Vec3(pos.x, pos.y - landmark.height, pos.z), LANDMARK_VLINE_COLOR, 0.5f);
 
                         Quat textquat = Quat.LookAt(pos, head_pos, Vec3.UnitY);
                         Text.Add(
@@ -611,7 +624,8 @@ namespace DutchSkies
                 // UI (drawn late, so we can show accurate statistics)
                 //
 
-                UI.WindowBegin("Controls", ref windowPose, new Vec2(50, 0) * U.cm, UIWin.Normal);
+                // Main window
+                UI.WindowBegin("Dutch Skies", ref main_window_pose, new Vec2(50, 0) * U.cm, UIWin.Normal);
 
                 UI.Toggle("Flight units", ref show_flight_units);
 
@@ -635,7 +649,7 @@ namespace DutchSkies
                 if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
                 UI.SameLine();
                 if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
-                
+
                 UI.PopId();
 
                 UI.PushId("sky");
@@ -659,7 +673,7 @@ namespace DutchSkies
                 UI.SameLine();
                 if (UI.Button("Z")) sky_y_trim = 0;
                 UI.SameLine();
-                if (UI.Button("⅒ >")) sky_y_trim += 1;                
+                if (UI.Button("⅒ >")) sky_y_trim += 1;
                 UI.SameLine();
                 if (UI.Button("1 >")) sky_y_trim += 10;
                 UI.SameLine();
@@ -669,18 +683,43 @@ namespace DutchSkies
 
                 UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
 
+                string time = DateTime.Now.ToString("HH:mm:ss");
                 UI.Label("Debug:");
+                UI.SameLine();
+                UI.Toggle("Log", ref show_log_window);                
                 UI.SameLine();
                 UI.Toggle("Origin", ref show_origin);
                 UI.SameLine();
-                UI.Label($"IP:{our_ip}");
+                UI.Label($"IP:{our_ip}  {fps:F1} FPS  {time}");
                 UI.SameLine();
                 // XXX log window
-                UI.Text($"{fps:F1} FPS");
                 UI.WindowEnd();
-            }));
+
+                // Log window
+
+                if (show_log_window)
+                {
+                    UI.WindowBegin("Log", ref log_window_pose, new Vec2(80, 0) * U.cm, UIWin.Normal);
+                    UI.Text(log_text);
+                    UI.Text($"{log_window_pose.position}");
+                    UI.WindowEnd();
+                }
+            })) ;
 
             SK.Shutdown();
+        }
+
+        static void OnLog(LogLevel level, string text)
+        {
+            string time = DateTime.Now.ToString("HH:mm:ss.fff");
+            if (log_lines.Count > 20)
+                log_lines.RemoveAt(0);
+            text = $"{time} {text}";
+            log_lines.Add(text.Length < 100 ? text : text.Substring(0, 100) + "...\n");
+
+            log_text = "";
+            for (int i = 0; i < log_lines.Count; i++)
+                log_text += log_lines[i];
         }
 
         // XXX need to make the extent dynamic, based on the current map
@@ -698,7 +737,7 @@ namespace DutchSkies
                     HttpResponseMessage response = await client.GetAsync(URL);
                     response.EnsureSuccessStatusCode();
                     string body = await response.Content.ReadAsStringAsync();
-                    Log.Info("(data fetch): " + body);
+                    //Log.Info("(data fetch): " + body);
 
                     JSONNode root_node = JSON.Parse(body);
                     update_queue.Enqueue(new Tuple<string,object>("plane_data", root_node));
