@@ -639,12 +639,12 @@ namespace DutchSkies
             // Schiphol Airport
             map = maps["Schiphol Airport"] = new OSMMap(
                 "Schiphol Airport",
-                52.052490f, 52.536273f, 4.042969f, 5.361328f, 12
+                51.890054f, 52.696361f, 4.042969f, 5.361328f, 12
             );
 
-            map.texture = Tex.FromFile("Maps\\schiphol-lon-4.042969-5.361328-lat-52.052490-52.536273-c-4.702148-52.294382-z12-3840x2304.png");
+            map.texture = Tex.FromFile("Maps\\schiphol-lon-4.042969-5.361328-lat-51.890054-52.696361-c-4.702148-52.293208-z12-3840x3840.png");
             map.image_width = 3840;
-            map.image_height = 2304;
+            map.image_height = 3840;
         }
 
         public static void SetMap(string map)

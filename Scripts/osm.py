@@ -31,9 +31,9 @@ def tile_nw_corner(xtile, ytile, zoom):
 
 
 if __name__ == '__main__':
-    
+
     TILE_SIZE = 256
-    
+
     # XXX should use left-right, bottom-top for range names
     # XXX write metadata to separate json file
 
@@ -41,19 +41,19 @@ if __name__ == '__main__':
     # and pastes them together into a single image.
     # The output image will (in almost all cases) cover an area
     # larger than requested, as tiles are not clipped.
-    
+
     # Netherlands
     name = 'netherlands'
     lat_range = [50.513427, 53.748711]
     lon_range = [2.812500, 7.734375]
     zoom = 10
-    
+
     # Schiphol
-    #name = 'schiphol'
-    #lat_range = [52.106505, 52.536273]
-    #lon_range = [4.130859, 5.361328]
-    #zoom = 12
-    
+    name = 'schiphol'
+    lat_range = [51.9, 52.65]
+    lon_range = [4.130859, 5.361328]
+    zoom = 12
+
     # Determine tiles needed
     lat = 0.5*(lat_range[0]+lat_range[1])
     lon = 0.5*(lon_range[0]+lon_range[1])
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     mini = coordinate_to_tile(lat, lon_range[0], zoom)[0]
     maxi = coordinate_to_tile(lat, lon_range[1], zoom)[0]
 
-    print('tile range: i = %d-%d, j=%d,%d' % (mini, maxi, minj, maxj))
+    print('tile range: i = %d-%d, j = %d-%d' % (mini, maxi, minj, maxj))
 
     nrows = maxj - minj + 1
     ncols = maxi - mini + 1
