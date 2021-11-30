@@ -235,7 +235,7 @@ namespace DutchSkies
             else if (updateState == UpdateState.LATE && t_diff > 120.0f)
             {
                 // Haven't had update for a long time, mark as missing
-                Log.Info(String.Format("Making plane {0} ({1}) MISSING as we haven't had data updates  in {2:F3}s", id, callsign, t_diff));
+                Log.Info(String.Format("Marking plane {0} ({1}) MISSING as we haven't had data updates  in {2:F3}s", id, callsign, t_diff));
                 updateState = UpdateState.MISSING;
             }
         }

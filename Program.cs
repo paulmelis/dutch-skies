@@ -293,8 +293,6 @@ namespace DutchSkies
                     string callsign = "${plane.callsign}";
                     if (plane.updateState == PlaneData.UpdateState.LATE)
                         callsign += "*";
-                    else if (plane.updateState == PlaneData.UpdateState.MISSING)
-                        callsign = "(" + callsign + ")";
 
                     if (detail_level == DetailLevel.CALLSIGN)
                     {

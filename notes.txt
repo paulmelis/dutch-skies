@@ -5,15 +5,11 @@
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
 
-more surrounding to schiphol map (especially north)
-map center schiphol?
+when switching maps update map plane positions
 
-maRking plane LATE, ....
 are indicators working?
 
 plane details map in purple?
-
-clear track when plane becomes on-ground
 
 add surf logo
 
