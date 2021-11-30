@@ -667,7 +667,6 @@ namespace DutchSkies
             Log.Info("Map tile fetch thread started");
 #endif
             // XXX need to recompute extrapolated map positions 
-
         }
 
         public static void ClearTracks()
@@ -676,8 +675,8 @@ namespace DutchSkies
                 plane.ClearTrack();
         }
 
-    // XXX need to make the extent dynamic, based on the current map
-    static async void FetchPlaneUpdates(object update_queue_obj)
+        // XXX need to make the extent dynamic, based on the current map
+        static async void FetchPlaneUpdates(object update_queue_obj)
         {
             const string URL = "https://opensky-network.org/api/states/all?lamin=50.513427&lomin=2.812500&lamax=53.748711&lomax=7.734375";
 
@@ -704,5 +703,6 @@ namespace DutchSkies
                 Thread.Sleep(8 * 1000);
             }
         }
+
     }
 }
