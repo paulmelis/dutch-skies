@@ -300,6 +300,7 @@ namespace DutchSkies
                         scanning_for_qrcodes = false;
                         last_qrcode_id = qrcode.Id;
 
+                        // XXX this seems to cause problems
                         //Pose pose;
                         //World.FromSpatialNode(qrcode.SpatialGraphNodeId, out pose);
                         //Default.SoundClick.Play(pose.position);
