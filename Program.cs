@@ -32,6 +32,10 @@ namespace DutchSkies
         static Mesh map_quad;
         static Tex map_texture;
 
+        // Query
+        static Vec4 data_query_extent;
+        const int OPENSKY_QUERY_INTERVAL = 8;
+
         const float PLANE_SIZE_METERS = 0.015f;  
 
         static void OnLog(LogLevel level, string text)
@@ -40,7 +44,7 @@ namespace DutchSkies
             if (log_lines.Count > 20)
                 log_lines.RemoveAt(0);
             text = $"{time} {text}";
-            log_lines.Add(text.Length < 100 ? text : text.Substring(0, 100) + "...\n");
+            log_lines.Add(text.Length < 120 ? text : text.Substring(0, 120) + "...\n");
 
             log_text = "";
             for (int i = 0; i < log_lines.Count; i++)
@@ -91,11 +95,13 @@ namespace DutchSkies
 
             // Queue for receiving updates from threads
             ConcurrentQueue<Tuple<string, object>> updates = new ConcurrentQueue<Tuple<string, object>>();
+            // Queue for sending updated query range to thread
+            ConcurrentQueue<Vec4> query_update_queue = new ConcurrentQueue<Vec4>();
 
             //
             // Maps
             //
-            
+
             Matrix MAP_PLACEMENT_XFORM = Matrix.T(1f * Vec3.Forward - 0.7f * Vec3.Up);
 
             maps = new Dictionary<string, OSMMap>();
@@ -135,11 +141,15 @@ namespace DutchSkies
             Matrix floorTransform = Matrix.TS(0, -1.5f, 0, new Vec3(30, 0.1f, 30));
             Material floorMaterial = new Material(Shader.FromFile("floor.hlsl"));
             floorMaterial.Transparency = Transparency.Blend;
+            
+            // Set query extent, based on map
+            data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
 
             // Launch data update thread            
+            query_update_queue.Enqueue(data_query_extent);
             var data_thread = new Thread(FetchPlaneUpdates);
             data_thread.IsBackground = true;
-            data_thread.Start(updates);
+            data_thread.Start(new Tuple<object,object>(updates, query_update_queue));
             Log.Info("Data thread started");
 
             // Initial head pose in physical space is apparently taken as origin, with
@@ -177,6 +187,7 @@ namespace DutchSkies
             Matrix SKY_FAR_MODEL_SCALE = Matrix.S(30f);
             Matrix SKY_CLOSE_MODEL_SCALE = Matrix.S(60f);
 
+            // XXX style uses gamma-space color, leading to slight different with vline color
             TextStyle MAP_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.5f * U.cm, MAP_BASE_COLOR);
             TextStyle SKY_TEXT_STYLE = Text.MakeStyle(Default.Font, 15f * U.m, SKY_BASE_COLOR);
             TextStyle LANDMARK_TEXT_STYLE = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
@@ -288,16 +299,18 @@ namespace DutchSkies
                     }
 
                     // Plane information
-
-                    // XXX also for sky planes?
-                    string callsign = "${plane.callsign}";
+                    
+                    string callsign = $"{plane.callsign}";
                     if (plane.updateState == PlaneData.UpdateState.LATE)
-                        callsign += "*";
+                    {
+                        // XXX also for sky planes?
+                        callsign = $"({callsign})";
+                    }
 
                     if (detail_level == DetailLevel.CALLSIGN)
                     {
                         Text.Add(
-                            $"{plane.callsign}",
+                            $"{callsign}",
                            ROT_180_Y * Matrix.T(pos),
                             MAP_TEXT_STYLE,
                             TextAlign.XLeft | TextAlign.YTop,
@@ -344,7 +357,7 @@ namespace DutchSkies
                         }
 
                         Text.Add(
-                            $"{plane.callsign}\n{plane.last_heading:F0}°\n{sstring}\n{astring}\n{vstring}",
+                            $"{callsign}\n{plane.last_heading:F0}°\n{sstring}\n{astring}\n{vstring}",
                             ROT_180_Y * Matrix.T(text_pos),
                             MAP_TEXT_STYLE,
                             pos_align,
@@ -541,6 +554,10 @@ namespace DutchSkies
                         SetMap(map.name);
                         // XXX for now
                         ClearTracks();
+
+                        // Signal update to query extent
+                        data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
+                        query_update_queue.Enqueue(data_query_extent);
                     }
                 }
 
@@ -675,32 +692,48 @@ namespace DutchSkies
                 plane.ClearTrack();
         }
 
-        // XXX need to make the extent dynamic, based on the current map
-        static async void FetchPlaneUpdates(object update_queue_obj)
+        static async void FetchPlaneUpdates(object obj)
         {
-            const string URL = "https://opensky-network.org/api/states/all?lamin=50.513427&lomin=2.812500&lamax=53.748711&lomax=7.734375";
+            Tuple<object, object> args = obj as Tuple<object, object>;
+            ConcurrentQueue<Tuple<string,object>> data_output_queue = args.Item1 as ConcurrentQueue<Tuple<string, object>>;
+            ConcurrentQueue<Vec4> extent_input_queue = args.Item2 as ConcurrentQueue<Vec4>;
 
-            ConcurrentQueue<Tuple<string,object>> update_queue = update_queue_obj as ConcurrentQueue<Tuple<string, object>>;
+            Vec4 extent;
+
+            // Wait for initial extent
+            while (!extent_input_queue.TryDequeue(out extent))
+                Thread.Sleep(100);
+
+            Log.Info($"(data fetch thread) Initial query extent: lat {extent.x:F6} - {extent.y:F6}, lon {extent.z:F6} - {extent.w:F6}");
+            string URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
+
+            HttpClient client = new HttpClient();
 
             while (true)
             {
-                try
+                if (extent_input_queue.TryDequeue(out extent))
                 {
-                    HttpClient client = new HttpClient();
+                    // Got updated extent
+                    Log.Info($"(data fetch thread) Got updated query extent: lat = {extent.x:F6} - {extent.y:F6}, lon = {extent.z:F6} - {extent.w:F6}");
+                    URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
+                }
+
+                try
+                {                    
                     HttpResponseMessage response = await client.GetAsync(URL);
                     response.EnsureSuccessStatusCode();
                     string body = await response.Content.ReadAsStringAsync();
                     //Log.Info("(data fetch): " + body);
 
                     JSONNode root_node = JSON.Parse(body);
-                    update_queue.Enqueue(new Tuple<string,object>("plane_data", root_node));
+                    data_output_queue.Enqueue(new Tuple<string,object>("plane_data", root_node));
                 }
                 catch (HttpRequestException e)
                 {
                     Log.Info("(data fetch): Exception " + e.Message);
                 }
 
-                Thread.Sleep(8 * 1000);
+                Thread.Sleep(OPENSKY_QUERY_INTERVAL * 1000);
             }
         }
 

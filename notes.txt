@@ -5,11 +5,10 @@
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
 
+
+app logo
+
 when switching maps update map plane positions
-
-are indicators working?
-
-plane details map in purple?
 
 add surf logo
 
@@ -30,9 +29,6 @@ delete missing planes (but keep track of number deleted)
 add late and forgotten count
 on ground
 
-delete track for planes on ground
-reset track lines button (+ max length?)
-
 allow text size selection
 
 callsign-only text is sometimes too low
@@ -47,8 +43,6 @@ allow map speciication, including image?, through qr code
 rotate map text based on head pos
 
 combine map and sky parts where possible
-
-late/missing indicator
 
 align opensky query area with map area
 
