@@ -3,10 +3,10 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
-using System.Runtime.InteropServices;
 using System.Threading;
 using Windows.Networking;
 using Windows.Networking.Connectivity;
+using Microsoft.MixedReality.QR;
 using SimpleJSON;
 using StereoKit;
 
@@ -15,6 +15,7 @@ namespace DutchSkies
     class Program
     {
         enum DetailLevel { NONE, CALLSIGN, FULL };
+        const float PLANE_SIZE_METERS = 0.015f;
 
         // Log
         static List<string> log_lines = new List<string>();
@@ -36,7 +37,14 @@ namespace DutchSkies
         static Vec4 data_query_extent;
         const int OPENSKY_QUERY_INTERVAL = 8;
 
-        const float PLANE_SIZE_METERS = 0.015f;  
+        // Thread event queue
+        static ConcurrentQueue<Tuple<string, object>> updates_queue;
+
+        // QR code scanning
+        static bool scanning_for_qr_codes;
+        static QRCodeWatcher qrcode_watcher;
+        static DateTime qrcode_watcher_start;
+        //Dictionary<Guid, QRData> poses = new Dictionary<Guid, QRData>();
 
         static void OnLog(LogLevel level, string text)
         {
@@ -94,7 +102,7 @@ namespace DutchSkies
             }
 
             // Queue for receiving updates from threads
-            ConcurrentQueue<Tuple<string, object>> updates = new ConcurrentQueue<Tuple<string, object>>();
+            updates_queue = new ConcurrentQueue<Tuple<string, object>>();
             // Queue for sending updated query range to thread
             ConcurrentQueue<Vec4> query_update_queue = new ConcurrentQueue<Vec4>();
 
@@ -121,7 +129,7 @@ namespace DutchSkies
             Model plane_model = Model.FromFile("Airplane-cleaned.rotated.glb");
             if (plane_model == null)
                 Log.Err("Could not load plane model");
-            
+
             Matrix MAP_SCALE_PLANE_SIZE = Matrix.S(PLANE_SIZE_METERS);
 
             // XXX need to figure out why the marker needs to be much smaller compared to the plane model, doesn't make sense
@@ -141,7 +149,7 @@ namespace DutchSkies
             Matrix floorTransform = Matrix.TS(0, -1.5f, 0, new Vec3(30, 0.1f, 30));
             Material floorMaterial = new Material(Shader.FromFile("floor.hlsl"));
             floorMaterial.Transparency = Transparency.Blend;
-            
+
             // Set query extent, based on map
             data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
 
@@ -149,8 +157,33 @@ namespace DutchSkies
             query_update_queue.Enqueue(data_query_extent);
             var data_thread = new Thread(FetchPlaneUpdates);
             data_thread.IsBackground = true;
-            data_thread.Start(new Tuple<object,object>(updates, query_update_queue));
+            data_thread.Start(new Tuple<object, object>(updates_queue, query_update_queue));
             Log.Info("Data thread started");
+
+            // Prepare for QR scanning
+
+            // Ask for permission to use the QR code tracking system
+            var status = QRCodeWatcher.RequestAccessAsync().Result;
+            if (status == QRCodeWatcherAccessStatus.Allowed)
+            {
+                // Create watcher and set it up
+                qrcode_watcher = new QRCodeWatcher();
+                qrcode_watcher.Added += (o, qr) => 
+                {
+                    //Log.Info($"(QR code Added handler) Found QR code: {qr.Code.Id} '{qr.Code.Data}'");
+                    updates_queue.Enqueue(new Tuple<string, object>("qrcode", qr.Code));
+                };
+                qrcode_watcher.Updated += (o, qr) =>
+                {
+                    //Log.Info($"(QR code Updated handler) QR code: {qr.Code.Id} '{qr.Code.Data}'");
+                    updates_queue.Enqueue(new Tuple<string, object>("qrcode", qr.Code));
+                };
+                //watcher.Removed += (o, qr) => poses.Remove(qr.Code.Id);
+            }
+            else
+                Log.Info("Cannot perform QR code scanning, no permission given");
+
+            scanning_for_qr_codes = false;
 
             // Initial head pose in physical space is apparently taken as origin, with
             // head view direction as forward (-Z), Y is up, X to the right, i.e. right-handed
@@ -172,7 +205,7 @@ namespace DutchSkies
             bool map_show_track_lines = true, sky_show_trail_lines = true;
             bool map_show_observer = false;
             bool sky_show_landmarks = true;
-            bool show_origin = false;
+            bool show_origin = false;            
             int num_map_planes = 0;
             int sky_y_trim = 0;         // In 0.1 degree increments
 
@@ -216,11 +249,11 @@ namespace DutchSkies
                 // Process received plane data, if any
                 //
 
-                while (!updates.IsEmpty)
+                while (!updates_queue.IsEmpty)
                 {
                     // XXX handle error
 
-                    updates.TryDequeue(out update);
+                    updates_queue.TryDequeue(out update);
                     update_type = update.Item1;
 
                     Log.Info($"Update type '{update_type}'");
@@ -237,7 +270,7 @@ namespace DutchSkies
                     {
                         root_node = update.Item2 as JSONNode;
                         JSONNode states = root_node["states"];
-                        Log.Info("Got {0} state updates", states.Count);
+                        Log.Info($"Got {states.Count} state updates");
 
                         float update_time = Time.Totalf;
 
@@ -253,6 +286,19 @@ namespace DutchSkies
 
                             plane_data[id].ProcessDataUpdate(update_time, plane, current_map, observer);
                         }
+                    }
+                    else if (update_type == "qrcode")
+                    {
+                        QRCode qrcode = update.Item2 as QRCode;
+
+                        if (qrcode.LastDetectedTime <= qrcode_watcher_start)
+                            return;
+                        
+                        Log.Info($"Got QR code {qrcode.Id} dtime {qrcode.LastDetectedTime}, starttime {qrcode_watcher_start}");
+                        Log.Info($"qr data: '{qrcode.Data}'");
+                        Log.Info($"Disabling QR code scanning");
+
+                        scanning_for_qr_codes = false;
                     }
                 }
 
@@ -579,6 +625,12 @@ namespace DutchSkies
                 UI.SameLine();
                 if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
 
+                if (UI.Toggle("Scan QR code", ref scanning_for_qr_codes))
+                {
+                    Log.Info($"qr code button toggled, now {scanning_for_qr_codes}");
+                    SetQRCodeScan();
+                }
+
                 UI.PopId();
 
                 UI.HSeparator();
@@ -632,7 +684,10 @@ namespace DutchSkies
                     UI.Text(log_text);
                     UI.WindowEnd();
                 }
-            })) ;
+            }));
+
+            if (qrcode_watcher != null)
+                qrcode_watcher.Stop();
 
             SK.Shutdown();
         }
@@ -734,6 +789,28 @@ namespace DutchSkies
                 }
 
                 Thread.Sleep(OPENSKY_QUERY_INTERVAL * 1000);
+            }
+        }
+
+        public static void SetQRCodeScan()
+        {
+            Log.Info($"SetQRCodeScan, scanning_for_qr_codes = {scanning_for_qr_codes}");
+            if (qrcode_watcher == null)
+            {
+                Log.Info("Cannot startg QR code scanning, no permission given!");
+                return;
+            }
+
+            if (scanning_for_qr_codes)
+            {
+                qrcode_watcher_start = DateTime.Now;
+                qrcode_watcher.Start();
+                Log.Info("Started QR code watcher");
+            }
+            else
+            {
+                Log.Info("Stopping QR code watcher");
+                qrcode_watcher.Stop();                
             }
         }
 
