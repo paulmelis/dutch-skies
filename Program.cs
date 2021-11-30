@@ -5,6 +5,8 @@ using System.Globalization;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Windows.Networking;
+using Windows.Networking.Connectivity;
 using SimpleJSON;
 using StereoKit;
 
@@ -133,6 +135,20 @@ namespace DutchSkies
             Renderer.SetClip(0.08f, 10000f);
             Renderer.EnableSky = false;
 
+            // Determine IP address
+            string our_ip = "<unknown>";
+            foreach (HostName localHostName in NetworkInformation.GetHostNames())
+            {
+                if (localHostName.IPInformation != null)
+                {
+                    if (localHostName.Type == HostNameType.Ipv4)
+                    {
+                        our_ip = localHostName.ToString();
+                        break;
+                    }
+                }
+            }
+
             // Maps
 
             const float REALWORLD_MAP_WIDTH = 1.5f; // meters
@@ -148,11 +164,11 @@ namespace DutchSkies
             // Whole of the Netherlands
             map_configurations["netherlands"] = new MapConfiguration(
                 "The Netherlands",
-                50.513427f, 53.748711f, 2.812500f, 7.734375f,
-                10, 3584, 3840
+                50.513427f, 53.956086f, 2.812500f, 8.085938f,
+                10, 3840, 4096
             );
 
-            map_configurations["netherlands"].texture = Tex.FromFile("Maps\\map-lon-2.812500-7.734375-lat-50.513427-53.748711-c-5.273438-52.131069-z10-3584x3840.png");
+            map_configurations["netherlands"].texture = Tex.FromFile("Maps\\netherlands-lon-2.812500-8.085938-lat-50.513427-53.956086-c-5.449219-52.234756-z10-3840x4096.png");
 
             // Schiphol
             map_configurations["schiphol"] = new MapConfiguration(
@@ -236,7 +252,7 @@ namespace DutchSkies
             bool map_visible = true;
             bool map_show_planes = true, sky_show_planes = true;
             bool map_show_vlines = true, sky_show_vlines = false;            
-            bool map_show_track_lines = true;
+            bool map_show_track_lines = true, sky_show_track_lines = true;
             bool map_show_observer = false;
             bool sky_show_landmarks = true;
             bool show_origin = false;
@@ -462,6 +478,8 @@ namespace DutchSkies
 
                 Hierarchy.Push(Matrix.R(0f, sky_y_trim*0.1f, 0f));
 
+                bool scaled;
+
                 foreach (var plane in plane_data.Values)
                 {
                     var pos = ROT_MIN90_X.Transform(plane.computed_sky_position);
@@ -474,22 +492,30 @@ namespace DutchSkies
                     if (pos.y < 0f)
                         continue;
 
+                    if (plane.observer_distance > SKY_SCALING_THRESHOLD)
+                    {
+                        // To avoid large clipping distances move plane along the line from plane to viewer,
+                        // with a smaller plane model to avoid a weird scaling visual issues
+
+                        // Vector from head to plane 
+                        Vec3 v = pos - Input.Head.position;
+                        v.Normalize();
+
+                        pos *= SKY_SCALING_THRESHOLD / plane.observer_distance;
+                        prev_pos *= SKY_SCALING_THRESHOLD / plane.observer_distance;
+                        //Log.Info($"[{plane.callsign}] position scaled to {pos}");
+
+                        scaled = true;
+                    }
+                    else
+                        scaled = false;
+
                     if (sky_show_planes)
                     {
                         // Plane
-                        if (plane.observer_distance > SKY_SCALING_THRESHOLD)
+                        if (scaled)
                         {
-                            // To avoid large clipping distances move plane along the line from plane to viewer,
-                            // with a smaller plane model to avoid a weird scaling visual issues
-
-                            // Vector from head to plane 
-                            Vec3 v = pos - Input.Head.position;
-                            v.Normalize();
-
-                            pos *= SKY_SCALING_THRESHOLD / plane.observer_distance;
-                            prev_pos *= SKY_SCALING_THRESHOLD / plane.observer_distance;
-                            //Log.Info($"[{plane.callsign}] position scaled to {pos}");
-
+                            // Plane far away, draw closer but smaller
                             plane_model.Draw(SKY_FAR_MODEL_SCALE * ROT_MIN90_X * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
                         }
                         else
@@ -505,8 +531,11 @@ namespace DutchSkies
                         Lines.Add(new Vec3(pos.x, pos.y - 120f, pos.z), new Vec3(pos.x, 0f, pos.z), VLINE_COLOR, 3f);
                     }
 
-                    // Track line
-                    Lines.Add(prev_pos, pos, SKY_TRACK_LINE_COLOR, 3f);
+                    if (sky_show_track_lines)
+                    {
+                        // Track line
+                        Lines.Add(prev_pos, pos, SKY_TRACK_LINE_COLOR, 3f);
+                    }
 
                     // Text labels
                     Quat textquat = Quat.LookAt(pos, head_pos, Vec3.UnitY);
@@ -616,6 +645,8 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Toggle("VLines", ref sky_show_vlines);
                 UI.SameLine();
+                UI.Toggle("Track lines", ref sky_show_track_lines);
+                UI.SameLine();
                 UI.Toggle("Landmarks", ref sky_show_landmarks);
 
                 UI.Label("Y Trim");
@@ -641,6 +672,8 @@ namespace DutchSkies
                 UI.Label("Debug:");
                 UI.SameLine();
                 UI.Toggle("Origin", ref show_origin);
+                UI.SameLine();
+                UI.Label($"IP:{our_ip}");
                 UI.SameLine();
                 // XXX log window
                 UI.Text($"{fps:F1} FPS");
