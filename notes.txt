@@ -5,11 +5,21 @@
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
 
+more surrounding to schiphol map (especially north)
+map center schiphol?
+
+maRking plane LATE, ....
+are indicators working?
+
+plane details map in purple?
+
+clear track when plane becomes on-ground
+
 add surf logo
 
 option to filter map planes based on map extents versus query extents
 
-refactor map and data handling
+refactor data handling
 
 why so many inactive planes, even at the start?
 ah, seems these are planes that are in the query results, yet haven't have data updates in a long time?
@@ -52,3 +62,6 @@ HoloLens2 doesn't support GPS Sensor, but an app can acquire the user's current 
 https://docs.microsoft.com/en-us/uwp/api/windows.devices.geolocation.geolocator.getgeopositionasync?view=winrt-22000#Windows_Devices_Geolocation_Geolocator_GetGeopositionAsync
 
 allow settings to be specified in qr codes, for easy demo setup
+
+
+idea: for map view don't extrapolate based on last point, but interpolate based on last 2 points...

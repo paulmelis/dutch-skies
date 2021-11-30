@@ -24,9 +24,9 @@ namespace DutchSkies
                 this.id = id;
                 this.lat = lat;
                 this.lon = lon;
-                this.top_altitude = topalt;
-                this.bottom_altitude = botalt;
-                height = topalt - botalt;
+                top_altitude = topalt;
+                bottom_altitude = botalt;
+                height = top_altitude - bottom_altitude;
                 map_position = new Vec3();
                 sky_position = new Vec3();
             }

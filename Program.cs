@@ -166,19 +166,20 @@ namespace DutchSkies
             int num_map_planes = 0;
             int sky_y_trim = 0;         // In 0.1 degree increments
 
-            const float track_line_thickness = 0.001f;
-            Color32 track_line_color = new Color32(0, 0, 255, 255);
-            Color VLINE_COLOR = new Color(1f, 0f, 0f);
-            Color SKY_TRACK_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
-            Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);
+            const float track_line_thickness = 0.001f;            
+            Color MAP_BASE_COLOR = new Color(0.5f, 0f, 1f);
+            Color32 MAP_TRACK_LINE_COLOR = new Color32(0, 0, 255, 255);
+            Color SKY_BASE_COLOR = new Color(1f, 0f, 0f);
+            Color SKY_TRAIL_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
+            Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);            
 
             const float SKY_SCALING_THRESHOLD = 3f;
             Matrix SKY_FAR_MODEL_SCALE = Matrix.S(30f);
             Matrix SKY_CLOSE_MODEL_SCALE = Matrix.S(60f);
 
-            TextStyle text_style_map = Text.MakeStyle(Default.Font, 0.5f * U.cm, new Color(1f, 0f, 0f));
-            TextStyle text_style_sky = Text.MakeStyle(Default.Font, 15f * U.m, VLINE_COLOR);
-            TextStyle text_style_landmark = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
+            TextStyle MAP_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.5f * U.cm, MAP_BASE_COLOR);
+            TextStyle SKY_TEXT_STYLE = Text.MakeStyle(Default.Font, 15f * U.m, SKY_BASE_COLOR);
+            TextStyle LANDMARK_TEXT_STYLE = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
 
             plane_data = new Dictionary<string, PlaneData>();
 
@@ -300,7 +301,7 @@ namespace DutchSkies
                         Text.Add(
                             $"{plane.callsign}",
                            ROT_180_Y * Matrix.T(pos),
-                            text_style_map,
+                            MAP_TEXT_STYLE,
                             TextAlign.XLeft | TextAlign.YTop,
                             TextAlign.XLeft | TextAlign.YTop,
                             -0.01f, 0f);
@@ -347,7 +348,7 @@ namespace DutchSkies
                         Text.Add(
                             $"{plane.callsign}\n{plane.last_heading:F0}°\n{sstring}\n{astring}\n{vstring}",
                             ROT_180_Y * Matrix.T(text_pos),
-                            text_style_map,
+                            MAP_TEXT_STYLE,
                             pos_align,
                             TextAlign.XLeft | TextAlign.YTop,
                             -0.006f, 0f);
@@ -356,7 +357,7 @@ namespace DutchSkies
                     // Plane lines vertically to the ground position
 
                     if (map_show_vlines)
-                        Lines.Add(pos, new Vec3(pos.x, 0f, pos.z), VLINE_COLOR, 0.001f);
+                        Lines.Add(pos, new Vec3(pos.x, 0f, pos.z), MAP_BASE_COLOR, 0.001f);
 
                     // Historical track
                     if (map_show_track_lines && plane.map_track_points.Count >= 2)
@@ -364,7 +365,7 @@ namespace DutchSkies
                         LinePoint[] lp = new LinePoint[plane.map_track_points.Count];
                         int idx = 0;
                         foreach (Vec3 p in plane.map_track_points)
-                            lp[idx++] = new LinePoint(ROT_MIN90_X * p * map_scale_km_to_scene, track_line_color, track_line_thickness);
+                            lp[idx++] = new LinePoint(ROT_MIN90_X * p * map_scale_km_to_scene, MAP_TRACK_LINE_COLOR, track_line_thickness);
                         Lines.Add(lp);
                     }
                 }
@@ -436,13 +437,13 @@ namespace DutchSkies
                     if (sky_show_vlines)
                     {
                         // Vertical line, start slightly below plane to make room for text
-                        Lines.Add(new Vec3(pos.x, pos.y - 120f, pos.z), new Vec3(pos.x, 0f, pos.z), VLINE_COLOR, 3f);
+                        Lines.Add(new Vec3(pos.x, pos.y - 120f, pos.z), new Vec3(pos.x, 0f, pos.z), SKY_BASE_COLOR, 3f);
                     }
 
                     if (sky_show_trail_lines)
                     {
                         // Trail line
-                        Lines.Add(prev_pos, pos, SKY_TRACK_LINE_COLOR, 3f);
+                        Lines.Add(prev_pos, pos, SKY_TRAIL_LINE_COLOR, 3f);
                     }
 
                     // Text labels
@@ -466,7 +467,7 @@ namespace DutchSkies
                     Text.Add(
                         $"({plane.observer_distance:F0} km)",
                         Matrix.R(textquat) * Matrix.T(pos),
-                        text_style_sky,
+                        SKY_TEXT_STYLE,
                         TextAlign.XCenter | TextAlign.YTop,
                         TextAlign.XCenter | TextAlign.YTop,
                         0f, 30f);
@@ -474,7 +475,7 @@ namespace DutchSkies
                     Text.Add(
                         $"{plane.callsign}\n{astring}\n{sstring}",
                         Matrix.R(textquat) * Matrix.T(pos),
-                        text_style_sky,
+                        SKY_TEXT_STYLE,
                         TextAlign.XCenter | TextAlign.YTop,
                         TextAlign.XCenter | TextAlign.YTop,
                         0f, -25f);
@@ -495,7 +496,7 @@ namespace DutchSkies
                         Text.Add(
                             $"{item.Key}",
                             Matrix.R(textquat) * Matrix.T(pos),
-                            text_style_landmark,
+                            LANDMARK_TEXT_STYLE,
                             TextAlign.XCenter | TextAlign.YTop,
                             TextAlign.XCenter | TextAlign.YTop,
                             0f, 2f);

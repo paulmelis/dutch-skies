@@ -15,6 +15,9 @@ namespace DutchSkies
 {
     class OSMTiles
     {
+        const int TILE_SIZE = 256;
+
+        // After https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
         // Return tile number that contains given lat/lon coordinate
         public static void CoordinateToTile(out int xtile, out int ytile, float lat_deg, float lon_deg, int zoom)
         {
@@ -24,12 +27,9 @@ namespace DutchSkies
             ytile = (int)((1f - MathF.Log(MathF.Tan(lat_rad) + (1f / MathF.Cos(lat_rad))) / MathF.PI) / 2f * n);
         }
 
-        /*
-        Convert tile number and zoom to lat/lon coordinate of NW-corner of tile
-
-        Use the function with xtile+1 and/or ytile+1 to get the other corners.
-        With xtile+0.5 & ytile+0.5 it will return the center of the tile.
-        */
+        // Convert tile number and zoom to lat/lon coordinate of NW-corner of tile
+        // Use the function with xtile+1 and/or ytile+1 to get the other corners.
+        // With xtile+0.5 & ytile+0.5 it will return the center of the tile.
         public static void TileNWCorner(out float lat_deg, out float lon_deg, int xtile, int ytile, int zoom)
         {
             float n = MathF.Pow(2f, zoom);
@@ -40,8 +40,6 @@ namespace DutchSkies
 
         public static async void FetchMapTiles(object tuple)
         {
-            const int TILE_SIZE = 256;
-
             Tuple<ConcurrentQueue<Tuple<string,object>>, OSMMap> args = (Tuple<ConcurrentQueue<Tuple<string,object>>, OSMMap>) tuple;
 
             ConcurrentQueue<Tuple<string,object>> output_queue = args.Item1;
@@ -59,7 +57,7 @@ namespace DutchSkies
             CoordinateToTile(out mini, out dummy, lat, map.min_lon, map.zoom);
             CoordinateToTile(out maxi, out dummy, lat, map.max_lon, map.zoom);
 
-            Log.Info($"Tile range: i {mini}, {maxi}; j {minj}, {maxj}");
+            Log.Info($"Tile range needed: i {mini}, {maxi}; j {minj}, {maxj}");
 
             int nrows = maxj - minj + 1;
             int ncols = maxi - mini + 1;
@@ -83,17 +81,15 @@ namespace DutchSkies
 
             Log.Info($"Retrieving {ncols} x {nrows} OSM tiles ({ncols*TILE_SIZE} x {nrows*TILE_SIZE} pixels)");
 
-            int osm_idx = 0;
-            string url;
-            
+            const int TARGA_HEADER_SIZE = 18;
             int width = ncols * TILE_SIZE;
             int height = nrows * TILE_SIZE;
-
-            const int TARGA_HEADER_SIZE = 18;
             byte[] full_map_pixels = new byte[TARGA_HEADER_SIZE + width*height*3];
 
-            int full_map_row_size = width * 3;
-            int tile_row_size = TILE_SIZE * 4;
+            int full_map_row_size = width * 3;  // RGB
+            int tile_row_size = TILE_SIZE * 4;  // BGRA
+            int server_idx = 0;
+            string url;
 
             for (int j = minj; j <= maxj; j++)
             {
@@ -102,11 +98,12 @@ namespace DutchSkies
                 for (int i = mini; i <= maxi; i++)
                 {
                     //url = $"http://{(char)('a'+osm_idx)}.tile.openstreetmap.org/{map_configuration.zoom}/{i}/{j}.png";
+                    // XXX don't hardcode
                     url = $"http://192.168.178.32:12347/tile/{map.zoom}/{i}/{j}";
 
+                    // XXX send progress update to main thread
                     Log.Info($"Fetching tile {i},{j} via {url}");
 
-                    // XXX fetch image file
                     try
                     { 
                         var rass = RandomAccessStreamReference.CreateFromUri(new Uri(url));
@@ -137,7 +134,7 @@ namespace DutchSkies
                         Log.Info($"(tile fetch): Exception {e.Message} for {url}");
                     }
 
-                    osm_idx = (osm_idx + 1) % 3;
+                    server_idx = (server_idx + 1) % 3;
                 }
             }
 
