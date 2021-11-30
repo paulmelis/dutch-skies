@@ -639,7 +639,7 @@ namespace DutchSkies
                 UI.HSeparator();
                 UI.PushId("map");
 
-                UI.Labe("Map:");
+                UI.Label("Map:");
                 UI.Toggle("Visible", ref map_visible);
                 UI.SameLine();
                 UI.Toggle("Planes", ref map_show_planes);
