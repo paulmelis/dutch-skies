@@ -166,7 +166,7 @@ namespace DutchSkies
             int num_map_planes = 0;
             int sky_y_trim = 0;         // In 0.1 degree increments
 
-            const float track_line_thickness = 0.001f;            
+            const float TRACK_LINE_THICKNESS = 0.001f;            
             Color MAP_BASE_COLOR = new Color(0.5f, 0f, 1f);
             Color32 MAP_TRACK_LINE_COLOR = new Color32(0, 0, 255, 255);
             Color SKY_BASE_COLOR = new Color(1f, 0f, 0f);
@@ -365,7 +365,7 @@ namespace DutchSkies
                         LinePoint[] lp = new LinePoint[plane.map_track_points.Count];
                         int idx = 0;
                         foreach (Vec3 p in plane.map_track_points)
-                            lp[idx++] = new LinePoint(ROT_MIN90_X * p * map_scale_km_to_scene, MAP_TRACK_LINE_COLOR, track_line_thickness);
+                            lp[idx++] = new LinePoint(ROT_MIN90_X * p * map_scale_km_to_scene, MAP_TRACK_LINE_COLOR, TRACK_LINE_THICKNESS);
                         Lines.Add(lp);
                     }
                 }
@@ -623,8 +623,7 @@ namespace DutchSkies
         }
 
         public static void PrepareMaps()
-        {
-            // Builtin maps
+        {            
             OSMMap map;
 
             // Whole of the Netherlands
@@ -669,12 +668,14 @@ namespace DutchSkies
             map_thread.Start(new Tuple<ConcurrentQueue<Tuple<string,object>>, MapConfiguration>(updates, current_map));
             Log.Info("Map tile fetch thread started");
 #endif
+            // XXX need to recompute extrapolated map positions 
+
         }
 
         public static void ClearTracks()
         {
             foreach (var plane in plane_data.Values)
-                plane.ClearTracks();
+                plane.ClearTrack();
         }
 
     // XXX need to make the extent dynamic, based on the current map

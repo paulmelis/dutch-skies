@@ -167,6 +167,8 @@ namespace DutchSkies
                 track_points.Add(new Vec3(last_lat, last_lon, last_barometric_altitude));
                 map_track_points.Add(last_map_position);
             }
+            else
+                ClearTrack();
 
             // Sky position, based on barometric altitude
 
@@ -238,7 +240,7 @@ namespace DutchSkies
             }
         }
 
-        public void ClearTracks()
+        public void ClearTrack()
         {
             track_points.Clear();
             map_track_points.Clear();
