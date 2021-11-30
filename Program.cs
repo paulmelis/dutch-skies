@@ -41,10 +41,11 @@ namespace DutchSkies
         static ConcurrentQueue<Tuple<string, object>> updates_queue;
 
         // QR code scanning
-        static bool scanning_for_qr_codes;
+        static bool scanning_for_qrcodes;
         static QRCodeWatcher qrcode_watcher;
         static DateTime qrcode_watcher_start;
         //Dictionary<Guid, QRData> poses = new Dictionary<Guid, QRData>();
+        static System.Guid last_qrcode_id;
 
         static void OnLog(LogLevel level, string text)
         {
@@ -183,7 +184,7 @@ namespace DutchSkies
             else
                 Log.Info("Cannot perform QR code scanning, no permission given");
 
-            scanning_for_qr_codes = false;
+            scanning_for_qrcodes = false;            
 
             // Initial head pose in physical space is apparently taken as origin, with
             // head view direction as forward (-Z), Y is up, X to the right, i.e. right-handed
@@ -291,14 +292,22 @@ namespace DutchSkies
                     {
                         QRCode qrcode = update.Item2 as QRCode;
 
-                        if (qrcode.LastDetectedTime <= qrcode_watcher_start)
+                        if (qrcode.LastDetectedTime <= qrcode_watcher_start || qrcode.Id == last_qrcode_id)
                             return;
-                        
+
+                        // As soon as we found a QR code stop scanning for more and apply the data in the code
+                        qrcode_watcher.Stop();
+                        scanning_for_qrcodes = false;
+                        last_qrcode_id = qrcode.Id;
+
+                        //Pose pose;
+                        //World.FromSpatialNode(qrcode.SpatialGraphNodeId, out pose);
+                        //Default.SoundClick.Play(pose.position);
+
                         Log.Info($"Got QR code {qrcode.Id} dtime {qrcode.LastDetectedTime}, starttime {qrcode_watcher_start}");
                         Log.Info($"qr data: '{qrcode.Data}'");
-                        Log.Info($"Disabling QR code scanning");
+                        Log.Info($"Disabled further QR code scanning");
 
-                        scanning_for_qr_codes = false;
                     }
                 }
 
@@ -625,9 +634,9 @@ namespace DutchSkies
                 UI.SameLine();
                 if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
 
-                if (UI.Toggle("Scan QR code", ref scanning_for_qr_codes))
+                if (UI.Toggle("Scan QR code", ref scanning_for_qrcodes))
                 {
-                    Log.Info($"qr code button toggled, now {scanning_for_qr_codes}");
+                    Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
                     SetQRCodeScan();
                 }
 
@@ -794,15 +803,16 @@ namespace DutchSkies
 
         public static void SetQRCodeScan()
         {
-            Log.Info($"SetQRCodeScan, scanning_for_qr_codes = {scanning_for_qr_codes}");
+            Log.Info($"SetQRCodeScan, scanning_for_qr_codes = {scanning_for_qrcodes}");
             if (qrcode_watcher == null)
             {
                 Log.Info("Cannot startg QR code scanning, no permission given!");
                 return;
             }
 
-            if (scanning_for_qr_codes)
+            if (scanning_for_qrcodes)
             {
+                last_qrcode_id = Guid.Empty;
                 qrcode_watcher_start = DateTime.Now;
                 qrcode_watcher.Start();
                 Log.Info("Started QR code watcher");
@@ -810,7 +820,7 @@ namespace DutchSkies
             else
             {
                 Log.Info("Stopping QR code watcher");
-                qrcode_watcher.Stop();                
+                qrcode_watcher.Stop();
             }
         }
 
