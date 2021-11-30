@@ -12,112 +12,40 @@ using StereoKit;
 
 namespace DutchSkies
 {
-    public class ObserverData
-    {
-        public float lat, lon;
-        public float floor_altitude;  // meters
-        public Vec3 map_position;
-        public Dictionary<string, Landmark> landmarks;
-
-        public class Landmark
-        {
-            public string id;
-            public float lat, lon;
-            public float top_altitude;
-            public float bottom_altitude;
-            public float height;
-            public Vec3 map_position;
-            public Vec3 sky_position;
-
-            public Landmark(string id, float lat, float lon, float topalt, float botalt=0f)
-            {
-                this.id = id;
-                this.lat = lat;
-                this.lon = lon;
-                this.top_altitude = topalt;
-                this.bottom_altitude = botalt;
-                height = topalt - botalt;
-                map_position = new Vec3();
-                sky_position = new Vec3();                
-            }
-        };
-
-        public ObserverData()
-        {
-            // SURF building at Amsterdam Science Park
-            lat = 52.357036140185144f;
-            lon = 4.954487434653384f;
-            floor_altitude = /* street level */ -3.56f + 4f /* one floor */;
-            landmarks = new Dictionary<string, Landmark>();
-        }
-
-        public void update_map_position(OSMMap map)
-        {
-            float x = 0f, y = 0f;
-            map.Project(ref x, ref y, lon, lat);
-            map_position = new Vec3(x, y, floor_altitude/1000f);
-            Log.Info($"observer map pos = {x:F6}, {y:F6}");
-
-            Matrix M;
-
-            foreach (KeyValuePair<string,Landmark> item in landmarks)
-            {
-                Landmark landmark = item.Value;
-                float landmark_lat = landmark.lat;
-                float landmark_lon = landmark.lon;
-                float landmark_top_altitude = landmark.top_altitude;
-
-                // Map position (unused currently)
-                map.Project(ref x, ref y, landmark_lon, landmark_lat);
-                item.Value.map_position = new Vec3(x, y, landmark_top_altitude / 1000f);
-
-                M = Matrix.R(-landmark_lat, 0f, 0f)
-                    *
-                    Matrix.R(0f, landmark_lon - lon, 0f)
-                    *
-                    Matrix.R(lat, 0f, 0f)
-                    *
-                    // XXX Should also include have-above-floor distance, but the effect will be minimal
-                    Matrix.T(0f, 0f, -(Projection.RADIUS_KILOMETERS + floor_altitude * 0.001f));
-
-                Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + landmark_top_altitude * 0.001f);
-
-                landmark.sky_position = M.Transform(p) * 1000f;
-            }
-        }
-    };
-
-    public class MapConfiguration
-    {
-        public MapConfiguration(string name, float minlat, float maxlat, float minlon, float maxlon, int zm, int width, int height)
-        {
-            this.name = name;
-            this.min_lat = minlat;
-            this.max_lat = maxlat;
-            this.min_lon = minlon;
-            this.max_lon = maxlon;
-            this.zoom = zm;
-            this.image_width = width;
-            this.image_height = height;
-            this.texture = null;
-        }
-
-        public string name;
-        public float min_lat, max_lat;
-        public float min_lon, max_lon;
-        public int zoom;
-
-        public Tex texture;
-        public int image_width, image_height;
-    };
-
-
     class Program
     {
         enum DetailLevel { NONE, CALLSIGN, FULL };
 
+        // Log
         static List<string> log_lines = new List<string>();
         static string log_text = "";
+
+        static Dictionary<string, PlaneData> plane_data;
+
+        // Map geometry 
+        const float REALWORLD_MAP_WIDTH = 1.5f;     // meters
+        static Dictionary<string, OSMMap> maps;
+        static string current_map_name;
+        static OSMMap current_map;
+        static Material map_material;
+        static float map_scale_km_to_scene;
+        static Mesh map_quad;
+        static Tex map_texture;
+
+        const float PLANE_SIZE_METERS = 0.015f;  
+
+        static void OnLog(LogLevel level, string text)
+        {
+            string time = DateTime.Now.ToString("HH:mm:ss.fff");
+            if (log_lines.Count > 20)
+                log_lines.RemoveAt(0);
+            text = $"{time} {text}";
+            log_lines.Add(text.Length < 100 ? text : text.Substring(0, 100) + "...\n");
+
+            log_text = "";
+            for (int i = 0; i < log_lines.Count; i++)
+                log_text += log_lines[i];
+        }
 
         static void Main(string[] args)
         {
@@ -143,7 +71,11 @@ namespace DutchSkies
             Renderer.SetClip(0.08f, 10000f);
             Renderer.EnableSky = false;
 
-            // Determine IP address
+            // Some often used transforms
+            Matrix ROT_MIN90_X = Matrix.R(-90f, 0f, 0f);
+            Matrix ROT_180_Y = Matrix.R(0f, 180f, 0f);
+
+            // Determine IP address (useful in debugging)
             string our_ip = "<unknown>";
             foreach (HostName localHostName in NetworkInformation.GetHostNames())
             {
@@ -157,70 +89,34 @@ namespace DutchSkies
                 }
             }
 
-            // Maps
-
-            const float REALWORLD_MAP_WIDTH = 1.5f; // meters
-
-            Matrix ROT_MIN90_X = Matrix.R(-90f, 0f, 0f);
-            Matrix ROT_180_Y = Matrix.R(0f, 180f, 0f);
-            Matrix MAP_PLACEMENT_XFORM = Matrix.T(1f * Vec3.Forward - 0.7f * Vec3.Up);
-
-            // Configurations
-
-            Dictionary<string, MapConfiguration> map_configurations = new Dictionary<string, MapConfiguration>();
-
-            // Whole of the Netherlands
-            map_configurations["netherlands"] = new MapConfiguration(
-                "The Netherlands",
-                50.513427f, 53.956086f, 2.812500f, 8.085938f,
-                10, 3840, 4096
-            );
-
-            map_configurations["netherlands"].texture = Tex.FromFile("Maps\\netherlands-lon-2.812500-8.085938-lat-50.513427-53.956086-c-5.449219-52.234756-z10-3840x4096.png");
-
-            // Schiphol
-            map_configurations["schiphol"] = new MapConfiguration(
-                "Schiphol Airport",
-                52.052490f, 52.536273f, 4.042969f, 5.361328f,
-                12, 3840, 2304
-            );
-
-            map_configurations["schiphol"].texture = Tex.FromFile("Maps\\schiphol-lon-4.042969-5.361328-lat-52.052490-52.536273-c-4.702148-52.294382-z12-3840x2304.png");
-
-            // Map
-            OSMMap osm_map = new OSMMap();
-
-            // Set current map
-            osm_map.Switch(map_configurations["netherlands"]);
-            float map_geo_height = REALWORLD_MAP_WIDTH * osm_map.height / osm_map.width;
-            float map_scale_km_to_scene = REALWORLD_MAP_WIDTH / osm_map.width;
-            Log.Info($"Map geometry size = {REALWORLD_MAP_WIDTH} x {map_geo_height}");
-            Mesh map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, map_geo_height), -Vec3.Forward, Vec3.Up);
-            Material map_material = Default.Material.Copy();
-
-            // Update queue
+            // Queue for receiving updates from threads
             ConcurrentQueue<Tuple<string, object>> updates = new ConcurrentQueue<Tuple<string, object>>();
 
-#if true
-            Tex map_texture = osm_map.current_configuration.texture;
-            map_material[MatParamName.DiffuseTex] = map_texture;
+            //
+            // Maps
+            //
+            
+            Matrix MAP_PLACEMENT_XFORM = Matrix.T(1f * Vec3.Forward - 0.7f * Vec3.Up);
+
+            maps = new Dictionary<string, OSMMap>();
+
+            map_material = Default.Material.Copy();
             // Disable backface culling on the map for now, for debugging
             map_material.FaceCull = Cull.None;
-#else
-            // XXX map extent is off when dynamically tiles
-            Tex map_texture = null;
-            var map_thread = new Thread(OSMTiles.FetchMapTiles);
-            map_thread.IsBackground = true;
-            map_thread.Start(new Tuple<ConcurrentQueue<Tuple<string,object>>, MapConfiguration>(updates, osm_map.current_configuration));
-            Log.Info("Map tile fetch thread started");
-#endif
+
+            map_scale_km_to_scene = 0.001f;
+
+            // Prepare built in maps and select default
+            PrepareMaps();
+            SetMap("The Netherlands");
+            //SetMap("Schiphol Airport");
+
             // Plane 3D model
             Model plane_model = Model.FromFile("Airplane-cleaned.rotated.glb");
             if (plane_model == null)
                 Log.Err("Could not load plane model");
-
-            const float PLANE_SIZE_M = 0.015f;  // Decent size
-            Matrix MAP_SCALE_PLANE_SIZE = Matrix.S(PLANE_SIZE_M);
+            
+            Matrix MAP_SCALE_PLANE_SIZE = Matrix.S(PLANE_SIZE_METERS);
 
             // XXX need to figure out why the marker needs to be much smaller compared to the plane model, doesn't make sense
             Mesh plane_ground_marker = Mesh.GenerateCylinder(0.001f, 0.002f, Vec3.UnitY, 8);
@@ -229,7 +125,7 @@ namespace DutchSkies
 
             ObserverData observer = new ObserverData();
             // XXX needs to update when switching maps
-            observer.update_map_position(osm_map);
+            observer.update_map_position(current_map);
             Mesh observer_marker = Mesh.GenerateCylinder(0.001f, 0.01f, Vec3.UnitY, 8);
             Material observer_marker_material = Default.Material.Copy();
             observer_marker_material[MatParamName.ColorTint] = new Color(1f, 0.5f, 0f);
@@ -284,7 +180,7 @@ namespace DutchSkies
             TextStyle text_style_sky = Text.MakeStyle(Default.Font, 15f * U.m, VLINE_COLOR);
             TextStyle text_style_landmark = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
 
-            Dictionary<string, PlaneData> plane_data = new Dictionary<string, PlaneData>();
+            plane_data = new Dictionary<string, PlaneData>();
 
             Tuple<string, object> update;
             string update_type;
@@ -343,7 +239,7 @@ namespace DutchSkies
                             if (!plane_data.ContainsKey(id))
                                 plane_data[id] = new PlaneData(id);
 
-                            plane_data[id].ProcessDataUpdate(update_time, plane, osm_map, observer);
+                            plane_data[id].ProcessDataUpdate(update_time, plane, current_map, observer);
                         }
                     }
                 }
@@ -629,10 +525,7 @@ namespace DutchSkies
                 UI.Toggle("Flight units", ref show_flight_units);
                 UI.SameLine();
                 if (UI.Button("Clear tracks"))
-                {
-                    foreach (var plane in plane_data.Values)
-                        plane.ClearTracks();
-                }
+                    ClearTracks();
                 UI.SameLine();
                 UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
 
@@ -640,6 +533,18 @@ namespace DutchSkies
                 UI.PushId("map");
 
                 UI.Label("Map:");
+                foreach (OSMMap map in maps.Values)
+                {
+                    UI.SameLine();
+                    if (UI.Radio(map.name, current_map_name == map.name))
+                    {
+                        // Switch map
+                        SetMap(map.name);
+                        // XXX for now
+                        ClearTracks();
+                    }
+                }
+
                 UI.Toggle("Visible", ref map_visible);
                 UI.SameLine();
                 UI.Toggle("Planes", ref map_show_planes);
@@ -694,7 +599,7 @@ namespace DutchSkies
                 string time = DateTime.Now.ToString("HH:mm:ss");
                 UI.Label("Debug:");
                 UI.SameLine();
-                UI.Toggle("Log", ref show_log_window);                
+                UI.Toggle("Log", ref show_log_window);
                 UI.SameLine();
                 UI.Toggle("Origin", ref show_origin);
                 UI.SameLine();
@@ -716,21 +621,63 @@ namespace DutchSkies
             SK.Shutdown();
         }
 
-        static void OnLog(LogLevel level, string text)
+        public static void PrepareMaps()
         {
-            string time = DateTime.Now.ToString("HH:mm:ss.fff");
-            if (log_lines.Count > 20)
-                log_lines.RemoveAt(0);
-            text = $"{time} {text}";
-            log_lines.Add(text.Length < 100 ? text : text.Substring(0, 100) + "...\n");
+            // Builtin maps
+            OSMMap map;
 
-            log_text = "";
-            for (int i = 0; i < log_lines.Count; i++)
-                log_text += log_lines[i];
+            // Whole of the Netherlands
+            map = maps["The Netherlands"] = new OSMMap(
+                    "The Netherlands",
+                    50.513427f, 53.956086f, 2.812500f, 8.085938f, 10
+                );
+
+            map.texture = Tex.FromFile("Maps\\netherlands-lon-2.812500-8.085938-lat-50.513427-53.956086-c-5.449219-52.234756-z10-3840x4096.png");
+            map.image_width = 3840;
+            map.image_height = 4096;
+
+            // Schiphol Airport
+            map = maps["Schiphol Airport"] = new OSMMap(
+                "Schiphol Airport",
+                52.052490f, 52.536273f, 4.042969f, 5.361328f, 12
+            );
+
+            map.texture = Tex.FromFile("Maps\\schiphol-lon-4.042969-5.361328-lat-52.052490-52.536273-c-4.702148-52.294382-z12-3840x2304.png");
+            map.image_width = 3840;
+            map.image_height = 2304;
         }
 
-        // XXX need to make the extent dynamic, based on the current map
-        static async void FetchPlaneUpdates(object update_queue_obj)
+        public static void SetMap(string map)
+        {
+            current_map_name = map;
+            current_map = maps[map];
+            
+            // Compute MR size for map
+            float map_geo_height = REALWORLD_MAP_WIDTH * current_map.height / current_map.width;
+            Log.Info($"Map geometry size = {REALWORLD_MAP_WIDTH} x {map_geo_height}");
+            map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, map_geo_height), -Vec3.Forward, Vec3.Up);
+            map_scale_km_to_scene = REALWORLD_MAP_WIDTH / current_map.width;
+
+#if true
+            map_texture = current_map.texture;
+            map_material[MatParamName.DiffuseTex] = map_texture;
+#else
+            var map_thread = new Thread(OSMTiles.FetchMapTiles);
+            map_thread.IsBackground = true;
+            // XXX fix map arg
+            map_thread.Start(new Tuple<ConcurrentQueue<Tuple<string,object>>, MapConfiguration>(updates, current_map));
+            Log.Info("Map tile fetch thread started");
+#endif
+        }
+
+        public static void ClearTracks()
+        {
+            foreach (var plane in plane_data.Values)
+                plane.ClearTracks();
+        }
+
+    // XXX need to make the extent dynamic, based on the current map
+    static async void FetchPlaneUpdates(object update_queue_obj)
         {
             const string URL = "https://opensky-network.org/api/states/all?lamin=50.513427&lomin=2.812500&lamax=53.748711&lomax=7.734375";
 

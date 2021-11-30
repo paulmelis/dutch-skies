@@ -42,22 +42,22 @@ namespace DutchSkies
         {
             const int TILE_SIZE = 256;
 
-            Tuple<ConcurrentQueue<Tuple<string,object>>, MapConfiguration> args = (Tuple<ConcurrentQueue<Tuple<string,object>>, MapConfiguration>) tuple;
+            Tuple<ConcurrentQueue<Tuple<string,object>>, OSMMap> args = (Tuple<ConcurrentQueue<Tuple<string,object>>, OSMMap>) tuple;
 
             ConcurrentQueue<Tuple<string,object>> output_queue = args.Item1;
-            MapConfiguration map_configuration = args.Item2;
+            OSMMap map = args.Item2;
 
             // Determine tiles needed
-            float lat = 0.5f * (map_configuration.min_lat + map_configuration.max_lat);
-            float lon = 0.5f * (map_configuration.min_lon + map_configuration.max_lon);
+            float lat = 0.5f * (map.min_lat + map.max_lat);
+            float lon = 0.5f * (map.min_lon + map.max_lon);
 
             int dummy, minj, maxj, mini, maxi;
 
-            CoordinateToTile(out dummy, out maxj, map_configuration.min_lat, lon, map_configuration.zoom);
-            CoordinateToTile(out dummy, out minj, map_configuration.max_lat, lon, map_configuration.zoom);
+            CoordinateToTile(out dummy, out maxj, map.min_lat, lon, map.zoom);
+            CoordinateToTile(out dummy, out minj, map.max_lat, lon, map.zoom);
 
-            CoordinateToTile(out mini, out dummy, lat, map_configuration.min_lon, map_configuration.zoom);
-            CoordinateToTile(out maxi, out dummy, lat, map_configuration.max_lon, map_configuration.zoom);
+            CoordinateToTile(out mini, out dummy, lat, map.min_lon, map.zoom);
+            CoordinateToTile(out maxi, out dummy, lat, map.max_lon, map.zoom);
 
             Log.Info($"Tile range: i {mini}, {maxi}; j {minj}, {maxj}");
 
@@ -66,8 +66,8 @@ namespace DutchSkies
 
             // Determine lat/lon range from tile extent
             float minlat, minlon, maxlat, maxlon;
-            TileNWCorner(out maxlat, out minlon, mini, minj, map_configuration.zoom);
-            TileNWCorner(out minlat, out maxlon, maxi + 1, maxj + 1, map_configuration.zoom);
+            TileNWCorner(out maxlat, out minlon, mini, minj, map.zoom);
+            TileNWCorner(out minlat, out maxlon, maxi + 1, maxj + 1, map.zoom);
             float center_lat = 0.5f * (minlat + maxlat);
             float center_lon = 0.5f * (minlon + maxlon);
             Log.Info($"map range: {minlat}, {minlon} -> {maxlat}, {maxlon}");
@@ -75,10 +75,10 @@ namespace DutchSkies
 
             // Compute map size at center (only used to print)
             const float R = 6378136.98f;
-            float r = R * MathF.Cos(0.5f * (map_configuration.min_lat + map_configuration.max_lat) / 180f * MathF.PI);
-            float lon_diff = map_configuration.max_lon - map_configuration.min_lon;
+            float r = R * MathF.Cos(0.5f * (map.min_lat + map.max_lat) / 180f * MathF.PI);
+            float lon_diff = map.max_lon - map.min_lon;
             float map_width = lon_diff / 360f * 2f * MathF.PI * r;
-            float map_height = (map_configuration.max_lat - map_configuration.min_lat) / 360f * 2f * MathF.PI * R;
+            float map_height = (map.max_lat - map.min_lat) / 360f * 2f * MathF.PI * R;
             Log.Info($"Map size at center = {map_width/1000f:F3} x {map_height/1000f:F3}");
 
             Log.Info($"Retrieving {ncols} x {nrows} OSM tiles ({ncols*TILE_SIZE} x {nrows*TILE_SIZE} pixels)");
@@ -102,7 +102,7 @@ namespace DutchSkies
                 for (int i = mini; i <= maxi; i++)
                 {
                     //url = $"http://{(char)('a'+osm_idx)}.tile.openstreetmap.org/{map_configuration.zoom}/{i}/{j}.png";
-                    url = $"http://192.168.178.32:12347/tile/{map_configuration.zoom}/{i}/{j}";
+                    url = $"http://192.168.178.32:12347/tile/{map.zoom}/{i}/{j}";
 
                     Log.Info($"Fetching tile {i},{j} via {url}");
 

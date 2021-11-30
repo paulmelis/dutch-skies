@@ -71,6 +71,7 @@
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="ObserverData.cs" />
     <Compile Include="OSMMap.cs" />
     <Compile Include="OSMTiles.cs" />
     <Compile Include="PlaneData.cs" />
