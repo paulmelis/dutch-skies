@@ -263,7 +263,7 @@ namespace DutchSkies
             bool map_visible = true;
             bool map_show_planes = true, sky_show_planes = true;
             bool map_show_vlines = true, sky_show_vlines = false;
-            bool map_show_track_lines = true, sky_show_track_lines = true;
+            bool map_show_track_lines = true, sky_show_trail_lines = true;
             bool map_show_observer = false;
             bool sky_show_landmarks = true;
             bool show_origin = false;
@@ -463,16 +463,15 @@ namespace DutchSkies
                         Lines.Add(pos, new Vec3(pos.x, 0f, pos.z), VLINE_COLOR, 0.001f);
 
                     // Historical track
-                    if (map_show_track_lines && plane.map_positions.Count >= 2)
+                    if (map_show_track_lines && plane.map_track_points.Count >= 2)
                     {
-                        LinePoint[] lp = new LinePoint[plane.map_positions.Count];
+                        LinePoint[] lp = new LinePoint[plane.map_track_points.Count];
                         int idx = 0;
-                        foreach (Vec3 p in plane.map_positions)
+                        foreach (Vec3 p in plane.map_track_points)
                             lp[idx++] = new LinePoint(ROT_MIN90_X * p * map_scale_km_to_scene, track_line_color, track_line_thickness);
                         Lines.Add(lp);
                     }
                 }
-
 
                 // Observer location (on map)
 
@@ -544,9 +543,9 @@ namespace DutchSkies
                         Lines.Add(new Vec3(pos.x, pos.y - 120f, pos.z), new Vec3(pos.x, 0f, pos.z), VLINE_COLOR, 3f);
                     }
 
-                    if (sky_show_track_lines)
+                    if (sky_show_trail_lines)
                     {
-                        // Track line
+                        // Trail line
                         Lines.Add(prev_pos, pos, SKY_TRACK_LINE_COLOR, 3f);
                     }
 
@@ -628,6 +627,12 @@ namespace DutchSkies
                 UI.WindowBegin("Dutch Skies", ref main_window_pose, new Vec2(50, 0) * U.cm, UIWin.Normal);
 
                 UI.Toggle("Flight units", ref show_flight_units);
+                UI.SameLine();
+                if (UI.Button("Clear tracks"))
+                {
+                    foreach (var plane in plane_data.Values)
+                        plane.ClearTracks();
+                }
 
                 UI.PushId("map");
 
@@ -659,7 +664,7 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Toggle("VLines", ref sky_show_vlines);
                 UI.SameLine();
-                UI.Toggle("Track lines", ref sky_show_track_lines);
+                UI.Toggle("Trails", ref sky_show_trail_lines);
                 UI.SameLine();
                 UI.Toggle("Landmarks", ref sky_show_landmarks);
 

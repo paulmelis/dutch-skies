@@ -38,9 +38,9 @@ namespace DutchSkies
         protected Vec3 last_map_position;   // Map-centric location (units = km, origin = map origin)
         protected Vec3 last_sky_position;   // Sky-centric location (units = m, origin = observer location)
         protected Vec3 last_delta;          // Change in x, y, z (units = km/s)
-
-        // OpenSky data
-        public List<Vec3> map_positions;
+        
+        public List<Vec3> track_points;     // OpenSky data
+        public List<Vec3> map_track_points; // Map-centric
 
         // Extrapolated position and orientation
         public Vec3 computed_map_position;  // Map units (kilometers)
@@ -65,7 +65,8 @@ namespace DutchSkies
             have_geometric_altitude = false;
             have_barometric_altitude = false;
             first_data = true;
-            map_positions = new List<Vec3>();
+            track_points = new List<Vec3>();
+            map_track_points = new List<Vec3>();
         }
 
         public void ProcessDataUpdate(float session_time_received, JSONNode node, OSMMap map, ObserverData observer)
@@ -159,8 +160,13 @@ namespace DutchSkies
             // Map position is based on barometric altitude
             last_map_position = new Vec3(last_x, last_y, last_barometric_altitude_km);
             computed_map_position = last_map_position;
+
+            // Track points
             if (!on_ground)
-                map_positions.Add(last_map_position);
+            {
+                track_points.Add(new Vec3(last_lat, last_lon, last_barometric_altitude));
+                map_track_points.Add(last_map_position);
+            }
 
             // Sky position, based on barometric altitude
 
@@ -230,6 +236,12 @@ namespace DutchSkies
                 Log.Info(String.Format("Making plane {0} ({1}) MISSING as we haven't had data updates  in {2:F3}s", id, callsign, t_diff));
                 updateState = UpdateState.MISSING;
             }
+        }
+
+        public void ClearTracks()
+        {
+            track_points.Clear();
+            map_track_points.Clear();
         }
     };
 
