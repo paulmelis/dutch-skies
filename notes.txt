@@ -22,9 +22,6 @@ e.g. directly after startup:
 [SK info] Marking plane 484257 (KT) LATE, as we haven't had data updates in 279.398s
 [SK info] Marking plane 06e010 (RWD701) LATE, as we haven't had data updates in 131.398s
 
-observer position should stand out more (red-white pole?). plus, don't draw
-if the map doesn't include the location.
-
 delete missing planes (but keep track of number deleted)
 add late and forgotten count
 on ground

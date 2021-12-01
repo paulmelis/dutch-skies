@@ -139,9 +139,9 @@ namespace DutchSkies
             plane_marker_material[MatParamName.ColorTint] = new Color(0f, 0f, 1f);
 
             observer = new ObserverData();
-            // XXX needs to update when switching maps
             observer.update_map_position(current_map);
-            Mesh observer_marker = Mesh.GenerateCylinder(0.001f, 0.01f, Vec3.UnitY, 8);
+            Mesh observer_cylinder_marker = Mesh.GenerateCylinder(0.002f, 0.02f, Vec3.UnitY, 8);
+            Mesh observer_sphere_marker = Mesh.GenerateSphere(0.006f, 8);
             Material observer_marker_material = Default.Material.Copy();
             observer_marker_material[MatParamName.ColorTint] = new Color(1f, 0.5f, 0f);
 
@@ -476,12 +476,13 @@ namespace DutchSkies
                     }
                 }
 
-                // Observer location (on map)
+                // Observer location on map
 
-                if (map_show_observer)
+                if (map_show_observer && observer.on_map)
                 {
                     Vec3 observer_pos = ROT_MIN90_X.Transform(observer.map_position) * map_scale_km_to_scene;
-                    observer_marker.Draw(observer_marker_material, Matrix.T(0f, 0.005f, 0f) * Matrix.T(observer_pos));
+                    observer_cylinder_marker.Draw(observer_marker_material, Matrix.T(0f, 0.005f, 0f) * Matrix.T(observer_pos));
+                    observer_sphere_marker.Draw(observer_marker_material, Matrix.T(0f, 0.015f, 0f) * Matrix.T(observer_pos));
                 }
 
                 Hierarchy.Pop();
