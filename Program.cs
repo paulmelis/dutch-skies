@@ -41,7 +41,9 @@ namespace DutchSkies
         const int OPENSKY_QUERY_INTERVAL = 8;
 
         // Thread event queue
-        static ConcurrentQueue<Tuple<string, object>> updates_queue;
+        static ConcurrentQueue<Tuple<string, object, string>> updates_queue;
+        // URL requests queue
+        static ConcurrentQueue<Tuple<string, string, bool, string>> url_requests_queue;
 
         // QR code scanning
         static bool scanning_for_qrcodes;
@@ -161,7 +163,7 @@ namespace DutchSkies
             // XXX can probably take more advantage of async/await, but let's use threads for now
 
             // Queue for receiving updates from threads
-            updates_queue = new ConcurrentQueue<Tuple<string, object>>();
+            updates_queue = new ConcurrentQueue<Tuple<string, object, string>>();
 
             // Set query extent, based on map (minlat, maxlat, minlon, maxlon)
             Vec4 data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
@@ -177,16 +179,17 @@ namespace DutchSkies
             Log.Info("Plane update thread started");
 
             // Launch config fetch thread
-            // Queue for sending config URL to thread
-            ConcurrentQueue<string> config_update_queue = new ConcurrentQueue<string>();
-            var config_fetch_thread = new Thread(FetchConfiguration);
-            config_fetch_thread.IsBackground = true;
-            config_fetch_thread.Start(config_update_queue);
-            Log.Info("Config fetch thread started");
+            // Queue for fetching different types of data by URL
+            url_requests_queue = new ConcurrentQueue<Tuple<string, string, bool, string>>();
+            var url_fetch_thread = new Thread(FetchURLThread);
+            url_fetch_thread.IsBackground = true;
+            url_fetch_thread.Start();
+            Log.Info("URL fetch thread started");
 
             // XXX
-            //config_update_queue.Enqueue("http://192.168.178.32:8000/config-nl-custom-image.json");
-            config_update_queue.Enqueue("http://192.168.178.32:8000/config-newyork-custom-image.json");
+            //string initial_config = "http://192.168.178.32:8000/config-nl-custom-image.json";
+            string initial_config = "http://192.168.178.32:8000/config-newyork-custom-image.json";
+            FetchURL(initial_config, "config_data", false, initial_config);
 
             // Prepare for QR scanning
 
@@ -199,12 +202,12 @@ namespace DutchSkies
                 qrcode_watcher.Added += (o, qr) =>
                 {
                     //Log.Info($"(QR code Added handler) Found QR code: {qr.Code.Id} '{qr.Code.Data}'");
-                    updates_queue.Enqueue(new Tuple<string, object>("qrcode", qr.Code));
+                    updates_queue.Enqueue(new Tuple<string, object, string>("qrcode", qr.Code, ""));
                 };
                 qrcode_watcher.Updated += (o, qr) =>
                 {
                     //Log.Info($"(QR code Updated handler) QR code: {qr.Code.Id} '{qr.Code.Data}'");
-                    updates_queue.Enqueue(new Tuple<string, object>("qrcode", qr.Code));
+                    updates_queue.Enqueue(new Tuple<string, object, string>("qrcode", qr.Code, ""));
                 };
                 //watcher.Removed += (o, qr) => poses.Remove(qr.Code.Id);
             }
@@ -247,7 +250,7 @@ namespace DutchSkies
             TextStyle SKY_TEXT_STYLE = Text.MakeStyle(Default.Font, 15f * U.m, SKY_BASE_COLOR);
             TextStyle LANDMARK_TEXT_STYLE = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
 
-            Tuple<string, object> update;
+            Tuple<string, object, string> update;
             string update_type;
             JSONNode root_node;
 
@@ -283,10 +286,12 @@ namespace DutchSkies
                     if (update_type == "map_image")
                     {
                         // XXX need to handle image update that doesn't match current map
-                        Log.Info("Got updated map image");
-                        map_material[MatParamName.DiffuseTex] = Tex.FromMemory(update.Item2 as byte[]);
-                        // Disable backface culling on the map for now, for debugging
-                        map_material.FaceCull = Cull.None;
+                        byte[] map_image_file = update.Item2 as byte[];
+                        string map_to_update = update.Item3;
+                        Log.Info($"Got updated map image ({map_image_file.Length} bytes), for map {map_to_update}");
+                        maps[map_to_update].texture = Tex.FromMemory(map_image_file);
+                        if (current_map_name == map_to_update)
+                            map_material[MatParamName.DiffuseTex] = maps[map_to_update].texture;
                     }
                     else if (update_type == "plane_data")
                     {
@@ -335,14 +340,16 @@ namespace DutchSkies
                         if (data.StartsWith("http://") || data.StartsWith("https://"))
                         {
                             Log.Info($"Scheduling config fetch from {data}");
-                            config_update_queue.Enqueue(data);
+                            FetchURL(data, "config_data", false, data);                            
                         }
                         else
                             Log.Warn("Ignoring QR code that doesn't look like a URL");
                     }
                     else if (update_type == "config_data")
                     {
-                        JSONNode config_root = update.Item2 as JSONNode;
+                        string config_string = update.Item2 as string;
+                        // XXX handle error
+                        JSONNode config_root = JSON.Parse(config_string);
 
                         if (config_root.HasKey("query"))
                         {
@@ -355,22 +362,46 @@ namespace DutchSkies
 
                         if (config_root.HasKey("maps"))
                         {
-                            JSONNode jmaps = config_root["maps"];
-                            JSONNode jmap = jmaps[0];
+                            JSONArray jmaps = config_root["maps"].AsArray;
 
-                            maps.Clear();
+                            if (jmaps.Count > 0)
+                            {
+                                maps.Clear();
 
-                            Log.Info($"Have new map \"{jmap["name"]}\"");
-                            OSMMap map = maps[jmap["name"]] = new OSMMap(
-                                    jmap["name"],
-                                    jmap["lat_range"][0], jmap["lat_range"][1], jmap["lon_range"][0], jmap["lon_range"][1]
-                                );
+                                bool first = true;
+                                foreach (JSONNode jmap in jmaps)
+                                {
+                                    Log.Info($"Have new map \"{jmap["name"]}\"");
 
-                            //map.texture = Tex.FromFile("Maps\\netherlands-lon-2.812500-8.085938-lat-50.513427-53.956086-c-5.449219-52.234756-z10-3840x4096.png");
-                            //map.image_width = 3840;
-                            //map.image_height = 4096;
+                                    OSMMap map = maps[jmap["name"]] = new OSMMap(
+                                            jmap["name"],
+                                            jmap["lat_range"][0], jmap["lat_range"][1], jmap["lon_range"][0], jmap["lon_range"][1]
+                                        );
 
-                            SetMap(jmap["name"], draw_time);
+                                    JSONNode imgsource = jmap["image_source"];
+                                    if (imgsource["type"] == "url")
+                                    {
+                                        string imgurl = imgsource["url"];
+                                        if (imgurl[0] == '/')
+                                        {
+                                            // Assume path on same server that contained config
+                                            Uri uri = new Uri(update.Item3);
+                                            imgurl = uri.GetLeftPart(UriPartial.Authority) + imgurl;
+                                        }
+                                        FetchURL(imgurl, "map_image", true, jmap["name"]);
+                                    }
+
+                                    if (first)
+                                    {
+                                        SetMap(jmap["name"], draw_time);
+                                        first = false;
+                                    }
+                                }
+
+                                
+                            }
+                            else
+                                Log.Warn("No maps defined in config, not updating!");
                         }
 
                         if (config_root.HasKey("observers"))
@@ -396,6 +427,8 @@ namespace DutchSkies
                         if (config_root.HasKey("landmarks"))
                             UpdateLandmarks(config_root["landmarks"]);
                     }
+                    else
+                        Log.Warn($"Unhandled update type '{update_type}!");
                 }
 
                 //
@@ -798,8 +831,6 @@ namespace DutchSkies
                 );
 
             map.texture = Tex.FromFile("Maps\\netherlands-lon-2.812500-8.085938-lat-50.513427-53.956086-c-5.449219-52.234756-z10-3840x4096.png");
-            map.image_width = 3840;
-            map.image_height = 4096;
 
             // Schiphol Airport
             map = maps["Schiphol Airport"] = new OSMMap(
@@ -808,8 +839,6 @@ namespace DutchSkies
             );
 
             map.texture = Tex.FromFile("Maps\\schiphol-lon-4.042969-5.361328-lat-51.890054-52.696361-c-4.702148-52.293208-z12-3840x3840.png");
-            map.image_width = 3840;
-            map.image_height = 3840;
         }
 
         public static void SetMap(string map, double draw_time=0.0)
@@ -823,7 +852,6 @@ namespace DutchSkies
             map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, map_geo_height), -Vec3.Forward, Vec3.Up);
             map_scale_km_to_scene = REALWORLD_MAP_WIDTH / current_map.width;
 
-#if true
             map_texture = current_map.texture;
             if (map_texture != null)
             {
@@ -832,7 +860,8 @@ namespace DutchSkies
             }
             else
                 map_material[MatParamName.DiffuseTex] = Tex.White;
-#else
+
+#if false
             var map_thread = new Thread(OSMTiles.FetchMapTiles);
             map_thread.IsBackground = true;
             // XXX fix map arg
@@ -856,15 +885,21 @@ namespace DutchSkies
                 plane.ClearTrack();
         }
 
-        static async void FetchConfiguration(object obj)
+        static void FetchURL(string url, string type, bool binary, string payload)
         {
-            ConcurrentQueue<string> url_input_queue = obj as ConcurrentQueue<string>;
+            url_requests_queue.Enqueue(new Tuple<string, string, bool, string>(url, type, binary, payload));
+        }
 
+        static async void FetchURLThread()
+        {
             // XXX someone wrong with using the blocking collection?
             // YYY probably need a BlockingCollection in the main thread as well, when placing items in it
             //using (BlockingCollection<string> blocking_queue = new BlockingCollection<string>(url_input_queue))
             {
-                string url;
+                Tuple<string, string, bool, string> request;
+                string type, url, payload;
+                bool binary;
+
                 HttpClient http_client = new HttpClient();
 
                 while (true)
@@ -872,24 +907,35 @@ namespace DutchSkies
                     //Log.Info($"(configuration fetch thread) waiting for url");
                     //url = blocking_queue.Take();
 
-                    if (url_input_queue.TryDequeue(out url))
+                    if (url_requests_queue.TryDequeue(out request))
                     {
                         // Got updated extent
-                        Log.Info($"(configuration fetch thread) Got updated config URL: {url}");
+                        url = request.Item1;
+                        type = request.Item2;
+                        binary = request.Item3;
+                        payload = request.Item4;
+
+                        Log.Info($"(URL fetch thread) Fetching URL {url} (type '{type}', binary {binary}, payload '{payload}')");
 
                         try
                         {
                             HttpResponseMessage response = await http_client.GetAsync(url);
                             response.EnsureSuccessStatusCode();
-                            string body = await response.Content.ReadAsStringAsync();
-                            //Log.Info("(data fetch): " + body);
+                            if (binary)
+                            {
+                                byte[] data = await response.Content.ReadAsByteArrayAsync();
+                                updates_queue.Enqueue(new Tuple<string, object, string>(type, data, payload));
+                            }
+                            else
+                            {
+                                string text = await response.Content.ReadAsStringAsync();
+                                updates_queue.Enqueue(new Tuple<string, object, string>(type, text, payload));
+                            }
 
-                            JSONNode root_node = JSON.Parse(body);
-                            updates_queue.Enqueue(new Tuple<string, object>("config_data", root_node));
                         }
                         catch (HttpRequestException e)
                         {
-                            Log.Info("(data fetch): Exception " + e.Message);
+                            Log.Info("(URL fetch thread): Exception " + e.Message);
                         }
                     }
 
@@ -929,7 +975,7 @@ namespace DutchSkies
                     //Log.Info("(data fetch): " + body);
 
                     JSONNode root_node = JSON.Parse(body);
-                    updates_queue.Enqueue(new Tuple<string,object>("plane_data", root_node));
+                    updates_queue.Enqueue(new Tuple<string,object,string>("plane_data", root_node, ""));
                 }
                 catch (HttpRequestException e)
                 {

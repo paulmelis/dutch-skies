@@ -16,7 +16,6 @@ namespace DutchSkies
 
         // Image
         public Tex texture;
-        public int image_width, image_height;        
         
         // EPSG:3857 extents, in meters
         public float min_x, max_x;              
@@ -69,8 +68,6 @@ namespace DutchSkies
             //Log.Info($"lon 5, lat 52 -> {xx}, {yy}");
 
             // Image to be set later
-            image_width = 0;
-            image_height = 0;
             texture = null;
         }
 

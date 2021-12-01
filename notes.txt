@@ -12,6 +12,11 @@ apply query extent from json
 
 json: observer id -> name
 
+use all maps and observers from json
+
+run Tex.FromFile on loading thread if possible, as it briefly interrupts all rendering
+for large images
+
 app logo
 
 add surf logo
