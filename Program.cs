@@ -37,8 +37,7 @@ namespace DutchSkies
         static Dictionary<string, Landmark> landmarks;
         static ObserverData observer;
 
-        // Query
-        static Vec4 data_query_extent;
+        // Query        
         const int OPENSKY_QUERY_INTERVAL = 8;
 
         // Thread event queue
@@ -140,9 +139,6 @@ namespace DutchSkies
             SetMap("The Netherlands");
             //SetMap("Schiphol Airport");
 
-            // Set query extent, based on map
-            data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
-
             // Plane 3D model
             Model plane_model = Model.FromFile("Airplane-cleaned.rotated.glb");
             if (plane_model == null)
@@ -167,13 +163,17 @@ namespace DutchSkies
             // Queue for receiving updates from threads
             updates_queue = new ConcurrentQueue<Tuple<string, object>>();
 
+            // Set query extent, based on map (minlat, maxlat, minlon, maxlon)
+            Vec4 data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
+
             // Launch data update thread            
             // Queue for sending updated query range to thread
-            ConcurrentQueue<Vec4> query_update_queue = new ConcurrentQueue<Vec4>();
-            query_update_queue.Enqueue(data_query_extent);
+            ConcurrentQueue<Vec4> query_extent_update_queue = new ConcurrentQueue<Vec4>();
+            // Push initial query extent
+            query_extent_update_queue.Enqueue(data_query_extent);
             var plane_update_thread = new Thread(FetchPlaneUpdates);
             plane_update_thread.IsBackground = true;
-            plane_update_thread.Start(query_update_queue);
+            plane_update_thread.Start(query_extent_update_queue);
             Log.Info("Plane update thread started");
 
             // Launch config fetch thread
@@ -185,7 +185,8 @@ namespace DutchSkies
             Log.Info("Config fetch thread started");
 
             // XXX
-            config_update_queue.Enqueue("http://192.168.178.32:8000/config-nl-custom-image.json");
+            //config_update_queue.Enqueue("http://192.168.178.32:8000/config-nl-custom-image.json");
+            config_update_queue.Enqueue("http://192.168.178.32:8000/config-newyork-custom-image.json");
 
             // Prepare for QR scanning
 
@@ -257,6 +258,9 @@ namespace DutchSkies
             // Core application loop
             while (SK.Step(() =>
             {
+                double draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
+                Vec3 head_pos = Input.Head.position;
+
                 if (SK.System.displayType == Display.Opaque)
                     Default.MeshCube.Draw(floorMaterial, floorTransform);
 
@@ -340,15 +344,54 @@ namespace DutchSkies
                     {
                         JSONNode config_root = update.Item2 as JSONNode;
 
-                        if (config_root.HasKey("observers"))
+                        if (config_root.HasKey("query"))
                         {
-                            JSONNode obs = config_root["observers"][1];
-                            observer.lat = obs["lat"];
-                            observer.lon = obs["lon"];
-                            observer.floor_altitude = obs["alt"];
+                            JSONNode query = config_root["query"];
+
+                            Vec4 extent = new Vec4(query["lat_range"][0], query["lat_range"][1], query["lon_range"][0], query["lon_range"][1]);
+                            Log.Info($"Setting plane data query extent to {extent}");
+                            query_extent_update_queue.Enqueue(extent);
                         }
 
-                        observer.update_map_position(current_map);
+                        if (config_root.HasKey("maps"))
+                        {
+                            JSONNode jmaps = config_root["maps"];
+                            JSONNode jmap = jmaps[0];
+
+                            maps.Clear();
+
+                            Log.Info($"Have new map \"{jmap["name"]}\"");
+                            OSMMap map = maps[jmap["name"]] = new OSMMap(
+                                    jmap["name"],
+                                    jmap["lat_range"][0], jmap["lat_range"][1], jmap["lon_range"][0], jmap["lon_range"][1]
+                                );
+
+                            //map.texture = Tex.FromFile("Maps\\netherlands-lon-2.812500-8.085938-lat-50.513427-53.956086-c-5.449219-52.234756-z10-3840x4096.png");
+                            //map.image_width = 3840;
+                            //map.image_height = 4096;
+
+                            SetMap(jmap["name"], draw_time);
+                        }
+
+                        if (config_root.HasKey("observers"))
+                        {
+                            JSONNode observers = config_root["observers"];
+                            if (observers.Count == 0)
+                            {
+                                // Need some setting for observer
+                                observer.lat = current_map.center_lat;
+                                observer.lon = current_map.center_lon;
+                                observer.floor_altitude = 0f;
+                                observer.update_map_position(current_map);
+                            }
+                            else
+                            {
+                                JSONNode obs = observers[0];
+                                observer.lat = obs["lat"];
+                                observer.lon = obs["lon"];
+                                observer.floor_altitude = obs["alt"];
+                            }
+                        }
 
                         if (config_root.HasKey("landmarks"))
                             UpdateLandmarks(config_root["landmarks"]);
@@ -358,9 +401,6 @@ namespace DutchSkies
                 //
                 // Draw map and planes
                 //
-
-                double draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
-                Vec3 head_pos = Input.Head.position;
 
                 Hierarchy.Push(MAP_PLACEMENT_XFORM);
 
@@ -664,7 +704,7 @@ namespace DutchSkies
 
                         // Signal update to query extent
                         data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
-                        query_update_queue.Enqueue(data_query_extent);
+                        query_extent_update_queue.Enqueue(data_query_extent);
                     }
                 }
 
@@ -785,7 +825,13 @@ namespace DutchSkies
 
 #if true
             map_texture = current_map.texture;
-            map_material[MatParamName.DiffuseTex] = map_texture;
+            if (map_texture != null)
+            {
+                // Texture will be set later, after retrieval
+                map_material[MatParamName.DiffuseTex] = map_texture;
+            }
+            else
+                map_material[MatParamName.DiffuseTex] = Tex.White;
 #else
             var map_thread = new Thread(OSMTiles.FetchMapTiles);
             map_thread.IsBackground = true;
@@ -793,7 +839,7 @@ namespace DutchSkies
             map_thread.Start(MapConfiguration>(updates, current_map));
             Log.Info("Map tile fetch thread started");
 #endif
-            // Need to recompute extrapolated plane map positions 
+                // Need to recompute extrapolated plane map positions 
             foreach (PlaneData plane in plane_data.Values)
             {
                 plane.MapChange(current_map);

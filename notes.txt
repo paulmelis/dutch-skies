@@ -6,6 +6,12 @@
                 UI.WindowEnd();
 
 
+hide plane that are outside the map extent
+
+apply query extent from json
+
+json: observer id -> name
+
 app logo
 
 add surf logo

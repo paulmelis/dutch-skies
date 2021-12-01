@@ -26,7 +26,7 @@ namespace DutchSkies
         // Approximate map size in kilometers
         public float width, height;             
 
-        public OSMMap(string name, float minlat, float maxlat, float minlon, float maxlon, int zm)
+        public OSMMap(string name, float minlat, float maxlat, float minlon, float maxlon, int zm=0)
         {
             this.name = name;
             min_lat = minlat;
