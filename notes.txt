@@ -35,8 +35,6 @@ allow map speciication, including image?, through qr code
 - lat/lon extents
 - either: zoom level (OSM), or URL to custom map image
 
-rotate map text based on head pos
-
 combine map and sky parts where possible
 
 align opensky query area with map area

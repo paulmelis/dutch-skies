@@ -406,15 +406,19 @@ namespace DutchSkies
                         callsign = $"({callsign})";
                     }
 
+                    Vec3 dir = head_pos - MAP_PLACEMENT_XFORM.Transform(pos);
+                    dir.y = 0f;
+                    Quat textquat = Quat.LookDir(dir);
+
                     if (detail_level == DetailLevel.CALLSIGN)
                     {
                         Text.Add(
                             $"{callsign}",
-                           ROT_180_Y * Matrix.T(pos),
+                            Matrix.TR(pos, textquat),
                             MAP_TEXT_STYLE,
                             TextAlign.XLeft | TextAlign.YTop,
                             TextAlign.XLeft | TextAlign.YTop,
-                            -0.01f, 0f);
+                            -0.01f, 0f); ;
                     }
                     else if (detail_level == DetailLevel.FULL)
                     {
@@ -457,7 +461,7 @@ namespace DutchSkies
 
                         Text.Add(
                             $"{callsign}\n{plane.last_heading:F0}°\n{sstring}\n{astring}\n{vstring}",
-                            ROT_180_Y * Matrix.T(text_pos),
+                            Matrix.TR(pos, textquat),
                             MAP_TEXT_STYLE,
                             pos_align,
                             TextAlign.XLeft | TextAlign.YTop,
