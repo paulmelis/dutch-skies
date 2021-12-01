@@ -32,7 +32,7 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="DutchSkies.App">
       <uap:VisualElements
-        DisplayName="DutchSkies"
+        DisplayName="DutchSKies"
         Square150x150Logo="Assets\Logo\Logo-150.png"
         Square44x44Logo="Assets\Logo\Logo-44.png"
         Description="DutchSkies"

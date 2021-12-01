@@ -57,5 +57,8 @@ https://docs.microsoft.com/en-us/uwp/api/windows.devices.geolocation.geolocator.
 
 allow settings to be specified in qr codes, for easy demo setup
 
+put compass rose at observer location and orientation
+
 
 idea: for map view don't extrapolate based on last point, but interpolate based on last 2 points...
+
