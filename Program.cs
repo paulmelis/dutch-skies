@@ -188,7 +188,8 @@ namespace DutchSkies
 
             // XXX
             //string initial_config = "http://192.168.178.32:8000/config-nl-custom-image.json";
-            string initial_config = "http://192.168.178.32:8000/config-newyork-custom-image.json";
+            //string initial_config = "http://192.168.178.32:8000/config-newyork-custom-image.json";
+            string initial_config = "http://192.168.178.32:8000/config-alps-custom-image.json";
             FetchURL(initial_config, "config_data", false, initial_config);
 
             // Prepare for QR scanning
@@ -327,9 +328,9 @@ namespace DutchSkies
                         last_qrcode_id = qrcode.Id;
 
                         // XXX this seems to cause problems
-                        //Pose pose;
-                        //World.FromSpatialNode(qrcode.SpatialGraphNodeId, out pose);
-                        //Default.SoundClick.Play(pose.position);
+                        Pose pose;
+                        World.FromSpatialNode(qrcode.SpatialGraphNodeId, out pose);
+                        Default.SoundUnclick.Play(pose.position);
 
                         string data = qrcode.Data;
 
@@ -397,8 +398,6 @@ namespace DutchSkies
                                         first = false;
                                     }
                                 }
-
-                                
                             }
                             else
                                 Log.Warn("No maps defined in config, not updating!");
@@ -406,6 +405,7 @@ namespace DutchSkies
 
                         if (config_root.HasKey("observers"))
                         {
+                            // XXX handle multiple observer locations
                             JSONNode observers = config_root["observers"];
                             if (observers.Count == 0)
                             {
@@ -992,6 +992,7 @@ namespace DutchSkies
             if (qrcode_watcher == null)
             {
                 Log.Info("Cannot start QR code scanning, no permission given!");
+                scanning_for_qrcodes = false;
                 return;
             }
 

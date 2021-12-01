@@ -6,59 +6,54 @@
                 UI.WindowEnd();
 
 
+make plane text darker (bluer?) again
+
+when loading new config clear all plane data
+
 hide plane that are outside the map extent
-
-apply query extent from json
-
-json: observer id -> name
-
-use all maps and observers from json
-
-run Tex.FromFile on loading thread if possible, as it briefly interrupts all rendering
-for large images
-
-app logo
-
-add surf logo
-
-option to filter map planes based on map extents versus query extents
-
-refactor data handling
-
-why so many inactive planes, even at the start?
-ah, seems these are planes that are in the query results, yet haven't have data updates in a long time?
-e.g. directly after startup:
-[SK info] Marking plane 484257 (KT) LATE, as we haven't had data updates in 279.398s
-[SK info] Marking plane 06e010 (RWD701) LATE, as we haven't had data updates in 131.398s
 
 delete missing planes (but keep track of number deleted)
 add late and forgotten count
 on ground
 
-allow text size selection
 
-callsign-only text is sometimes too low
+json: observer id -> name
+
+
+use all observers from json
+
+handling OSM tiling
+
+run Tex.FromFile on loading thread if possible, as it briefly interrupts all rendering
+for large images
+
+add surf logo
 
 highlight airport locations
 
-allow map speciication, including image?, through qr code
-- map name (for UI)
-- lat/lon extents
-- either: zoom level (OSM), or URL to custom map image
+put compass rose at observer location and orientation
 
-combine map and sky parts where possible
+callsign-only text is sometimes too low
 
-align opensky query area with map area
+
+allow text size selection
+
+combine map and sky parts where possible during drawing?
 
 fps graph
 
-HoloLens2 doesn't support GPS Sensor, but an app can acquire the user's current location via Wi-Fi. It is less precise but more likely to be available indoors. You can invoke the Windows Runtime API Geolocator.GetGeopositionAsync method in the Windows.Devices.Geolocation namespace to retrieve the current location of the device.
-https://docs.microsoft.com/en-us/uwp/api/windows.devices.geolocation.geolocator.getgeopositionasync?view=winrt-22000#Windows_Devices_Geolocation_Geolocator_GetGeopositionAsync
-
 allow settings to be specified in qr codes, for easy demo setup
 
-put compass rose at observer location and orientation
 
+Ideas:
+- HoloLens2 doesn't support GPS Sensor, but an app can acquire the user's current location via Wi-Fi. It is less precise but more likely to be available indoors. You can invoke the Windows Runtime API Geolocator.GetGeopositionAsync method in the Windows.Devices.Geolocation namespace to retrieve the current location of the device.
+  https://docs.microsoft.com/en-us/uwp/api/windows.devices.geolocation.geolocator.getgeopositionasync?view=winrt-22000#Windows_Devices_Geolocation_Geolocator_GetGeopositionAsync
+- for map view don't extrapolate based on last point, but interpolate based on last 2 points
 
-idea: for map view don't extrapolate based on last point, but interpolate based on last 2 points...
+Check:
+- why so many inactive planes, even at the start?
+  ah, seems these are planes that are in the query results, yet haven't have data updates in a long time?
+  e.g. directly after startup:
+   [SK info] Marking plane 484257 (KT) LATE, as we haven't had data updates in 279.398s
+  [SK info] Marking plane 06e010 (RWD701) LATE, as we haven't had data updates in 131.398s
 
