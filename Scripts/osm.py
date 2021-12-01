@@ -39,20 +39,45 @@ if __name__ == '__main__':
 
     # Retrieves tiles based on range that needs to be covered,
     # and pastes them together into a single image.
-    # The output image will (in almost all cases) cover an area
+    # Note: the output image will (in almost all cases) cover an area
     # larger than requested, as tiles are not clipped.
+    
+    maps = {
+        'netherlands': dict(
+            lat_range = [50.513427, 53.748711],
+            lon_range = [2.812500, 7.734375],
+            zoom = 10
+        ),
+        
+        'schiphol': dict(
+            lat_range = [51.9, 52.65],
+            lon_range = [4.130859, 5.361328],
+            zoom = 12
+        ),
+        
+        'newyork': dict(
+            lat_range = [40.0365822447532, 41.64694618022861],
+            lon_range = [-76.01054785756074, -72.90784573138009],
+            zoom = 10
+        ),
+        
+        'newyork2': dict(        
+            lat_range = [40.4334, 41.2076],
+            lon_range = [-74.6082, -72.9369],        
+            zoom = 12
+        ),
+    }
 
-    # Netherlands
     name = 'netherlands'
-    lat_range = [50.513427, 53.748711]
-    lon_range = [2.812500, 7.734375]
-    zoom = 10
-
-    # Schiphol
-    name = 'schiphol'
-    lat_range = [51.9, 52.65]
-    lon_range = [4.130859, 5.361328]
-    zoom = 12
+    if len(sys.argv) > 1 and sys.argv[1] in maps:
+        name = sys.argv[1]
+        
+    map = maps[name]
+    lat_range = map['lat_range']
+    lon_range = map['lon_range']
+    zoom = map['zoom']
+    
+    print('Map "%s"' % map)
 
     # Determine tiles needed
     lat = 0.5*(lat_range[0]+lat_range[1])
@@ -110,11 +135,13 @@ if __name__ == '__main__':
 
             osm_idx = (osm_idx+1) % 3
 
-    sys.stdout.write('\nWriting output image...')
+    fname = '%s-lon-%.6f-%.6f-lat-%.6f-%.6f-c-%.6f-%.6f-z%d-%dx%d.png' % \
+        (name, minlon, maxlon, minlat, maxlat, center_lon, center_lat, zoom, img.size[0], img.size[1])
+
+    sys.stdout.write('\nWriting output image %s ... ' % fname)
     sys.stdout.flush()
 
-    img.save('%s-lon-%.6f-%.6f-lat-%.6f-%.6f-c-%.6f-%.6f-z%d-%dx%d.png' % \
-        (name, minlon, maxlon, minlat, maxlat, center_lon, center_lat, zoom, img.size[0], img.size[1]))
+    img.save(fname)
 
     sys.stdout.write('done\n')
     sys.stdout.flush()

@@ -159,6 +159,11 @@ Under the following terms:
   original (Windrose.original.svg) and redistributed file (Windrose.svg) licensed 
   under [Creative Commons Attribution-Share Alike 3.0 Unported](https://creativecommons.org/licenses/by-sa/3.0/deed.en).
   
+* The logo (`Assets/Logo.svg`) uses `Assets/Airplane_silhouette.svg` (from https://en.m.wikipedia.org/wiki/File:Airplane_silhouette.svg, 
+  which is placed in the public domain). It also uses `Assets/Blank_map_of_the_Netherlands.svg` (from https://nl.wikipedia.org/wiki/Bestand:Blank_map_of_the_Netherlands.svg,
+  which is shared under [Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0)](https://creativecommons.org/licenses/by-sa/3.0/deed)).
+   
+  
 ### OpenSky Network real-time data
 
 Note that this application makes use of the [OpenSky Network](https://opensky-network.org/)
