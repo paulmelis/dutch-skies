@@ -33,6 +33,8 @@ namespace DutchSkies
         static Mesh map_quad;
         static Tex map_texture;
 
+        static ObserverData observer;
+
         // Query
         static Vec4 data_query_extent;
         const int OPENSKY_QUERY_INTERVAL = 8;
@@ -102,11 +104,6 @@ namespace DutchSkies
                 }
             }
 
-            // Queue for receiving updates from threads
-            updates_queue = new ConcurrentQueue<Tuple<string, object>>();
-            // Queue for sending updated query range to thread
-            ConcurrentQueue<Vec4> query_update_queue = new ConcurrentQueue<Vec4>();
-
             //
             // Maps
             //
@@ -126,6 +123,9 @@ namespace DutchSkies
             SetMap("The Netherlands");
             //SetMap("Schiphol Airport");
 
+            // Set query extent, based on map
+            data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
+
             // Plane 3D model
             Model plane_model = Model.FromFile("Airplane-cleaned.rotated.glb");
             if (plane_model == null)
@@ -138,7 +138,7 @@ namespace DutchSkies
             Material plane_marker_material = Default.Material.Copy();
             plane_marker_material[MatParamName.ColorTint] = new Color(0f, 0f, 1f);
 
-            ObserverData observer = new ObserverData();
+            observer = new ObserverData();
             // XXX needs to update when switching maps
             observer.update_map_position(current_map);
             Mesh observer_marker = Mesh.GenerateCylinder(0.001f, 0.01f, Vec3.UnitY, 8);
@@ -151,15 +151,28 @@ namespace DutchSkies
             Material floorMaterial = new Material(Shader.FromFile("floor.hlsl"));
             floorMaterial.Transparency = Transparency.Blend;
 
-            // Set query extent, based on map
-            data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
+            // Start some background threads
+            // XXX can probably take more advantage of async/await, but let's use threads for now
+
+            // Queue for receiving updates from threads
+            updates_queue = new ConcurrentQueue<Tuple<string, object>>();
 
             // Launch data update thread            
+            // Queue for sending updated query range to thread
+            ConcurrentQueue<Vec4> query_update_queue = new ConcurrentQueue<Vec4>();
             query_update_queue.Enqueue(data_query_extent);
-            var data_thread = new Thread(FetchPlaneUpdates);
-            data_thread.IsBackground = true;
-            data_thread.Start(new Tuple<object, object>(updates_queue, query_update_queue));
-            Log.Info("Data thread started");
+            var plane_update_thread = new Thread(FetchPlaneUpdates);
+            plane_update_thread.IsBackground = true;
+            plane_update_thread.Start(query_update_queue);
+            Log.Info("Plane update thread started");
+
+            // Launch config fetch thread
+            // Queue for sending config URL to thread
+            ConcurrentQueue<string> config_update_queue = new ConcurrentQueue<string>();
+            var config_fetch_thread = new Thread(FetchConfiguration);
+            config_fetch_thread.IsBackground = true;
+            config_fetch_thread.Start(config_update_queue);
+            Log.Info("Config fetch thread started");
 
             // Prepare for QR scanning
 
@@ -169,7 +182,7 @@ namespace DutchSkies
             {
                 // Create watcher and set it up
                 qrcode_watcher = new QRCodeWatcher();
-                qrcode_watcher.Added += (o, qr) => 
+                qrcode_watcher.Added += (o, qr) =>
                 {
                     //Log.Info($"(QR code Added handler) Found QR code: {qr.Code.Id} '{qr.Code.Data}'");
                     updates_queue.Enqueue(new Tuple<string, object>("qrcode", qr.Code));
@@ -184,7 +197,7 @@ namespace DutchSkies
             else
                 Log.Info("Cannot perform QR code scanning, no permission given");
 
-            scanning_for_qrcodes = false;            
+            scanning_for_qrcodes = false;
 
             // Initial head pose in physical space is apparently taken as origin, with
             // head view direction as forward (-Z), Y is up, X to the right, i.e. right-handed
@@ -206,16 +219,16 @@ namespace DutchSkies
             bool map_show_track_lines = true, sky_show_trail_lines = true;
             bool map_show_observer = false;
             bool sky_show_landmarks = true;
-            bool show_origin = false;            
+            bool show_origin = false;
             int num_map_planes = 0;
             int sky_y_trim = 0;         // In 0.1 degree increments
 
-            const float TRACK_LINE_THICKNESS = 0.001f;            
+            const float TRACK_LINE_THICKNESS = 0.001f;
             Color MAP_BASE_COLOR = new Color(0.5f, 0f, 1f);
             Color32 MAP_TRACK_LINE_COLOR = new Color32(0, 0, 255, 255);
             Color SKY_BASE_COLOR = new Color(1f, 0f, 0f);
             Color SKY_TRAIL_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
-            Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);            
+            Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);
 
             const float SKY_SCALING_THRESHOLD = 3f;
             Matrix SKY_FAR_MODEL_SCALE = Matrix.S(30f);
@@ -295,7 +308,7 @@ namespace DutchSkies
                         if (qrcode.LastDetectedTime <= qrcode_watcher_start || qrcode.Id == last_qrcode_id)
                             return;
 
-                        // As soon as we found a QR code stop scanning for more and apply the data in the code
+                        // As soon as we find a QR code stop scanning for more and apply the data in the code
                         qrcode_watcher.Stop();
                         scanning_for_qrcodes = false;
                         last_qrcode_id = qrcode.Id;
@@ -305,10 +318,36 @@ namespace DutchSkies
                         //World.FromSpatialNode(qrcode.SpatialGraphNodeId, out pose);
                         //Default.SoundClick.Play(pose.position);
 
+                        string data = qrcode.Data;
+
                         Log.Info($"Got QR code {qrcode.Id} dtime {qrcode.LastDetectedTime}, starttime {qrcode_watcher_start}");
-                        Log.Info($"qr data: '{qrcode.Data}'");
+                        Log.Info($"qr data: '{data}'");
                         Log.Info($"Disabled further QR code scanning");
 
+                        if (data.StartsWith("http://") || data.StartsWith("https://"))
+                        {
+                            Log.Info($"Scheduling config fetch from {data}");
+                            config_update_queue.Enqueue(data);
+                        }
+                        else
+                            Log.Warn("Ignoring QR code that doesn't look like a URL");
+                    }
+                    else if (update_type == "config_data")
+                    {
+                        JSONNode config_root = update.Item2 as JSONNode;
+
+                        if (config_root.HasKey("observers"))
+                        {
+                            JSONNode obs = config_root["observers"][1];
+                            observer.lat = obs["lat"];
+                            observer.lon = obs["lon"];
+                            observer.floor_altitude = obs["alt"];
+                        }
+
+                        if (config_root.HasKey("landmarks"))
+                            observer.update_landmarks(config_root["landmarks"], current_map);
+
+                        observer.update_map_position(current_map);
                     }
                 }
 
@@ -595,6 +634,11 @@ namespace DutchSkies
                 if (UI.Button("Clear tracks"))
                     ClearTracks();
                 UI.SameLine();
+                if (UI.Toggle("Scan QR code", ref scanning_for_qrcodes))
+                {
+                    Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
+                    SetQRCodeScan();
+                }
                 UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
 
                 UI.HSeparator();
@@ -634,12 +678,6 @@ namespace DutchSkies
                 if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
                 UI.SameLine();
                 if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
-
-                if (UI.Toggle("Scan QR code", ref scanning_for_qrcodes))
-                {
-                    Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
-                    SetQRCodeScan();
-                }
 
                 UI.PopId();
 
@@ -745,7 +783,7 @@ namespace DutchSkies
             var map_thread = new Thread(OSMTiles.FetchMapTiles);
             map_thread.IsBackground = true;
             // XXX fix map arg
-            map_thread.Start(new Tuple<ConcurrentQueue<Tuple<string,object>>, MapConfiguration>(updates, current_map));
+            map_thread.Start(MapConfiguration>(updates, current_map));
             Log.Info("Map tile fetch thread started");
 #endif
             // XXX need to recompute extrapolated map positions 
@@ -757,13 +795,54 @@ namespace DutchSkies
                 plane.ClearTrack();
         }
 
+        static async void FetchConfiguration(object obj)
+        {
+            ConcurrentQueue<string> url_input_queue = obj as ConcurrentQueue<string>;
+
+            // XXX someone wrong with using the blocking collection?
+            // YYY probably need a BlockingCollection in the main thread as well, when placing items in it
+            //using (BlockingCollection<string> blocking_queue = new BlockingCollection<string>(url_input_queue))
+            {
+                string url;
+                HttpClient http_client = new HttpClient();
+
+                while (true)
+                {
+                    //Log.Info($"(configuration fetch thread) waiting for url");
+                    //url = blocking_queue.Take();
+
+                    if (url_input_queue.TryDequeue(out url))
+                    {
+                        // Got updated extent
+                        Log.Info($"(configuration fetch thread) Got updated config URL: {url}");
+
+                        try
+                        {
+                            HttpResponseMessage response = await http_client.GetAsync(url);
+                            response.EnsureSuccessStatusCode();
+                            string body = await response.Content.ReadAsStringAsync();
+                            //Log.Info("(data fetch): " + body);
+
+                            JSONNode root_node = JSON.Parse(body);
+                            updates_queue.Enqueue(new Tuple<string, object>("config_data", root_node));
+                        }
+                        catch (HttpRequestException e)
+                        {
+                            Log.Info("(data fetch): Exception " + e.Message);
+                        }
+                    }
+
+                    Thread.Sleep(500);
+                }
+            }
+        }
+
         static async void FetchPlaneUpdates(object obj)
         {
-            Tuple<object, object> args = obj as Tuple<object, object>;
-            ConcurrentQueue<Tuple<string,object>> data_output_queue = args.Item1 as ConcurrentQueue<Tuple<string, object>>;
-            ConcurrentQueue<Vec4> extent_input_queue = args.Item2 as ConcurrentQueue<Vec4>;
+            ConcurrentQueue<Vec4> extent_input_queue = obj as ConcurrentQueue<Vec4>;
 
             Vec4 extent;
+            HttpClient http_client = new HttpClient();
 
             // Wait for initial extent
             while (!extent_input_queue.TryDequeue(out extent))
@@ -771,8 +850,6 @@ namespace DutchSkies
 
             Log.Info($"(data fetch thread) Initial query extent: lat {extent.x:F6} - {extent.y:F6}, lon {extent.z:F6} - {extent.w:F6}");
             string URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
-
-            HttpClient client = new HttpClient();
 
             while (true)
             {
@@ -785,13 +862,13 @@ namespace DutchSkies
 
                 try
                 {                    
-                    HttpResponseMessage response = await client.GetAsync(URL);
+                    HttpResponseMessage response = await http_client.GetAsync(URL);
                     response.EnsureSuccessStatusCode();
                     string body = await response.Content.ReadAsStringAsync();
                     //Log.Info("(data fetch): " + body);
 
                     JSONNode root_node = JSON.Parse(body);
-                    data_output_queue.Enqueue(new Tuple<string,object>("plane_data", root_node));
+                    updates_queue.Enqueue(new Tuple<string,object>("plane_data", root_node));
                 }
                 catch (HttpRequestException e)
                 {
@@ -824,6 +901,5 @@ namespace DutchSkies
                 qrcode_watcher.Stop();
             }
         }
-
     }
 }

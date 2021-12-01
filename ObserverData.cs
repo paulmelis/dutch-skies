@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using StereoKit;
+using SimpleJSON;
 
 namespace DutchSkies
 {
@@ -46,7 +47,7 @@ namespace DutchSkies
             float x = 0f, y = 0f;
             map.Project(ref x, ref y, lon, lat);
             map_position = new Vec3(x, y, floor_altitude / 1000f);
-            Log.Info($"observer map pos = {x:F6}, {y:F6}");
+            Log.Info($"observer lat {lat:F6}, lon {lon:F6}, alt {floor_altitude} m -> map pos = {x:F6}, {y:F6}");
 
             Matrix M;
 
@@ -73,7 +74,19 @@ namespace DutchSkies
                 Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + landmark_top_altitude * 0.001f);
 
                 landmark.sky_position = M.Transform(p) * 1000f;
+                Log.Info($"landmark {item.Key} sky pos = {landmark.sky_position}");
             }
         }
+
+        public void update_landmarks(JSONNode nodes, OSMMap map)
+        {
+            landmarks.Clear();
+
+            foreach (JSONNode n in nodes)
+            {
+                landmarks[n["id"]] = new Landmark(n["id"], n["lat"], n["lon"], n["topalt"], n["botalt"]);
+            }
+        }
+
     };
 }
