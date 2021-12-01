@@ -8,8 +8,6 @@
 
 app logo
 
-when switching maps update map plane positions
-
 add surf logo
 
 option to filter map planes based on map extents versus query extents

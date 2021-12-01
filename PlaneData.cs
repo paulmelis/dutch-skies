@@ -149,12 +149,12 @@ namespace DutchSkies
             // Map
             // Simple projection, based on map projection (disregards Earth curvature)
 
-            float last_x = 0f, last_y = 0f;
+            float last_x, last_y;
             map.Project(out last_x, out last_y, last_lon, last_lat);
 
             //Log.Info($"[{id}] {last_lat:F6}, {last_lon:F6} -> {last_x:F6}, {last_y:F6}");
 
-            float last_geometric_altitude_km = last_geometric_altitude / 1000f;
+            //float last_geometric_altitude_km = last_geometric_altitude / 1000f;
             float last_barometric_altitude_km = last_barometric_altitude / 1000f;
 
             // Map position is based on barometric altitude
@@ -169,6 +169,8 @@ namespace DutchSkies
             }
             else
                 ClearTrack();
+
+            MapChange(map);
 
             // Sky position, based on barometric altitude
 
@@ -206,6 +208,31 @@ namespace DutchSkies
             }
 
             first_data = false;
+        }
+        public void MapChange(OSMMap map)
+        {
+            // Map
+            // Simple projection, based on map projection (disregards Earth curvature)
+
+            float last_x, last_y;
+            map.Project(out last_x, out last_y, last_lon, last_lat);
+
+            //Log.Info($"[{id}] {last_lat:F6}, {last_lon:F6} -> {last_x:F6}, {last_y:F6}");
+
+            //float last_geometric_altitude_km = last_geometric_altitude / 1000f;
+            float last_barometric_altitude_km = last_barometric_altitude / 1000f;
+
+            // Map position is based on barometric altitude
+            last_map_position = new Vec3(last_x, last_y, last_barometric_altitude_km);
+            computed_map_position = last_map_position;
+
+            // Recompute map track points
+            map_track_points.Clear();
+            foreach (Vec3 p in track_points)
+            {                
+                map.Project(out last_x, out last_y, p.y, p.x);
+                map_track_points.Add(new Vec3(last_x, last_y, p.z / 1000f));
+            }
         }
 
         // update_time is seconds since Unix epoch

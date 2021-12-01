@@ -106,6 +106,10 @@ namespace DutchSkies
                 }
             }
 
+            // Planes
+
+            plane_data = new Dictionary<string, PlaneData>();
+
             // Observer
 
             observer = new ObserverData();
@@ -189,7 +193,7 @@ namespace DutchSkies
             var status = QRCodeWatcher.RequestAccessAsync().Result;
             if (status == QRCodeWatcherAccessStatus.Allowed)
             {
-                // Create watcher and set it up
+                // Create watcher and set up callbacks
                 qrcode_watcher = new QRCodeWatcher();
                 qrcode_watcher.Added += (o, qr) =>
                 {
@@ -208,13 +212,7 @@ namespace DutchSkies
 
             scanning_for_qrcodes = false;
 
-            // Initial head pose in physical space is apparently taken as origin, with
-            // head view direction as forward (-Z), Y is up, X to the right, i.e. right-handed
-            //
-            // Line.AddAxis shows an axis with these directions:
-            // Red = Vec3.Right = +X
-            // Green = Vec3.Up = +Y
-            // Blue = Vec3.Forward = -Z (NOTE!)
+            // Main settings
 
             Pose main_window_pose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
             Pose log_window_pose = new Pose(0.9f, -0.2f, 0f, Quat.LookDir(-1, 0, 1));
@@ -233,7 +231,7 @@ namespace DutchSkies
             int sky_y_trim = 0;         // In 0.1 degree increments
 
             const float TRACK_LINE_THICKNESS = 0.001f;
-            Color MAP_BASE_COLOR = new Color(0.5f, 0f, 1f);
+            Color MAP_BASE_COLOR = new Color(1f, 0f, 0.5f);
             Color32 MAP_TRACK_LINE_COLOR = new Color32(0, 0, 255, 255);
             Color SKY_BASE_COLOR = new Color(1f, 0f, 0f);
             Color SKY_TRAIL_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
@@ -243,12 +241,10 @@ namespace DutchSkies
             Matrix SKY_FAR_MODEL_SCALE = Matrix.S(30f);
             Matrix SKY_CLOSE_MODEL_SCALE = Matrix.S(60f);
 
-            // XXX style uses gamma-space color, leading to slight different with vline color
+            // XXX style uses gamma-space color, leading to slight difference with vline color
             TextStyle MAP_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.5f * U.cm, MAP_BASE_COLOR);
             TextStyle SKY_TEXT_STYLE = Text.MakeStyle(Default.Font, 15f * U.m, SKY_BASE_COLOR);
             TextStyle LANDMARK_TEXT_STYLE = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
-
-            plane_data = new Dictionary<string, PlaneData>();
 
             Tuple<string, object> update;
             string update_type;
@@ -275,7 +271,6 @@ namespace DutchSkies
                 while (!updates_queue.IsEmpty)
                 {
                     // XXX handle error
-
                     updates_queue.TryDequeue(out update);
                     update_type = update.Item1;
 
@@ -661,9 +656,7 @@ namespace DutchSkies
                     if (UI.Radio(map.name, current_map_name == map.name))
                     {
                         // Switch map
-                        SetMap(map.name);
-                        // XXX for now
-                        ClearTracks();
+                        SetMap(map.name, draw_time);
 
                         // Signal update to query extent
                         data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
@@ -775,7 +768,7 @@ namespace DutchSkies
             map.image_height = 3840;
         }
 
-        public static void SetMap(string map)
+        public static void SetMap(string map, double draw_time=0.0)
         {
             current_map_name = map;
             current_map = maps[map];
@@ -796,8 +789,14 @@ namespace DutchSkies
             map_thread.Start(MapConfiguration>(updates, current_map));
             Log.Info("Map tile fetch thread started");
 #endif
-            // XXX need to recompute extrapolated map positions 
+            // Need to recompute extrapolated plane map positions 
+            foreach (PlaneData plane in plane_data.Values)
+            {
+                plane.MapChange(current_map);
+                plane.Update(draw_time);
+            }
 
+            // Observer will move as well
             observer.update_map_position(current_map);
         }
 
@@ -893,10 +892,10 @@ namespace DutchSkies
 
         public static void SetQRCodeScan()
         {
-            Log.Info($"SetQRCodeScan, scanning_for_qr_codes = {scanning_for_qrcodes}");
+            //Log.Info($"SetQRCodeScan, scanning_for_qr_codes = {scanning_for_qrcodes}");
             if (qrcode_watcher == null)
             {
-                Log.Info("Cannot startg QR code scanning, no permission given!");
+                Log.Info("Cannot start QR code scanning, no permission given!");
                 return;
             }
 
