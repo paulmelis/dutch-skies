@@ -9,31 +9,7 @@ namespace DutchSkies
         public float lat, lon;
         public float floor_altitude;  // meters
         public Vec3 map_position;
-        public bool on_map;
-        public Dictionary<string, Landmark> landmarks;
-
-        public class Landmark
-        {
-            public string id;
-            public float lat, lon;
-            public float top_altitude;
-            public float bottom_altitude;
-            public float height;
-            public Vec3 map_position;
-            public Vec3 sky_position;
-
-            public Landmark(string id, float lat, float lon, float topalt, float botalt = 0f)
-            {
-                this.id = id;
-                this.lat = lat;
-                this.lon = lon;
-                top_altitude = topalt;
-                bottom_altitude = botalt;
-                height = top_altitude - bottom_altitude;
-                map_position = new Vec3();
-                sky_position = new Vec3();
-            }
-        };
+        public bool on_map;        
 
         public ObserverData()
         {
@@ -41,8 +17,7 @@ namespace DutchSkies
             lat = 52.357036140185144f;
             lon = 4.954487434653384f;
             floor_altitude = /* street level */ -3.56f + 4f /* one floor */;
-            on_map = false;
-            landmarks = new Dictionary<string, Landmark>();
+            on_map = false;            
         }
 
         public void update_map_position(OSMMap map)
@@ -50,48 +25,9 @@ namespace DutchSkies
             on_map = lat >= map.min_lat && lat <= map.max_lat && lon >= map.min_lon && lon <= map.max_lon;
 
             float x = 0f, y = 0f;
-            map.Project(ref x, ref y, lon, lat);
+            map.Project(out x, out y, lon, lat);
             map_position = new Vec3(x, y, floor_altitude / 1000f);
             Log.Info($"observer lat {lat:F6}, lon {lon:F6}, alt {floor_altitude} m -> map pos = {x:F6}, {y:F6}");
-
-            Matrix M;
-
-            foreach (KeyValuePair<string, Landmark> item in landmarks)
-            {
-                Landmark landmark = item.Value;
-                float landmark_lat = landmark.lat;
-                float landmark_lon = landmark.lon;
-                float landmark_top_altitude = landmark.top_altitude;
-
-                // Map position (unused currently)
-                map.Project(ref x, ref y, landmark_lon, landmark_lat);
-                item.Value.map_position = new Vec3(x, y, landmark_top_altitude / 1000f);
-
-                M = Matrix.R(-landmark_lat, 0f, 0f)
-                    *
-                    Matrix.R(0f, landmark_lon - lon, 0f)
-                    *
-                    Matrix.R(lat, 0f, 0f)
-                    *
-                    // XXX Should also include have-above-floor distance, but the effect will be minimal
-                    Matrix.T(0f, 0f, -(Projection.RADIUS_KILOMETERS + floor_altitude * 0.001f));
-
-                Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_KILOMETERS + landmark_top_altitude * 0.001f);
-
-                landmark.sky_position = M.Transform(p) * 1000f;
-                Log.Info($"landmark {item.Key} sky pos = {landmark.sky_position}");
-            }
         }
-
-        public void update_landmarks(JSONNode nodes, OSMMap map)
-        {
-            landmarks.Clear();
-
-            foreach (JSONNode n in nodes)
-            {
-                landmarks[n["id"]] = new Landmark(n["id"], n["lat"], n["lon"], n["topalt"], n["botalt"]);
-            }
-        }
-
     };
 }

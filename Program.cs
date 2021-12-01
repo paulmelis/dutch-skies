@@ -33,6 +33,8 @@ namespace DutchSkies
         static Mesh map_quad;
         static Tex map_texture;
 
+        // Sky mode
+        static Dictionary<string, Landmark> landmarks;
         static ObserverData observer;
 
         // Query
@@ -104,6 +106,17 @@ namespace DutchSkies
                 }
             }
 
+            // Observer
+
+            observer = new ObserverData();
+            
+            Mesh observer_cylinder_marker = Mesh.GenerateCylinder(0.002f, 0.02f, Vec3.UnitY, 8);
+            Mesh observer_sphere_marker = Mesh.GenerateSphere(0.006f, 8);
+            Material observer_marker_material = Default.Material.Copy();
+            observer_marker_material[MatParamName.ColorTint] = new Color(1f, 0.5f, 0f);
+
+            landmarks = new Dictionary<string, Landmark>();
+
             //
             // Maps
             //
@@ -138,13 +151,6 @@ namespace DutchSkies
             Material plane_marker_material = Default.Material.Copy();
             plane_marker_material[MatParamName.ColorTint] = new Color(0f, 0f, 1f);
 
-            observer = new ObserverData();
-            observer.update_map_position(current_map);
-            Mesh observer_cylinder_marker = Mesh.GenerateCylinder(0.002f, 0.02f, Vec3.UnitY, 8);
-            Mesh observer_sphere_marker = Mesh.GenerateSphere(0.006f, 8);
-            Material observer_marker_material = Default.Material.Copy();
-            observer_marker_material[MatParamName.ColorTint] = new Color(1f, 0.5f, 0f);
-
             // Floor (for non-seethrough devices)
 
             Matrix floorTransform = Matrix.TS(0, -1.5f, 0, new Vec3(30, 0.1f, 30));
@@ -173,6 +179,9 @@ namespace DutchSkies
             config_fetch_thread.IsBackground = true;
             config_fetch_thread.Start(config_update_queue);
             Log.Info("Config fetch thread started");
+
+            // XXX
+            config_update_queue.Enqueue("http://192.168.178.32:8000/config-nl-custom-image.json");
 
             // Prepare for QR scanning
 
@@ -344,10 +353,10 @@ namespace DutchSkies
                             observer.floor_altitude = obs["alt"];
                         }
 
-                        if (config_root.HasKey("landmarks"))
-                            observer.update_landmarks(config_root["landmarks"], current_map);
-
                         observer.update_map_position(current_map);
+
+                        if (config_root.HasKey("landmarks"))
+                            UpdateLandmarks(config_root["landmarks"]);
                     }
                 }
 
@@ -592,9 +601,9 @@ namespace DutchSkies
 
                 if (sky_show_landmarks)
                 {
-                    foreach (KeyValuePair<string, ObserverData.Landmark> item in observer.landmarks)
+                    foreach (KeyValuePair<string, Landmark> item in landmarks)
                     {
-                        ObserverData.Landmark landmark = item.Value;
+                        Landmark landmark = item.Value;
                         Vec3 pos = ROT_MIN90_X.Transform(landmark.sky_position);
 
                         Lines.Add(pos, new Vec3(pos.x, pos.y - landmark.height, pos.z), LANDMARK_VLINE_COLOR, 0.5f);
@@ -788,6 +797,8 @@ namespace DutchSkies
             Log.Info("Map tile fetch thread started");
 #endif
             // XXX need to recompute extrapolated map positions 
+
+            observer.update_map_position(current_map);
         }
 
         public static void ClearTracks()
@@ -902,5 +913,45 @@ namespace DutchSkies
                 qrcode_watcher.Stop();
             }
         }
+        public static void UpdateLandmarks(JSONNode nodes)
+        {
+            float x, y;
+            Matrix M;
+            Landmark lm;
+
+            landmarks.Clear();
+
+            foreach (JSONNode n in nodes)
+            {
+                // XXX needs more checks
+                string id = n["id"];
+                float lat = n["lat"];
+                float lon = n["lon"];
+                float top_altitude = n["topalt"];
+                float bottom_altitude = n["botalt"];
+                
+                lm = landmarks[id] = new Landmark(id, lat, lon, top_altitude, bottom_altitude);
+
+                // Map (km)
+                current_map.Project(out x, out y, lon, lat);
+                lm.map_position = new Vec3(x, y, top_altitude / 1000f);
+
+                // Sky (m)
+                M = Matrix.R(-lat, 0f, 0f)
+                    *
+                    Matrix.R(0f, lon - observer.lon, 0f)
+                    *
+                    Matrix.R(observer.lat, 0f, 0f)
+                    *
+                    // XXX Should also include have-above-floor distance, but the effect will be minimal
+                    Matrix.T(0f, 0f, -(Projection.RADIUS_METERS + observer.floor_altitude));
+
+                Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + top_altitude);
+
+                lm.sky_position = M.Transform(p);
+                Log.Info($"landmark {id} sky pos = {lm.sky_position}");
+            }
+        }
+
     }
 }

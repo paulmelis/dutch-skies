@@ -76,7 +76,7 @@ namespace DutchSkies
 
         // Input in WGS84 coordinates
         // Output x and y are in *kilometers*, relative to the map center
-        public void Project(ref float x, ref float y, float lon, float lat)
+        public void Project(out float x, out float y, float lon, float lat)
         {
             float xx = 0.0f;
             float yy = 0.0f;

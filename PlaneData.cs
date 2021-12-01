@@ -150,7 +150,7 @@ namespace DutchSkies
             // Simple projection, based on map projection (disregards Earth curvature)
 
             float last_x = 0f, last_y = 0f;
-            map.Project(ref last_x, ref last_y, last_lon, last_lat);
+            map.Project(out last_x, out last_y, last_lon, last_lat);
 
             //Log.Info($"[{id}] {last_lat:F6}, {last_lon:F6} -> {last_x:F6}, {last_y:F6}");
 
