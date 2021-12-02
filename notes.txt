@@ -33,6 +33,7 @@ Nice to have:
 - Run Tex.FromFile on loading thread if possible, as it briefly interrupts all rendering for large images
 - Allow settings to be specified in qr codes, for easy demo setup
 - FPS graph
+- Map scale indicator
 
 Ideas:
 - HoloLens2 doesn't support GPS Sensor, but an app can acquire the user's current location via Wi-Fi. It is less precise but more likely to be available indoors. You can invoke the Windows Runtime API Geolocator.GetGeopositionAsync method in the Windows.Devices.Geolocation namespace to retrieve the current location of the device.

@@ -254,7 +254,7 @@ namespace DutchSkies
             Color32 MAP_TRACK_LINE_COLOR = new Color32(0, 0, 255, 255);
             Color SKY_BASE_COLOR = new Color(1f, 0f, 0f);
             Color SKY_TRAIL_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
-            Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);
+            Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);            
 
             const float SKY_SCALING_THRESHOLD = 3f;
             Matrix SKY_FAR_MODEL_SCALE = Matrix.S(30f);
@@ -264,6 +264,7 @@ namespace DutchSkies
             TextStyle MAP_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.5f * U.cm, MAP_BASE_COLOR);
             TextStyle SKY_TEXT_STYLE = Text.MakeStyle(Default.Font, 15f * U.m, SKY_BASE_COLOR);
             TextStyle LANDMARK_TEXT_STYLE = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
+            TextStyle MAP_DIMENSION_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.01f * U.m, Color.White);
 
             Tuple<string, object, string> update;
             string update_type;
@@ -457,9 +458,21 @@ namespace DutchSkies
 
                 if (map_visible)
                 {
+                    const float ABOVE = 0.003f;
+
                     map_quad.Draw(map_material, ROT_MIN90_X);
+
                     // XXX can be precomputed, only changes when map changes
-                    windrose_mesh.Draw(windrose_material, ROT_MIN90_X * Matrix.S(MAP_WINDROSE_SIZE) * Matrix.T(-REALWORLD_MAP_WIDTH*0.5f + 0.52f*MAP_WINDROSE_SIZE, 0.005f, realworld_map_height*0.5f -0.52f*MAP_WINDROSE_SIZE));
+                    windrose_mesh.Draw(windrose_material,
+                        ROT_MIN90_X *
+                        Matrix.S(MAP_WINDROSE_SIZE) *
+                        Matrix.T(-REALWORLD_MAP_WIDTH*0.5f + 0.52f*MAP_WINDROSE_SIZE, ABOVE, realworld_map_height*0.5f -0.52f*MAP_WINDROSE_SIZE));
+
+                    // Dimensions
+                    Text.Add($"{current_map.width:F0} km", ROT_180_Y*ROT_MIN90_X*Matrix.T(0f, 0f, 0.5f*realworld_map_height+0.01f), MAP_DIMENSION_TEXT_STYLE,
+                        TextAlign.TopCenter);
+                    Text.Add($"{current_map.height:F0} km", ROT_180_Y*ROT_MIN90_X*Matrix.R(0f,-90f,0f)*Matrix.T(0.5f * REALWORLD_MAP_WIDTH+0.01f, 0f, 0f), MAP_DIMENSION_TEXT_STYLE,
+                        TextAlign.CenterLeft);                    
                 }
                 
                 // Planes
