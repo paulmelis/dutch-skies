@@ -25,6 +25,9 @@ namespace DutchSkies
 
         // Map geometry 
         const float REALWORLD_MAP_WIDTH = 1.5f;     // meters
+        static float realworld_map_height;
+        const float MAP_WINDROSE_SIZE = 0.1f;      // meters
+
         static Dictionary<string, OSMMap> maps;
         static string current_map_name;
         static OSMMap current_map;
@@ -36,6 +39,8 @@ namespace DutchSkies
         // Sky mode
         static Dictionary<string, Landmark> landmarks;
         static ObserverData observer;
+        
+        const float OBSERVER_WINDROSE_SIZE = 1f;    // meters
 
         // Query        
         const int OPENSKY_QUERY_INTERVAL = 8;
@@ -121,6 +126,12 @@ namespace DutchSkies
             observer_marker_material[MatParamName.ColorTint] = new Color(1f, 0.5f, 0f);
 
             landmarks = new Dictionary<string, Landmark>();
+
+            Mesh windrose_mesh = Mesh.GeneratePlane(new Vec2(1f, 1f), -Vec3.Forward, Vec3.Up);
+            Material windrose_material = Material.Default.Copy();
+            windrose_material[MatParamName.DiffuseTex] = Tex.FromFile("Windrose.png");
+            windrose_material.Transparency = Transparency.Blend;
+            windrose_material.DepthWrite = false;
 
             //
             // Maps
@@ -445,8 +456,12 @@ namespace DutchSkies
                 // Map
 
                 if (map_visible)
+                {
                     map_quad.Draw(map_material, ROT_MIN90_X);
-
+                    // XXX can be precomputed, only changes when map changes
+                    windrose_mesh.Draw(windrose_material, ROT_MIN90_X * Matrix.S(MAP_WINDROSE_SIZE) * Matrix.T(-REALWORLD_MAP_WIDTH*0.5f + 0.52f*MAP_WINDROSE_SIZE, 0.005f, realworld_map_height*0.5f -0.52f*MAP_WINDROSE_SIZE));
+                }
+                
                 // Planes
 
                 num_planes_on_map = 0;
@@ -721,6 +736,10 @@ namespace DutchSkies
                     }
                 }
 
+                // Observer origin and orientation
+                // XXX as we don't have an exact distance to the floor use a good guess
+                windrose_mesh.Draw(windrose_material, ROT_MIN90_X*Matrix.S(OBSERVER_WINDROSE_SIZE)*Matrix.T(0f, -1.5f, 0f));
+
                 Hierarchy.Pop();
 
                 // FPS counter
@@ -877,9 +896,9 @@ namespace DutchSkies
             current_map = maps[map];
             
             // Compute MR size for map
-            float map_geo_height = REALWORLD_MAP_WIDTH * current_map.height / current_map.width;
-            Log.Info($"Map geometry size = {REALWORLD_MAP_WIDTH} x {map_geo_height}");
-            map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, map_geo_height), -Vec3.Forward, Vec3.Up);
+            realworld_map_height = REALWORLD_MAP_WIDTH * current_map.height / current_map.width;
+            Log.Info($"Map geometry size = {REALWORLD_MAP_WIDTH} x {realworld_map_height}");
+            map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, realworld_map_height), -Vec3.Forward, Vec3.Up);
             map_scale_km_to_scene = REALWORLD_MAP_WIDTH / current_map.width;
 
             map_texture = current_map.texture;
