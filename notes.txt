@@ -8,22 +8,13 @@
 
 make plane text darker (bluer?) again
 
-hide plane that are outside the map extent
-
-delete missing planes (but keep track of number deleted)
-add late and forgotten count
-on ground
-
+delete missing planes (but keep track of number deleted)?
 
 json: observer id -> name
-
 
 use all observers from json
 
 handling OSM tiling
-
-run Tex.FromFile on loading thread if possible, as it briefly interrupts all rendering
-for large images
 
 add surf logo
 
@@ -33,15 +24,17 @@ put compass rose at observer location and orientation
 
 callsign-only text is sometimes too low
 
-
 allow text size selection
 
 combine map and sky parts where possible during drawing?
 
 fps graph
 
-allow settings to be specified in qr codes, for easy demo setup
 
+
+Nice to have:
+- Run Tex.FromFile on loading thread if possible, as it briefly interrupts all rendering for large images
+- Allow settings to be specified in qr codes, for easy demo setup
 
 Ideas:
 - HoloLens2 doesn't support GPS Sensor, but an app can acquire the user's current location via Wi-Fi. It is less precise but more likely to be available indoors. You can invoke the Windows Runtime API Geolocator.GetGeopositionAsync method in the Windows.Devices.Geolocation namespace to retrieve the current location of the device.

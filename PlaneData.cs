@@ -23,7 +23,7 @@ namespace DutchSkies
 
         public float session_time_received; // Time.Totalf when this data point was last updated
         public int update_timestamp;        // Update timestamp (seconds since UNIX epoch) associated with data update from opensky
-        public UpdateState updateState;
+        public UpdateState update_state;
 
         public float last_lat, last_lon;    // degrees
         public float last_heading;          // [0,360[ degrees
@@ -58,7 +58,7 @@ namespace DutchSkies
         public PlaneData(string id)
         {
             this.id = id;
-            updateState = UpdateState.NORMAL;
+            update_state = UpdateState.NORMAL;
             callsign = UNKNOWN_CALLSIGN_STRING;
             last_geometric_altitude = 0f;
             last_barometric_altitude = 0f;
@@ -101,10 +101,10 @@ namespace DutchSkies
                 }
             }
 
-            if (updateState != UpdateState.NORMAL)
+            if (update_state != UpdateState.NORMAL)
             {
                 Log.Info($"Plane {id} ({callsign}) came back alive");
-                updateState = UpdateState.NORMAL;
+                update_state = UpdateState.NORMAL;
             }
 
             this.session_time_received = session_time_received;
@@ -238,7 +238,7 @@ namespace DutchSkies
         // update_time is seconds since Unix epoch
         public void Update(double update_time)
         {
-            if (updateState == UpdateState.MISSING)
+            if (update_state == UpdateState.MISSING)
             {
                 // Don't update position until it comes back alive again
                 return;
@@ -254,16 +254,16 @@ namespace DutchSkies
 
             // Determine new state
 
-            if (updateState == UpdateState.NORMAL && t_diff > 60.0f)
+            if (update_state == UpdateState.NORMAL && t_diff > 60.0f)
             {
                 Log.Info(String.Format("Marking plane {0} ({1}) LATE, as we haven't had data updates in {2:F3}s", id, callsign, t_diff));
-                updateState = UpdateState.LATE;
+                update_state = UpdateState.LATE;
             }
-            else if (updateState == UpdateState.LATE && t_diff > 120.0f)
+            else if (update_state == UpdateState.LATE && t_diff > 120.0f)
             {
                 // Haven't had update for a long time, mark as missing
                 Log.Info(String.Format("Marking plane {0} ({1}) MISSING as we haven't had data updates  in {2:F3}s", id, callsign, t_diff));
-                updateState = UpdateState.MISSING;
+                update_state = UpdateState.MISSING;
             }
         }
 

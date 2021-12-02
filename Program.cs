@@ -231,9 +231,12 @@ namespace DutchSkies
             bool map_show_track_lines = true, sky_show_trail_lines = true;
             bool map_show_observer = false;
             bool sky_show_landmarks = true;
-            bool show_origin = false;
-            int num_map_planes = 0;
+            bool show_origin = false;            
             int sky_y_trim = 0;         // In 0.1 degree increments
+
+            int num_planes_on_map = 0;
+            int num_planes_late = 0, num_planes_missing = 0;
+            int num_planes_on_ground = 0;
 
             const float TRACK_LINE_THICKNESS = 0.001f;
             Color MAP_BASE_COLOR = new Color(1f, 0f, 0.5f);
@@ -446,12 +449,26 @@ namespace DutchSkies
 
                 // Planes
 
-                num_map_planes = 0;
+                num_planes_on_map = 0;
+                num_planes_on_ground = 0;
+                num_planes_late = 0;
+                num_planes_missing = 0;                
 
                 foreach (var plane in plane_data.Values)
                 {
-                    if (plane.updateState == PlaneData.UpdateState.MISSING)
+                    string callsign = $"{plane.callsign}";
+
+                    if (plane.update_state == PlaneData.UpdateState.MISSING)
+                    {
+                        // Don't bother until it comes back alive again
+                        num_planes_missing++;
                         continue;
+                    }
+                    else if (plane.update_state == PlaneData.UpdateState.LATE)
+                    {                        
+                        callsign = $"({callsign})";
+                        num_planes_late++;
+                    }
 
                     plane.Update(draw_time);
 
@@ -462,12 +479,13 @@ namespace DutchSkies
                     if (!current_map.OnMapLatLon(plane.last_lat, plane.last_lon))
                         continue;
 
-                    num_map_planes++;
+                    num_planes_on_map++;
 
                     if (plane.on_ground)
                     {
                         // XXX could set y to 0, as there seem to be cases where a plane is marked on-ground, but has an incorrect altitude value
                         plane_ground_marker.Draw(plane_marker_material, ROT_MIN90_X * Matrix.R(0f, -plane.last_heading, 0f) * Matrix.T(pos));
+                        num_planes_on_ground++;
                         continue;
                     }
 
@@ -480,13 +498,6 @@ namespace DutchSkies
 
                     // Plane information
                     
-                    string callsign = $"{plane.callsign}";
-                    if (plane.updateState == PlaneData.UpdateState.LATE)
-                    {
-                        // XXX also for sky planes?
-                        callsign = $"({callsign})";
-                    }
-
                     Vec3 dir = head_pos - MAP_PLACEMENT_XFORM.Transform(pos);
                     dir.y = 0f;
                     Quat textquat = Quat.LookDir(dir);
@@ -588,7 +599,14 @@ namespace DutchSkies
                 foreach (var plane in plane_data.Values)
                 {
                     if (plane.on_ground)
+                        continue;                    
+
+                    if (plane.update_state == PlaneData.UpdateState.MISSING)
                         continue;
+
+                    string callsign = plane.callsign;
+                    if (plane.update_state == PlaneData.UpdateState.LATE)
+                        callsign = $"({callsign})";
 
                     var pos = ROT_MIN90_X.Transform(plane.computed_sky_position);
                     var prev_pos = ROT_MIN90_X.Transform(plane.previous_sky_position);
@@ -673,7 +691,7 @@ namespace DutchSkies
                         0f, 30f);
 
                     Text.Add(
-                        $"{plane.callsign}\n{astring}\n{sstring}",
+                        $"{callsign}\n{astring}\n{sstring}",
                         Matrix.R(textquat) * Matrix.T(pos),
                         SKY_TEXT_STYLE,
                         TextAlign.XCenter | TextAlign.YTop,
@@ -730,10 +748,10 @@ namespace DutchSkies
                 UI.SameLine();
                 if (UI.Toggle("Scan QR code", ref scanning_for_qrcodes))
                 {
-                    Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
+                    //Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
                     SetQRCodeScan();
                 }
-                UI.Label($"{plane_data.Count} planes seen, {num_map_planes} active");
+                UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) | {plane_data.Count} total, {num_planes_late} late, {num_planes_missing} missing");
 
                 UI.HSeparator();
                 UI.PushId("map");
