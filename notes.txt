@@ -8,8 +8,6 @@
 
 make plane text darker (bluer?) again
 
-when loading new config clear all plane data
-
 hide plane that are outside the map extent
 
 delete missing planes (but keep track of number deleted)

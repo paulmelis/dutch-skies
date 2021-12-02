@@ -189,8 +189,8 @@ namespace DutchSkies
             // XXX
             //string initial_config = "http://192.168.178.32:8000/config-nl-custom-image.json";
             //string initial_config = "http://192.168.178.32:8000/config-newyork-custom-image.json";
-            string initial_config = "http://192.168.178.32:8000/config-alps-custom-image.json";
-            FetchURL(initial_config, "config_data", false, initial_config);
+            //string initial_config = "http://192.168.178.32:8000/config-alps-custom-image.json";
+            //FetchURL(initial_config, "config_data", false, initial_config);
 
             // Prepare for QR scanning
 
@@ -426,6 +426,8 @@ namespace DutchSkies
 
                         if (config_root.HasKey("landmarks"))
                             UpdateLandmarks(config_root["landmarks"]);
+
+                        plane_data.Clear();
                     }
                     else
                         Log.Warn($"Unhandled update type '{update_type}!");
