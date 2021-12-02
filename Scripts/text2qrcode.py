@@ -4,6 +4,10 @@ import sys, json
 from PIL import ImageDraw
 import qrcode
 
+if len(sys.argv) < 3:
+    print('Usage: %s "<text>" qrimage.png' % sys.argv[0])
+    sys.exit(-1)
+
 s = sys.argv[1]
 
 img = qrcode.make(s)

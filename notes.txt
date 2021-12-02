@@ -6,6 +6,8 @@
                 UI.WindowEnd();
 
 
+when no query range is given, set it to range of first map
+
 make plane text darker (bluer?) again
 
 delete missing planes (but keep track of number deleted)?

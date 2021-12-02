@@ -4,6 +4,10 @@ import sys, os, json, gzip
 from PIL import ImageDraw
 import qrcode
 
+if len(sys.argv) < 3:
+    print('Usage: %s file.json qrimage.png' % sys.argv[0])
+    sys.exit(-1)
+
 data = json.load(open(sys.argv[1],'rt'))
 # Dump back to strip unnecessary whitespace
 js = json.dumps(data).encode('utf8')

@@ -1,0 +1,16 @@
+{
+    "image_source": {
+        "type": "url",
+        "url": "sanfrancisco.png"
+    },
+    "lat_range": [
+        37.160316546736766,
+        37.92686760148134
+    ],
+    "lon_range": [
+        -122.6953125,
+        -121.640625
+    ],
+    "name": "sanfrancisco",
+    "zoom": 12
+}

@@ -40,6 +40,10 @@ namespace DutchSkies
 
         public static async void FetchMapTiles(object tuple)
         {
+            ConcurrentQueue<Tuple<JSONNode, string>> input_queue;
+            ConcurrentQueue<Tuple<string, object, string>> result_queue;
+
+
             Tuple<ConcurrentQueue<Tuple<string,object>>, OSMMap> args = (Tuple<ConcurrentQueue<Tuple<string,object>>, OSMMap>) tuple;
 
             ConcurrentQueue<Tuple<string,object>> output_queue = args.Item1;

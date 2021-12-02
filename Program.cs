@@ -46,10 +46,13 @@ namespace DutchSkies
         // Query        
         const int OPENSKY_QUERY_INTERVAL = 8;
 
-        // Thread event queue
+        // XXX rename payload to marker or something
+        // Thread event queue (type, data, payload)        
         static ConcurrentQueue<Tuple<string, object, string>> updates_queue;
-        // URL requests queue
+        // URL requests queue (url, type, binary, payload)
         static ConcurrentQueue<Tuple<string, string, bool, string>> url_requests_queue;
+        // Tile fetch queue (JSONNode, payload)
+        static ConcurrentQueue<Tuple<JSONNode, string>> tile_requests_queue;
 
         // QR code scanning
         static bool scanning_for_qrcodes;
@@ -153,6 +156,10 @@ namespace DutchSkies
             SetMap("The Netherlands");
             //SetMap("Schiphol Airport");
 
+            //
+            // Some models
+            //
+
             // Plane 3D model
             Model plane_model = Model.FromFile("Airplane-cleaned.rotated.glb");
             if (plane_model == null)
@@ -171,8 +178,10 @@ namespace DutchSkies
             Material floorMaterial = new Material(Shader.FromFile("floor.hlsl"));
             floorMaterial.Transparency = Transparency.Blend;
 
+            //
             // Start some background threads
             // XXX can probably take more advantage of async/await, but let's use threads for now
+            //
 
             // Queue for receiving updates from threads
             updates_queue = new ConcurrentQueue<Tuple<string, object, string>>();
@@ -197,6 +206,14 @@ namespace DutchSkies
             url_fetch_thread.IsBackground = true;
             url_fetch_thread.Start();
             Log.Info("URL fetch thread started");
+
+            // Tile fetch thread
+            // input: lat/lon range, zoomlevel, tile servers
+            tile_requests_queue = new ConcurrentQueue<Tuple<JSONNode, string>>();
+            var tiles_fetch_thread = new Thread(OSMTiles.FetchMapTiles);
+            tiles_fetch_thread.IsBackground = true;            
+            tiles_fetch_thread.Start(updates_queue);
+            Log.Info("Tile fetch thread started");
 
             // XXX
             //string initial_config = "http://192.168.178.32:8000/config-nl-custom-image.json";
@@ -413,6 +430,11 @@ namespace DutchSkies
                                             Log.Info($"Assuming image source relative to config URL: {imgurl}");
                                         }
                                         FetchURL(imgurl, "map_image", true, name);
+                                    }
+                                    else if (imgsource["type"] == "osm")
+                                    {
+                                        // XXX
+                                        Log.Info("Map tile fetch thread started");
                                     }
 
                                     if (first)
@@ -960,14 +982,7 @@ namespace DutchSkies
             else
                 map_material[MatParamName.DiffuseTex] = Tex.White;
 
-#if false
-            var map_thread = new Thread(OSMTiles.FetchMapTiles);
-            map_thread.IsBackground = true;
-            // XXX fix map arg
-            map_thread.Start(MapConfiguration>(updates, current_map));
-            Log.Info("Map tile fetch thread started");
-#endif
-                // Need to recompute extrapolated plane map positions 
+            // Need to recompute extrapolated plane map positions 
             foreach (PlaneData plane in plane_data.Values)
             {
                 plane.MapChange(current_map);
