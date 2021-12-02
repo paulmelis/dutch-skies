@@ -226,7 +226,7 @@ namespace DutchSkies
             bool show_log_window = true;
             bool show_flight_units = false;
             bool map_visible = true;
-            bool map_show_planes = true, sky_show_planes = true;
+            bool map_show_plane_model = true, sky_show_plane_models = true;
             bool map_show_vlines = true, sky_show_vlines = false;
             bool map_show_track_lines = true, sky_show_trail_lines = true;
             bool map_show_observer = false;
@@ -454,9 +454,15 @@ namespace DutchSkies
                         continue;
 
                     plane.Update(draw_time);
-                    num_map_planes++;
 
-                    var pos = ROT_MIN90_X * plane.computed_map_position * map_scale_km_to_scene;
+                    var map_pos = plane.computed_map_position;
+                    var pos = ROT_MIN90_X * map_pos * map_scale_km_to_scene;
+    
+                    // XXX should use inrterpolation map-space position
+                    if (!current_map.OnMapLatLon(plane.last_lat, plane.last_lon))
+                        continue;
+
+                    num_map_planes++;
 
                     if (plane.on_ground)
                     {
@@ -465,7 +471,7 @@ namespace DutchSkies
                         continue;
                     }
 
-                    if (map_show_planes)
+                    if (map_show_plane_model)
                     {
                         //Lines.AddAxis(new Pose(plane.computed_position * map_scale_km_to_scene, Quat.FromAngles(0f, 0f, -plane.last_heading)));
                         plane_model.Draw(MAP_SCALE_PLANE_SIZE * ROT_MIN90_X * Matrix.R(-plane.computed_climb_angle * 2f, 0f, 0f)
@@ -581,14 +587,18 @@ namespace DutchSkies
 
                 foreach (var plane in plane_data.Values)
                 {
-                    var pos = ROT_MIN90_X.Transform(plane.computed_sky_position);
-                    var prev_pos = ROT_MIN90_X.Transform(plane.previous_sky_position);
-
                     if (plane.on_ground)
                         continue;
 
+                    var pos = ROT_MIN90_X.Transform(plane.computed_sky_position);
+                    var prev_pos = ROT_MIN90_X.Transform(plane.previous_sky_position);
+
                     // Don't bother with planes below the horizon
                     if (pos.y < 0f)
+                        continue;
+
+                    // XXX should use inrterpolation map-space position
+                    if (!current_map.OnMapLatLon(plane.last_lat, plane.last_lon))
                         continue;
 
                     if (plane.observer_distance > SKY_SCALING_THRESHOLD)
@@ -609,7 +619,7 @@ namespace DutchSkies
                     else
                         scaled = false;
 
-                    if (sky_show_planes)
+                    if (sky_show_plane_models)
                     {
                         // Plane
                         if (scaled)
@@ -745,7 +755,7 @@ namespace DutchSkies
 
                 UI.Toggle("Visible", ref map_visible);
                 UI.SameLine();
-                UI.Toggle("Planes", ref map_show_planes);
+                UI.Toggle("Planes", ref map_show_plane_model);
                 UI.SameLine();
                 UI.Toggle("VLines", ref map_show_vlines);
                 UI.SameLine();
@@ -767,7 +777,7 @@ namespace DutchSkies
                 UI.PushId("sky");
 
                 UI.Label("Sky:");
-                UI.Toggle("Planes", ref sky_show_planes);
+                UI.Toggle("Planes", ref sky_show_plane_models);
                 UI.SameLine();
                 UI.Toggle("VLines", ref sky_show_vlines);
                 UI.SameLine();

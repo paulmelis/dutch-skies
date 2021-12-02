@@ -15,7 +15,7 @@ namespace DutchSkies
         // WGS84 (EPSG:4326) -> Web Mercator (OSM, EPSG:3857)
         // EPSG:3857 has +X to the right, +Y up, with Y=0 at the equator
         // Output units are *meters*
-        public static void epsg4326_to_epsg3857(ref float x, ref float y, float lon, float lat)
+        public static void epsg4326_to_epsg3857(out float x, out float y, float lon, float lat)
         {
             // Note: this is a cylindrical projection, i.e. distances in X will usually be far off except near the equator
             x = lon * LON_TO_X;

@@ -51,11 +51,11 @@ namespace DutchSkies
             Log.Info("Approximate map size (kilometers) = " + width + " x " + height);
 
             // This gives an approximate (but reasonable) X, Y range
-            float xx = 0.0f, yy = 0.0f;
-            Projection.epsg4326_to_epsg3857(ref min_x, ref yy, min_lon, center_lat);
-            Projection.epsg4326_to_epsg3857(ref max_x, ref yy, max_lon, center_lat);
-            Projection.epsg4326_to_epsg3857(ref xx, ref min_y, center_lon, min_lat);
-            Projection.epsg4326_to_epsg3857(ref xx, ref max_y, center_lon, max_lat);
+            float xx, yy;
+            Projection.epsg4326_to_epsg3857(out min_x, out yy, min_lon, center_lat);
+            Projection.epsg4326_to_epsg3857(out max_x, out yy, max_lon, center_lat);
+            Projection.epsg4326_to_epsg3857(out xx, out min_y, center_lon, min_lat);
+            Projection.epsg4326_to_epsg3857(out xx, out max_y, center_lon, max_lat);
 
             Log.Info("Map X range: " + min_x + ", " + max_x);
             Log.Info("Map Y range: " + min_y + ", " + max_y);
@@ -75,14 +75,19 @@ namespace DutchSkies
         // Output x and y are in *kilometers*, relative to the map center
         public void Project(out float x, out float y, float lon, float lat)
         {
-            float xx = 0.0f;
-            float yy = 0.0f;
+            float xx;
+            float yy;
 
-            Projection.epsg4326_to_epsg3857(ref xx, ref yy, lon, lat);
+            Projection.epsg4326_to_epsg3857(out xx, out yy, lon, lat);
             //Log.Info($"project() {lon}, {lat} -> x {xx}, y {yy}");
 
             x = ((xx - min_x) / x_extent - 0.5f) * width;
             y = ((yy - min_y) / y_extent - 0.5f) * height;
         }
+        public bool OnMapLatLon(float lat, float lon)
+        {
+            return lat >= min_lat && lat <= max_lat && lon >= min_lon && lon <= max_lon;
+        }
+
     }
 }
