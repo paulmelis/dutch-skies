@@ -66,6 +66,12 @@ if __name__ == '__main__':
             lon_range = [-74.6082, -72.9369],        
             zoom = 12
         ),
+        
+        'alps': dict(        
+            lon_range = [5.306, 12.239],
+            lat_range = [45.691, 48.473],
+            zoom = 9
+        )
     }
 
     name = 'netherlands'

@@ -8,7 +8,7 @@
    id="windrose"
    sodipodi:version="0.32"
    inkscape:version="1.1.1 (3bf5ae0d25, 2021-09-20, custom)"
-   sodipodi:docname="Windrose-edited.svg"
+   sodipodi:docname="Windrose.svg"
    inkscape:output_extension="org.inkscape.output.svg.inkscape"
    inkscape:export-filename="/home/melis/concepts/dutch-skies/Assets/Windrose.png"
    inkscape:export-xdpi="67.699997"
@@ -43,9 +43,9 @@
      bordercolor="#666666"
      pagecolor="#ffffff"
      id="base"
-     inkscape:zoom="0.5"
-     inkscape:cx="329"
-     inkscape:cy="406"
+     inkscape:zoom="1"
+     inkscape:cx="524.5"
+     inkscape:cy="328"
      inkscape:window-x="0"
      inkscape:window-y="33"
      inkscape:current-layer="windrose"
@@ -128,7 +128,7 @@
   </g>
   <text
      xml:space="preserve"
-     style="font-size:42.6667px;line-height:10.1292px;font-family:'Ekushey Bangla';-inkscape-font-specification:'Ekushey Bangla';letter-spacing:0px;word-spacing:0px;fill:#000000;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     style="font-size:42.6667px;line-height:10.1292px;font-family:'Ekushey Bangla';-inkscape-font-specification:'Ekushey Bangla';letter-spacing:0px;word-spacing:0px;fill:#000000;stroke:#ffffff;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
      x="350.78329"
      y="51.604023"
      id="text2490"><tspan
@@ -136,7 +136,7 @@
        id="tspan2488"
        x="350.78329"
        y="51.604023"
-       style="font-size:42.6667px">N</tspan></text>
+       style="font-size:42.6667px;stroke:#ffffff;stroke-opacity:1;font-weight:bold">N</tspan></text>
   <text
      xml:space="preserve"
      style="font-size:42.6667px;line-height:10.1292px;font-family:'Ekushey Bangla';-inkscape-font-specification:'Ekushey Bangla';letter-spacing:0px;word-spacing:0px;fill:#000000;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -147,7 +147,7 @@
        id="tspan5388"
        x="679.73016"
        y="385.72202"
-       style="font-size:42.6667px">E</tspan></text>
+       style="font-weight:bold;font-size:42.6667px;stroke:#ffffff;stroke-opacity:1">E</tspan></text>
   <text
      xml:space="preserve"
      style="font-size:42.6667px;line-height:10.1292px;font-family:'Ekushey Bangla';-inkscape-font-specification:'Ekushey Bangla';letter-spacing:0px;word-spacing:0px;fill:#000000;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -158,7 +158,7 @@
        id="tspan5874"
        x="350.79944"
        y="712.62531"
-       style="font-size:42.6667px">S</tspan></text>
+       style="font-weight:bold;font-size:42.6667px;stroke:#ffffff;stroke-opacity:1">S</tspan></text>
   <text
      xml:space="preserve"
      style="font-size:42.6667px;line-height:10.1292px;font-family:'Ekushey Bangla';-inkscape-font-specification:'Ekushey Bangla';letter-spacing:0px;word-spacing:0px;fill:#000000;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -169,5 +169,5 @@
        id="tspan6870"
        x="19.561333"
        y="386.35599"
-       style="font-size:42.6667px">W</tspan></text>
+       style="font-weight:bold;font-size:42.6667px;stroke:#ffffff;stroke-opacity:1">W</tspan></text>
 </svg>

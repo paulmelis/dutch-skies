@@ -35,7 +35,14 @@ Dutch sky is quite busy with planes, including ones arriving/departing from over
 so this should provide some interesting views out-of-the-box. But you might want
 to view a different area yourself.
 
+Use e.g. OSM to get map extent
+
 XXX
+
+### Bugs/Issues
+
+* Map surface represent height of 0m, will look weird for planes landing at airports
+  at much higher altitudes, would need TEM for that.
 
 ## FAQ
 
