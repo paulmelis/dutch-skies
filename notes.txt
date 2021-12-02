@@ -28,6 +28,8 @@ allow text size selection
 
 combine map and sky parts where possible during drawing?
 
+Should have:
+- More robust JSON parser
 
 Nice to have:
 - Run Tex.FromFile on loading thread if possible, as it briefly interrupts all rendering for large images

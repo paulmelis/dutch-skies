@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
+using System.IO;
 using System.Threading;
 using Windows.Networking;
 using Windows.Networking.Connectivity;
@@ -243,7 +244,8 @@ namespace DutchSkies
             bool map_show_observer = false;
             bool sky_show_landmarks = true;
             bool show_origin = false;            
-            int sky_y_trim = 0;         // In 0.1 degree increments
+            int sky_d_trim = 0;         // In 0.1 degree increments
+            int sky_v_trim = 0;         // In centimeters
 
             int num_planes_on_map = 0;
             int num_planes_late = 0, num_planes_missing = 0;
@@ -385,12 +387,14 @@ namespace DutchSkies
                                 maps.Clear();
 
                                 bool first = true;
+
                                 foreach (JSONNode jmap in jmaps)
                                 {
-                                    Log.Info($"Have new map \"{jmap["name"]}\"");
+                                    string name = jmap["name"];
+                                    Log.Info($"Have new map '{name}'");
 
-                                    OSMMap map = maps[jmap["name"]] = new OSMMap(
-                                            jmap["name"],
+                                    OSMMap map = maps[name] = new OSMMap(
+                                            name,
                                             jmap["lat_range"][0], jmap["lat_range"][1], jmap["lon_range"][0], jmap["lon_range"][1]
                                         );
 
@@ -398,18 +402,22 @@ namespace DutchSkies
                                     if (imgsource["type"] == "url")
                                     {
                                         string imgurl = imgsource["url"];
-                                        if (imgurl[0] == '/')
+                                        if (!(imgurl.StartsWith("http://") || imgurl.StartsWith("https://")))
                                         {
-                                            // Assume path on same server that contained config
+                                            // Assume path relative to config url
                                             Uri uri = new Uri(update.Item3);
-                                            imgurl = uri.GetLeftPart(UriPartial.Authority) + imgurl;
+                                            string path = Path.GetDirectoryName(uri.AbsolutePath).Replace("\\", "/");
+                                            if (imgurl[0] != '/')
+                                                path += '/';
+                                            imgurl = $"{uri.GetLeftPart(UriPartial.Authority)}{path}{imgurl}";
+                                            Log.Info($"Assuming image source relative to config URL: {imgurl}");
                                         }
-                                        FetchURL(imgurl, "map_image", true, jmap["name"]);
+                                        FetchURL(imgurl, "map_image", true, name);
                                     }
 
                                     if (first)
                                     {
-                                        SetMap(jmap["name"], draw_time);
+                                        SetMap(name, draw_time);
                                         first = false;
                                     }
                                 }
@@ -620,7 +628,7 @@ namespace DutchSkies
                 // Assumes Forward (-Z) is pointing North, although a manual trim is applied on top of that
                 //
 
-                Hierarchy.Push(Matrix.R(0f, sky_y_trim * 0.1f, 0f));
+                Hierarchy.Push(Matrix.R(0f, -sky_d_trim * 0.1f, 0f)*Matrix.T(0f, sky_v_trim*0.1f, 0f));
 
                 bool scaled;
 
@@ -771,7 +779,7 @@ namespace DutchSkies
                 //
 
                 // Main window
-                UI.WindowBegin("Dutch Skies", ref main_window_pose, new Vec2(50, 0) * U.cm, UIWin.Normal);
+                UI.WindowBegin("Dutch Skies", ref main_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
 
                 UI.Toggle("Flight units", ref show_flight_units);
                 UI.SameLine();
@@ -783,7 +791,7 @@ namespace DutchSkies
                     //Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
                     SetQRCodeScan();
                 }
-                UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) | {plane_data.Count} total, {num_planes_late} late, {num_planes_missing} missing");
+                UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} total, {num_planes_late} late, {num_planes_missing} missing");
 
                 UI.HSeparator();
                 UI.PushId("map");
@@ -835,21 +843,41 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Toggle("Landmarks", ref sky_show_landmarks);
 
-                UI.Label("Y Trim");
+                UI.Label("H Trim (°)");
                 UI.SameLine();
-                if (UI.Button("< 5")) sky_y_trim -= 50;
+                if (UI.Button("◀45")) sky_d_trim -= 450;
                 UI.SameLine();
-                if (UI.Button("< 1")) sky_y_trim -= 10;
+                if (UI.Button("◀5")) sky_d_trim -= 50;
                 UI.SameLine();
-                if (UI.Button("< ⅒")) sky_y_trim -= 1;
+                if (UI.Button("◀1")) sky_d_trim -= 10;
                 UI.SameLine();
-                if (UI.Button("Z")) sky_y_trim = 0;
+                if (UI.Button("◀⅒")) sky_d_trim -= 1;
                 UI.SameLine();
-                if (UI.Button("⅒ >")) sky_y_trim += 1;
+                if (UI.Button("0")) sky_d_trim = 0;
                 UI.SameLine();
-                if (UI.Button("1 >")) sky_y_trim += 10;
+                if (UI.Button("⅒▶")) sky_d_trim += 1;
                 UI.SameLine();
-                if (UI.Button("5 >")) sky_y_trim += 50;
+                if (UI.Button("1▶")) sky_d_trim += 10;
+                UI.SameLine();
+                if (UI.Button("5▶")) sky_d_trim += 50;
+                UI.SameLine();
+                if (UI.Button("45▶")) sky_d_trim += 450;
+
+                UI.Label("V Trim (cm)");
+                UI.SameLine();
+                if (UI.Button("▼50")) sky_v_trim -= 50;
+                UI.SameLine();
+                if (UI.Button("▼5")) sky_v_trim -= 5;
+                UI.SameLine();
+                if (UI.Button("▼1")) sky_v_trim -= 1;
+                UI.SameLine();
+                if (UI.Button("0")) sky_v_trim = 0;
+                UI.SameLine();
+                if (UI.Button("▲1")) sky_v_trim += 1;
+                UI.SameLine();
+                if (UI.Button("▲5")) sky_v_trim += 5;
+                UI.SameLine();
+                if (UI.Button("▲50")) sky_v_trim += 50;
 
                 UI.PopId();
 
@@ -995,7 +1023,7 @@ namespace DutchSkies
                             }
 
                         }
-                        catch (HttpRequestException e)
+                        catch (Exception e)
                         {
                             Log.Info("(URL fetch thread): Exception " + e.Message);
                         }
