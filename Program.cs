@@ -263,7 +263,7 @@ namespace DutchSkies
             Matrix SKY_CLOSE_MODEL_SCALE = Matrix.S(60f);
 
             // XXX style uses gamma-space color, leading to slight difference with vline color
-            TextStyle MAP_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.5f * U.cm, MAP_BASE_COLOR);
+            TextStyle MAP_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.7f * U.cm, MAP_BASE_COLOR);
             TextStyle SKY_TEXT_STYLE = Text.MakeStyle(Default.Font, 15f * U.m, SKY_BASE_COLOR);
             TextStyle LANDMARK_TEXT_STYLE = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
             TextStyle MAP_DIMENSION_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.01f * U.m, Color.White);
@@ -786,6 +786,8 @@ namespace DutchSkies
                 if (UI.Button("Clear tracks"))
                     ClearTracks();
                 UI.SameLine();
+                // See https://github.com/maluoi/StereoKit/issues/248
+                UI.Space(-0.02f);
                 if (UI.Toggle("Scan QR code", ref scanning_for_qrcodes))
                 {
                     //Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
@@ -835,14 +837,18 @@ namespace DutchSkies
                 UI.PushId("sky");
 
                 UI.Label("Sky:");
+                UI.SameLine();
                 UI.Toggle("Planes", ref sky_show_plane_models);
                 UI.SameLine();
                 UI.Toggle("VLines", ref sky_show_vlines);
                 UI.SameLine();
                 UI.Toggle("Trails", ref sky_show_trail_lines);
                 UI.SameLine();
-                UI.Toggle("Landmarks", ref sky_show_landmarks);
+                UI.Toggle($"Landmarks({landmarks.Count})", ref sky_show_landmarks);
 
+                UI.Space(0.01f);
+
+                UI.PushId("htrim");
                 UI.Label("H Trim (°)");
                 UI.SameLine();
                 if (UI.Button("◀45")) sky_d_trim -= 450;
@@ -862,7 +868,9 @@ namespace DutchSkies
                 if (UI.Button("5▶")) sky_d_trim += 50;
                 UI.SameLine();
                 if (UI.Button("45▶")) sky_d_trim += 450;
+                UI.PopId();
 
+                UI.PushId("vtrim");
                 UI.Label("V Trim (cm)");
                 UI.SameLine();
                 if (UI.Button("▼50")) sky_v_trim -= 50;
@@ -878,6 +886,7 @@ namespace DutchSkies
                 if (UI.Button("▲5")) sky_v_trim += 5;
                 UI.SameLine();
                 if (UI.Button("▲50")) sky_v_trim += 50;
+                UI.PopId();
 
                 UI.PopId();
 
@@ -889,7 +898,7 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Toggle("Origin", ref show_origin);
                 UI.SameLine();
-                UI.Label($"IP:{our_ip}  {fps:F1} FPS  {time}");
+                UI.Label($"IP:{our_ip} • {time} • {fps:F1} FPS");
                 UI.SameLine();
                 // XXX log window
                 UI.WindowEnd();
@@ -1135,7 +1144,7 @@ namespace DutchSkies
                 Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + top_altitude);
 
                 lm.sky_position = M.Transform(p);
-                Log.Info($"landmark {id} sky pos = {lm.sky_position}");
+                Log.Info($"landmark '{id}' sky pos = {lm.sky_position}");
             }
         }
 
