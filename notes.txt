@@ -7,8 +7,6 @@
 
 add surf logo
 
-fetch url thread, use blocking collection
-
 Bugs:
 - When switching configs the sky trails sometimes use incorrect previous pos
 
