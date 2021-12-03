@@ -5,6 +5,7 @@
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
 
+check log level settings
 
 when no query range is given, set it to range of first map
 
@@ -29,6 +30,8 @@ callsign-only text is sometimes too low
 allow text size selection
 
 combine map and sky parts where possible during drawing?
+
+"marking plane 1234 (unknown>) ..." ?
 
 Should have:
 - More robust JSON parser

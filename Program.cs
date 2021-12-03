@@ -52,7 +52,7 @@ namespace DutchSkies
         // URL requests queue (url, type, binary, payload)
         static ConcurrentQueue<Tuple<string, string, bool, string>> url_requests_queue;
         // Tile fetch queue (JSONNode, payload)
-        static ConcurrentQueue<Tuple<JSONNode, string>> tile_requests_queue;
+        static BlockingCollection<JSONNode> tile_requests_queue;
 
         // QR code scanning
         static bool scanning_for_qrcodes;
@@ -67,7 +67,8 @@ namespace DutchSkies
             if (log_lines.Count > 20)
                 log_lines.RemoveAt(0);
             text = $"{time} {text}";
-            log_lines.Add(text.Length < 120 ? text : text.Substring(0, 120) + "...\n");
+            //log_lines.Add(text.Length < 120 ? text : text.Substring(0, 120) + "...\n");
+            log_lines.Add(text);
 
             log_text = "";
             for (int i = 0; i < log_lines.Count; i++)
@@ -209,17 +210,18 @@ namespace DutchSkies
 
             // Tile fetch thread
             // input: lat/lon range, zoomlevel, tile servers
-            tile_requests_queue = new ConcurrentQueue<Tuple<JSONNode, string>>();
+            tile_requests_queue = new BlockingCollection<JSONNode>(new ConcurrentQueue<JSONNode>());
             var tiles_fetch_thread = new Thread(OSMTiles.FetchMapTiles);
             tiles_fetch_thread.IsBackground = true;            
-            tiles_fetch_thread.Start(updates_queue);
+            tiles_fetch_thread.Start(new Tuple<object,object>(tile_requests_queue,updates_queue));
             Log.Info("Tile fetch thread started");
 
             // XXX
-            //string initial_config = "http://192.168.178.32:8000/config-nl-custom-image.json";
-            //string initial_config = "http://192.168.178.32:8000/config-newyork-custom-image.json";
-            //string initial_config = "http://192.168.178.32:8000/config-alps-custom-image.json";
-            //FetchURL(initial_config, "config_data", false, initial_config);
+            //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
+            //string initial_config = "http://192.168.178.32:8000/config-newyork-image.json";
+            //string initial_config = "http://192.168.178.32:8000/config-alps-image.json";
+            //string initial_config = "https:///192.168.178.32:8000/sanfrancisco-osmtiles.json";
+            //ScheduleURLFetch(initial_config, "config_data", false, initial_config);
 
             // Prepare for QR scanning
 
@@ -316,7 +318,7 @@ namespace DutchSkies
                     updates_queue.TryDequeue(out update);
                     update_type = update.Item1;
 
-                    Log.Info($"Update type '{update_type}'");
+                    //Log.Info($"Update type '{update_type}'");
 
                     if (update_type == "map_image")
                     {
@@ -375,7 +377,7 @@ namespace DutchSkies
                         if (data.StartsWith("http://") || data.StartsWith("https://"))
                         {
                             Log.Info($"Scheduling config fetch from {data}");
-                            FetchURL(data, "config_data", false, data);                            
+                            ScheduleURLFetch(data, "config_data", false, data);
                         }
                         else
                             Log.Warn("Ignoring QR code that doesn't look like a URL");
@@ -429,16 +431,17 @@ namespace DutchSkies
                                             imgurl = $"{uri.GetLeftPart(UriPartial.Authority)}{path}{imgurl}";
                                             Log.Info($"Assuming image source relative to config URL: {imgurl}");
                                         }
-                                        FetchURL(imgurl, "map_image", true, name);
+                                        ScheduleURLFetch(imgurl, "map_image", true, name);
                                     }
                                     else if (imgsource["type"] == "osm")
                                     {
-                                        // XXX
-                                        Log.Info("Map tile fetch thread started");
+                                        Log.Info("Scheduling fetching of map tiles");
+                                        ScheduleTileFetch(jmap);
                                     }
 
                                     if (first)
                                     {
+                                        // Update map to use first entry
                                         SetMap(name, draw_time);
                                         first = false;
                                     }
@@ -473,6 +476,10 @@ namespace DutchSkies
                             UpdateLandmarks(config_root["landmarks"]);
 
                         plane_data.Clear();
+                    }
+                    else if (update_type == "map_tilefetch_progress")
+                    {
+                        // XXX do something with it :)
                     }
                     else
                         Log.Warn($"Unhandled update type '{update_type}!");
@@ -809,7 +816,7 @@ namespace DutchSkies
                     ClearTracks();
                 UI.SameLine();
                 // See https://github.com/maluoi/StereoKit/issues/248
-                UI.Space(-0.02f);
+                UI.Space(-0.04f);
                 if (UI.Toggle("Scan QR code", ref scanning_for_qrcodes))
                 {
                     //Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
@@ -969,7 +976,7 @@ namespace DutchSkies
             
             // Compute MR size for map
             realworld_map_height = REALWORLD_MAP_WIDTH * current_map.height / current_map.width;
-            Log.Info($"Map geometry size = {REALWORLD_MAP_WIDTH} x {realworld_map_height}");
+            Log.Info($"Map physical size {REALWORLD_MAP_WIDTH:F2} x {realworld_map_height:F2} m");
             map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, realworld_map_height), -Vec3.Forward, Vec3.Up);
             map_scale_km_to_scene = REALWORLD_MAP_WIDTH / current_map.width;
 
@@ -999,9 +1006,19 @@ namespace DutchSkies
                 plane.ClearTrack();
         }
 
-        static void FetchURL(string url, string type, bool binary, string payload)
+        static void ScheduleURLFetch(string url, string type, bool binary, string payload)
         {
             url_requests_queue.Enqueue(new Tuple<string, string, bool, string>(url, type, binary, payload));
+        }
+
+        static void ScheduleTileFetch(JSONNode map_spec)
+        {
+            if (map_spec["image_source"]["type"] != "osm")
+            {
+                Log.Warn($"Ignoring invalid tile fetch request for type {map_spec["image_source"]["type"]}");
+                return;
+            }
+            tile_requests_queue.Add(map_spec);
         }
 
         static async void FetchURLThread()
