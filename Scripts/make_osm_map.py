@@ -1,11 +1,12 @@
 #!/usr/bin/env python
+# -*- coding: utf8 -*-
 # Based on info and code from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
 # Retrieves tiles from http://[abc].tile.openstreetmap.org
 # All OSM tiles are 256x256 pixels and are stitched to form a single map image.
 # Paul Melis, SURF <paul.melis@surf.nl>
 import sys, json, math
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import requests
 
 def coordinate_to_tile(lat_deg, lon_deg, zoom):
@@ -55,6 +56,12 @@ if __name__ == '__main__':
             zoom = 12
         ),
         
+        'eindhoven': dict(
+            lat_range = [51.3143, 51.5847],
+            lon_range = [5.1251, 5.6483],
+            zoom = 12 
+        ),
+        
         'newyork': dict(
             lat_range = [40.0365822447532, 41.64694618022861],
             lon_range = [-76.01054785756074, -72.90784573138009],
@@ -76,7 +83,7 @@ if __name__ == '__main__':
     
     if len(sys.argv) == 2:
         mapname = sys.argv[1]
-        map = maps[name]
+        map = maps[mapname]
         lat_range = map['lat_range']
         lon_range = map['lon_range']
         zoom = map['zoom']
@@ -151,6 +158,27 @@ if __name__ == '__main__':
             img.paste(tileimg.convert('RGB'), ((i-mini)*TILE_SIZE, (j-minj)*TILE_SIZE))
 
             osm_idx = (osm_idx+1) % 3
+    
+    draw = ImageDraw.Draw(img)
+    F = 'arial.ttf'
+    C = '© OpenStreetMap contributors'
+    # Assuming image width translates to 1.5m MR size, aim for credits 10cm wide
+    tw = int(img.size[0] / 15)
+    font_size = 4
+    font = ImageFont.truetype(F, font_size)
+    while font.getsize(C)[0] < tw:
+        font_size += 1
+        font = ImageFont.truetype(F, font_size)
+        
+    font_size = max(font_size, 11)
+    font = ImageFont.truetype(F, font_size)
+    
+    tw, th = font.getsize(C)
+    x = img.size[0] - tw - 10
+    y = img.size[1] - th - 10
+    draw.rectangle((x-5,y-5,x+tw+5,y+th+5), fill=(255,255,255))    
+    draw.text((x,y), C, fill=(128,128,255), font=font)
+    del draw
             
     fname = output_name+'.png'
 
@@ -170,7 +198,7 @@ if __name__ == '__main__':
         )
     )
     
-    with open(output_name+'.json', 'wt') as f:
+    with open(output_name+'.png.json', 'wt') as f:
         f.write(json.dumps(m , sort_keys=True, indent=4))
 
     sys.stdout.write('done\n')

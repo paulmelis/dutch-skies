@@ -26,6 +26,7 @@ Nice to have:
 - Allow text size selection
 - When no query range is given, set it to range of first map
 - Delete missing planes (but keep track of number deleted)?
+- Allow specifying altitude of lowest point on map and offset planes by that amount
 
 Optimize:
 - Combine map and sky parts where possible during drawing
