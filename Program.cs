@@ -155,7 +155,7 @@ namespace DutchSkies
 
             map_scale_km_to_scene = 0.001f;
 
-            // Prepare built in maps and select default
+            // Prepare built-in maps and select default
             PrepareMaps();
             SetMap("The Netherlands");
             //SetMap("Schiphol Airport");
@@ -191,7 +191,7 @@ namespace DutchSkies
             // Queue for receiving updates from threads
             updates_queue = new ConcurrentQueue<Tuple<string, object, string>>();
 
-            // Set query extent, based on map (minlat, maxlat, minlon, maxlon)
+            // Set initial query extent, based on map (minlat, maxlat, minlon, maxlon)
             Vec4 data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
 
             // Launch data update thread            
@@ -393,6 +393,7 @@ namespace DutchSkies
 
                         bool current_map_updated = false;
                         bool observer_updated = false;
+                        bool explicit_query_extent = false;
 
                         if (config_root.HasKey("query"))
                         {
@@ -401,6 +402,7 @@ namespace DutchSkies
                             Vec4 extent = new Vec4(query["lat_range"][0], query["lat_range"][1], query["lon_range"][0], query["lon_range"][1]);
                             Log.Info($"Setting plane data query extent to {extent}");
                             query_extent_update_queue.Enqueue(extent);
+                            explicit_query_extent = true;
                         }
 
                         if (config_root.HasKey("maps"))
@@ -521,6 +523,26 @@ namespace DutchSkies
 
                         if (observer_updated)
                             ObserverChanged();
+
+                        if (current_map_updated && !explicit_query_extent)
+                        {
+                            // Maps changed, but no query extent given. Set extent to union of all maps,
+                            // to cover the whole area
+                            float min_lat = 1e6f;
+                            float max_lat = 1e6f;
+                            float min_lon = -1e6f;
+                            float max_lon = -1e6f;
+                            foreach (OSMMap map in maps.Values)
+                            {
+                                min_lat = MathF.Min(min_lat, map.min_lat);
+                                max_lat = MathF.Max(max_lat, map.max_lat);
+                                min_lon = MathF.Min(min_lon, map.min_lon);
+                                max_lon = MathF.Max(max_lon, map.max_lon);
+                            }
+                            Vec4 extent = new Vec4(min_lat, max_lat, min_lon, max_lon);
+                            Log.Info($"Setting plane data query extent to {extent}, based on union of map extents (no explicit extent given)");
+                            query_extent_update_queue.Enqueue(extent);
+                        }
                     }
                     else if (update_type == "map_tilefetch_progress")
                     {
@@ -867,7 +889,7 @@ namespace DutchSkies
                     //Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
                     SetQRCodeScan();
                 }
-                UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} total, {num_planes_late} late, {num_planes_missing} missing");
+                UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} planes total ({num_planes_late} late, {num_planes_missing} missing)");
 
                 UI.HSeparator();
                 UI.PushId("map");

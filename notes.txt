@@ -13,9 +13,9 @@ Bugs:
 - When switching configs the sky trails sometimes use incorrect previous pos
 
 Should have:
+- About window
 - More robust JSON parser
 - Highlight airport locations
-- attribution on generated OSM map images
 
 Nice to have:
 - Reset back to internals maps
