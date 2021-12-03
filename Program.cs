@@ -450,17 +450,17 @@ namespace DutchSkies
                                     {
                                         if (!jmap.HasKey("lat_range"))
                                         {
-                                            Log.Warn("(tile fetch thread) Map specification is missing 'lat_range'!");
+                                            Log.Err("(tile fetch) Map specification is missing 'lat_range'!");
                                             continue;
                                         }
                                         if (!jmap.HasKey("lon_range"))
                                         {
-                                            Log.Warn("(tile fetch thread) Map specification is missing 'lon_range'!");
+                                            Log.Err("(tile fetch) Map specification is missing 'lon_range'!");
                                             continue;
                                         }
                                         if (!jmap.HasKey("zoom"))
                                         {
-                                            Log.Warn("(tile fetch thread) Map specification is missing 'zoom'!");
+                                            Log.Err("(tile fetch) Map specification is missing 'zoom'!");
                                             continue;
                                         }
 
@@ -936,9 +936,9 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Toggle("Trails", ref sky_show_trail_lines);
                 UI.SameLine();
-                UI.Toggle($"Landmarks({landmarks.Count})", ref sky_show_landmarks);
+                UI.Toggle($"Landmarks ({landmarks.Count})", ref sky_show_landmarks);
 
-                UI.Space(0.01f);
+                UI.Space(0.012f);
 
                 UI.PushId("htrim");
                 UI.Label("H Trim (°)");
@@ -1133,12 +1133,17 @@ namespace DutchSkies
                         binary = request.Item3;
                         payload = request.Item4;
 
-                        Log.Info($"(URL fetch thread) Fetching URL {url} (type '{type}', binary {binary}, payload '{payload}')");
+                        Log.Info($"(URL fetch) Fetching URL {url} (type '{type}', binary {binary}, payload '{payload}')");
 
                         try
                         {
                             HttpResponseMessage response = await http_client.GetAsync(url);
-                            response.EnsureSuccessStatusCode();
+                            if (!response.IsSuccessStatusCode)
+                            {
+                                Log.Err($"(URL fetch) HTTP error {response.StatusCode} while attempting to fetch {url}!");
+                                continue;
+                            }
+                            
                             if (binary)
                             {
                                 byte[] data = await response.Content.ReadAsByteArrayAsync();
@@ -1153,7 +1158,7 @@ namespace DutchSkies
                         }
                         catch (Exception e)
                         {
-                            Log.Info("(URL fetch thread): Exception " + e.Message);
+                            Log.Info("(URL fetch) Exception " + e.Message);
                         }
                     }
 
@@ -1173,7 +1178,7 @@ namespace DutchSkies
             while (!extent_input_queue.TryDequeue(out extent))
                 Thread.Sleep(100);
 
-            Log.Info($"(data fetch thread) Initial query extent: lat {extent.x:F6} - {extent.y:F6}, lon {extent.z:F6} - {extent.w:F6}");
+            Log.Info($"(data fetch) Initial query extent: lat {extent.x:F6} - {extent.y:F6}, lon {extent.z:F6} - {extent.w:F6}");
             string URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
 
             while (true)
@@ -1181,7 +1186,7 @@ namespace DutchSkies
                 if (extent_input_queue.TryDequeue(out extent))
                 {
                     // Got updated extent
-                    Log.Info($"(data fetch thread) Got updated query extent: lat = {extent.x:F6} - {extent.y:F6}, lon = {extent.z:F6} - {extent.w:F6}");
+                    Log.Info($"(data fetch) Got updated query extent: lat = {extent.x:F6} - {extent.y:F6}, lon = {extent.z:F6} - {extent.w:F6}");
                     URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
                 }
 

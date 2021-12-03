@@ -108,7 +108,7 @@ namespace DutchSkies
                 tile_servers = request.Item6;
                 map_name = request.Item7;
 
-                Log.Info($"(tile fetch thread) Fetching tiles for map '{map_name}'");
+                Log.Info($"(tile fetch) Fetching tiles for map '{map_name}'");
 
                 // get tile extent, zoom, server list
 
@@ -116,7 +116,7 @@ namespace DutchSkies
                 int ncols = max_i - min_i + 1;
                 int num_tiles_to_fetch = nrows * ncols;
 
-                Log.Info($"(tile fetch thread) Retrieving {ncols} x {nrows} OSM tiles ({ncols * TILE_SIZE} x {nrows * TILE_SIZE} pixels)");
+                Log.Info($"(tile fetch) Retrieving {ncols} x {nrows} OSM tiles ({ncols * TILE_SIZE} x {nrows * TILE_SIZE} pixels)");
 
                 const int TARGA_HEADER_SIZE = 18;
                 int width = ncols * TILE_SIZE;
@@ -143,7 +143,7 @@ namespace DutchSkies
                             url = url.Replace("{y}", j.ToString());
 
                             // XXX send progress update to main thread
-                            //Log.Info($"(tile fetch thread) Fetching tile {i},{j} via {url}");
+                            //Log.Info($"(tile fetch) Fetching tile {i},{j} via {url}");
 
                             var rass = RandomAccessStreamReference.CreateFromUri(new Uri(url));
                             IRandomAccessStream ras = await rass.OpenReadAsync();
@@ -151,7 +151,7 @@ namespace DutchSkies
                             SoftwareBitmap bmp = await decoder.GetSoftwareBitmapAsync();
                             //Log.Info($"bitmap is {bmp.PixelWidth} x {bmp.PixelHeight} ({bmp.BitmapPixelFormat}, {bmp.BitmapAlphaMode})");
                             if (bmp.BitmapPixelFormat != BitmapPixelFormat.Bgra8)
-                                Log.Warn("(tile fetch thread) Tile bitmap not in Bgra8 format, image will be broken!");
+                                Log.Warn("(tile fetch) Tile bitmap not in Bgra8 format, image will be broken!");
 
                             PixelDataProvider pdp = await decoder.GetPixelDataAsync();
                             byte[] tile_pixels = pdp.DetachPixelData();
@@ -175,7 +175,7 @@ namespace DutchSkies
                         }
                         catch (Exception e)
                         {
-                            Log.Err($"(tile fetch thread) Exception while fetching tile {i},{j}: {e.Message}");
+                            Log.Err($"(tile fetch) Exception while fetching tile {i},{j}: {e.Message}");
                         }
                     }
                 }
