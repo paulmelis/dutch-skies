@@ -329,9 +329,15 @@ namespace DutchSkies
                         byte[] map_image_file = update.Item2 as byte[];
                         string map_to_update = update.Item3;
                         Log.Info($"Got updated map image ({map_image_file.Length} bytes), for map {map_to_update}");
-                        maps[map_to_update].texture = Tex.FromMemory(map_image_file);
-                        if (current_map_name == map_to_update)
-                            map_material[MatParamName.DiffuseTex] = maps[map_to_update].texture;
+                        Tex texture = Tex.FromMemory(map_image_file);
+                        if (texture != null)
+                        {
+                            maps[map_to_update].texture = texture;
+                            if (current_map_name == map_to_update)
+                                map_material[MatParamName.DiffuseTex] = maps[map_to_update].texture;
+                        }
+                        else
+                            Log.Err($"Could not load map image file!");
                     }
                     else if (update_type == "plane_data")
                     {
@@ -889,7 +895,7 @@ namespace DutchSkies
                     //Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
                     SetQRCodeScan();
                 }
-                UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} planes total ({num_planes_late} late, {num_planes_missing} missing)");
+                UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} planes in query area ({num_planes_late} late, {num_planes_missing} missing)");
 
                 UI.HSeparator();
                 UI.PushId("map");
