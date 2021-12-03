@@ -364,7 +364,7 @@ namespace DutchSkies
                         scanning_for_qrcodes = false;
                         last_qrcode_id = qrcode.Id;
 
-                        // XXX this seems to cause problems
+                        // Make a noise to indicate QR code was recognized
                         Pose pose;
                         World.FromSpatialNode(qrcode.SpatialGraphNodeId, out pose);
                         Default.SoundUnclick.Play(pose.position);
@@ -541,7 +541,7 @@ namespace DutchSkies
                     var map_pos = plane.computed_map_position;
                     var pos = ROT_MIN90_X * map_pos * map_scale_km_to_scene;
     
-                    // XXX should use inrterpolation map-space position
+                    // XXX should use interpolated map-space position
                     if (!current_map.OnMapLatLon(plane.last_lat, plane.last_lon))
                         continue;
 
@@ -980,6 +980,14 @@ namespace DutchSkies
             );
 
             map.texture = Tex.FromFile("Maps\\schiphol-lon-4.042969-5.361328-lat-51.890054-52.696361-c-4.702148-52.293208-z12-3840x3840.png");
+
+            // Eindhoven Airport
+            map = maps["Eindhoven Airport"] = new OSMMap(
+                "Eindhoven Airport",
+                51.28940590271678f, 51.6180165487737f, 5.09765625f, 5.712890625f, 12
+            );
+
+            map.texture = Tex.FromFile("Maps\\eindhoven.png");
         }
 
         public static void SetMap(string map, double draw_time=0.0)

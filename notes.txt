@@ -5,8 +5,6 @@
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
 
-check log level settings
-
 add surf logo
 
 Should have:
