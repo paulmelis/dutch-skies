@@ -389,7 +389,9 @@ namespace DutchSkies
                         string config_string = update.Item2 as string;
                         // XXX handle error
                         JSONNode config_root = JSON.Parse(config_string);
-                        bool map_updated = false;
+
+                        bool current_map_updated = false;
+                        bool observer_updated = false;
 
                         if (config_root.HasKey("query"))
                         {
@@ -484,12 +486,12 @@ namespace DutchSkies
                                     if (first)
                                     {
                                         // Update map to use first entry
+                                        // Will also update observer and plane interpolation
                                         SetMap(name, draw_time);
                                         first = false;
+                                        current_map_updated = true;
                                     }
                                 }
-
-                                map_updated = true;
                             }
                             else
                                 Log.Warn("No maps defined in config, not updating!");
@@ -501,23 +503,25 @@ namespace DutchSkies
                             observer.lat = jobs["lat"];
                             observer.lon = jobs["lon"];
                             observer.floor_altitude = jobs["alt"];
+                            observer_updated = true;
                         }
-                        else
+                        else if (current_map_updated)
                         {
                             // Need some setting for observer, so pick map center at 0m altitude
                             observer.lat = current_map.center_lat;
                             observer.lon = current_map.center_lon;
-                            observer.floor_altitude = 0f;                            
+                            observer.floor_altitude = 0f;
+                            observer_updated = true;
                         }
 
-                        observer.update_map_position(current_map);
-                        // XXX Also need sky update
+                        if (observer_updated)
+                        {
+                            foreach (PlaneData plane in plane_data.Values)
+                                plane.ObserverChange(observer);
+                        }
 
                         if (config_root.HasKey("landmarks"))
                             UpdateLandmarks(config_root["landmarks"]);
-
-                        if (map_updated)
-                            plane_data.Clear();
                     }
                     else if (update_type == "map_tilefetch_progress")
                     {
