@@ -1,0 +1,16 @@
+{
+    "image_source": {
+        "type": "url",
+        "url": "netherlands.png"
+    },
+    "lat_range": [
+        50.51342652633955,
+        53.9560855309879
+    ],
+    "lon_range": [
+        2.8125,
+        8.0859375
+    ],
+    "name": "netherlands",
+    "zoom": 10
+}

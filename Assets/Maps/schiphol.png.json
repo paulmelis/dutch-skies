@@ -1,0 +1,16 @@
+{
+    "image_source": {
+        "type": "url",
+        "url": "schiphol.png"
+    },
+    "lat_range": [
+        51.89005393521691,
+        52.69636107827448
+    ],
+    "lon_range": [
+        4.04296875,
+        5.361328125
+    ],
+    "name": "schiphol",
+    "zoom": 12
+}

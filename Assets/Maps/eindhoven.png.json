@@ -1,0 +1,16 @@
+{
+    "image_source": {
+        "type": "url",
+        "url": "eindhoven.png"
+    },
+    "lat_range": [
+        51.28940590271678,
+        51.6180165487737
+    ],
+    "lon_range": [
+        5.09765625,
+        5.712890625
+    ],
+    "name": "eindhoven",
+    "zoom": 12
+}
