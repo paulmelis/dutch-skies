@@ -902,10 +902,6 @@ namespace DutchSkies
                     {
                         // Switch map
                         SetMap(map.name, draw_time);
-
-                        // Signal update to query extent
-                        data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
-                        query_extent_update_queue.Enqueue(data_query_extent);
                     }
                 }
 
