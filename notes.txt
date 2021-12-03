@@ -7,39 +7,23 @@
 
 check log level settings
 
-when no query range is given, set it to range of first map
-
-make plane text darker (bluer?) again
-
-delete missing planes (but keep track of number deleted)?
-
-json: observer id -> name
-
-use all observers from json
-
-handling OSM tiling
-
 add surf logo
-
-highlight airport locations
-
-put compass rose at observer location and orientation
-
-callsign-only text is sometimes too low
-
-allow text size selection
-
-combine map and sky parts where possible during drawing?
-
-"marking plane 1234 (unknown>) ..." ?
 
 Should have:
 - More robust JSON parser
+- Highlight airport locations
+- Use all observers from json
 
 Nice to have:
 - Run Tex.FromFile on loading thread if possible, as it briefly interrupts all rendering for large images
 - Allow settings to be specified in qr codes, for easy demo setup
 - FPS graph
+- Allow text size selection
+- When no query range is given, set it to range of first map
+- Delete missing planes (but keep track of number deleted)?
+
+Optimize:
+- Combine map and sky parts where possible during drawing
 
 Ideas:
 - HoloLens2 doesn't support GPS Sensor, but an app can acquire the user's current location via Wi-Fi. It is less precise but more likely to be available indoors. You can invoke the Windows Runtime API Geolocator.GetGeopositionAsync method in the Windows.Devices.Geolocation namespace to retrieve the current location of the device.

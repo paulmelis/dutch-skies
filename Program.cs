@@ -575,7 +575,7 @@ namespace DutchSkies
                             MAP_TEXT_STYLE,
                             TextAlign.XLeft | TextAlign.YTop,
                             TextAlign.XLeft | TextAlign.YTop,
-                            -0.01f, 0f); ;
+                            -0.01f, 0.02f);
                     }
                     else if (detail_level == DetailLevel.FULL)
                     {
