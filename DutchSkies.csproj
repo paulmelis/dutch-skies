@@ -97,8 +97,8 @@
     <Content Include="Assets\Logo\Logo-Wide150.png" />
     <Content Include="Assets\Logo\Logo-Wide300.png" />
     <Content Include="Assets\Maps\eindhoven.png" />
-    <Content Include="Assets\Maps\netherlands-lon-2.812500-8.085938-lat-50.513427-53.956086-c-5.449219-52.234756-z10-3840x4096.png" />
-    <Content Include="Assets\Maps\schiphol-lon-4.042969-5.361328-lat-51.890054-52.696361-c-4.702148-52.293208-z12-3840x3840.png" />
+    <Content Include="Assets\Maps\netherlands.png" />
+    <Content Include="Assets\Maps\schiphol.png" />
     <Content Include="Assets\Windrose.png" />
     <Content Include="notes.txt" />
     <Content Include="Properties\Default.rd.xml" />

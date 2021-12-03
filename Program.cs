@@ -1014,18 +1014,17 @@ namespace DutchSkies
             // Whole of the Netherlands
             map = maps["The Netherlands"] = new OSMMap(
                     "The Netherlands",
-                    50.513427f, 53.956086f, 2.812500f, 8.085938f, 10
-                );
+                    50.51342652633955f, 53.9560855309879f, 2.8125f, 8.0859375f, 10);
 
-            map.texture = Tex.FromFile("Maps\\netherlands-lon-2.812500-8.085938-lat-50.513427-53.956086-c-5.449219-52.234756-z10-3840x4096.png");
+            map.texture = Tex.FromFile("Maps\\netherlands.png");
 
             // Schiphol Airport
             map = maps["Schiphol Airport"] = new OSMMap(
                 "Schiphol Airport",
-                51.890054f, 52.696361f, 4.042969f, 5.361328f, 12
+                51.89005393521691f, 52.69636107827448f, 4.04296875f, 5.361328125f, 12
             );
 
-            map.texture = Tex.FromFile("Maps\\schiphol-lon-4.042969-5.361328-lat-51.890054-52.696361-c-4.702148-52.293208-z12-3840x3840.png");
+            map.texture = Tex.FromFile("Maps\\schiphol.png");
 
             // Eindhoven Airport
             map = maps["Eindhoven Airport"] = new OSMMap(
