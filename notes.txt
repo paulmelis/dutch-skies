@@ -7,6 +7,11 @@
 
 add surf logo
 
+ignore map images that got fetched after a new config was loaded
+
+landmarks: [] should clean
+observer: null should clean
+
 Bugs:
 - When switching configs the sky trails sometimes use incorrect previous pos
 

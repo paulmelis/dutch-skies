@@ -1,10 +1,47 @@
 # Dutch SKies - A Mixed Reality view of air traffic over The Netherlands (and elsewhere)
 
+This application provides a real-time view of air traffic in mixed reality, through the
+data provided by the [OpenSky Network](opensky-network.org/). It provides both a map view of 
+air traffic, *as well as a live view of traffic in the sky* (when properly aligned).
 
-XXX Submitted to the [Mixed Reality Challenge: StereoKit (C# and OpenXR)](https://mixed-reality-stereokit.devpost.com/)
+As an example, here's a map view of air traffic around Amsterdam, as seen through mixed reality on
+a HoloLens 2:
 
+![](Images/mapview.jpg)
 
-Dutch SKies is Copyright (C) 2021 Paul Melis, SURF (paul.melis@surf.nl)
+The flight with callsign TRA6505 has just passed over the observer's location
+on the Amsterdam Science Park (marked with the orange pin), and is climbing away. 
+
+Looking out the window TRA6505 is indeed close to the mixed reality projection
+of where the plane is expected to be:
+
+![](Images/skyview.jpg)
+
+Apart from augmenting real air traffic with a mixer reality overlay, the map view
+can used to visual inspect air traffic patterns and relations that are otherwise
+hard to detect and grasp. For example, here are plane tracks
+(in blue) on a windy day. Apparently, quite a few holding patterns where used to
+properly guide planes towards Schiphol Airport (which is roughly at the center of the image).
+
+![](Images/holdingpatterns.jpg)
+
+Dutch SKies isn't limited to traffic over The Netherlands. Your own maps and areas
+can be configured at will. For example, here is a view of the very busy airspace
+surrounding New York:
+
+![](Images/newyork.jpg)
+
+By having a 3D mixed reality view of air traffic, spatial relations and patterns can
+be more intuitively inspected, more so than when looking at the same data on a computer monitor.
+The overlay of real-time flight data over the actual flights can help even further.
+
+## Overview
+
+This application was built with the excellent [StereoKit](https://stereokit.net/) framework,
+as an entry for the [Mixed Reality Challenge: StereoKit (C# and OpenXR)](https://mixed-reality-stereokit.devpost.com/).
+
+Dutch SKies is Copyright (C) 2021 Paul Melis, SURF (paul.melis@surf.nl). See the section
+below for licensing details.
 
 ## Requirements
 
@@ -21,6 +58,7 @@ In order to build the application you will need:
 
 In order to test Dutch SKies in mixed reality you will need a Microsoft HoloLens 2.
 
+
 ## Disclaimers
 
 Dutch SKies has not been tested outside of Amsterdam, The Netherlands. So with
@@ -32,15 +70,16 @@ This application has only been tested with a Microsoft HoloLens 2. It might
 also work on other devices. Running it in StereoKit desktop mode also works, of course,
 but that does not really provide the full experience.
 
-## OpenSky Network real-time data
+### OpenSky Network real-time data
 
 Note that this application makes use of the [OpenSky Network](https://opensky-network.org/)
 as a real-time data provider. As such, when using this application, you are bound to
 its [General Terms of Use & Data License Agreement](https://opensky-network.org/about/terms-of-use).
 
-## How to use a custom map or sky-mode location
 
-By default, only Amsterdam and Schiphol Airport are included as (hard-coded)maps. The 
+## How to use a custom map
+
+By default, only Amsterdam and Schiphol and Eindhoven airports are included as (hard-coded) maps. The 
 Dutch sky is relatively busy with planes, including ones crossing from/to overseas,
 others landing at airports nearby the country, etc. So this should provide some interesting 
 views out-of-the-box for a country-scale airspace. But you might want to view a different area yourself,
@@ -48,12 +87,12 @@ of course.
 
 You will need 3 things to use a custom map/sky view:
 
-1. A JSON file describing the map extent, map image and observer location data. You can also
+1. A JSON configuration file describing the map extent, map image, observer location, etc. You can also
    include a number of landmarks to fine-tune the alignment of the MR world with the real world.
 
-2. An online place to host the JSON file, and any map images, from step 1. This can be anywhere (a Google Drive,
-   your own server, etc), as long as you can provide a URL to the JSON file that is accessible
-   by the HoloLens on on which you plan to run Dutch SKies.
+2. An online place to host the JSON configuration file from step 1, and any used map images. 
+   This can be anywhere (a Google Drive, your own server, etc), as long as you can provide a URL to the 
+   JSON file that is accessible by the HoloLens on on which you plan to run Dutch SKies.
 
 3. A QR code that contains the URL from step 2. You can use `Scripts/text2qrcode.py` to generate
    a PNG image holding the QR code for a given URL. You do not have to print this QR code image, but
@@ -67,21 +106,104 @@ You will need 3 things to use a custom map/sky view:
    By using the QR code only for providing the URL to the actual configuration allows you to update
    that configuration without having to update the QR code.
 
-### Creating and configuring a map
+### Using a map tile service
 
-XXX map image adv: can add annotations, faster to retrieve
-
-The simplest way to generate a map and relevant meta-data is using `Script/make_osm_map.py`. 
-
-For example, let's create a map for the San Francisco Bay area, where there are lots of airports.
-On [https://www. openstreetmap.org](https://www. openstreetmap.org) we can use the Export function
-and then choose `Manually select a different area` just below the extent numbers to select the extent
-of our map:
+As an example, let's create a configuration for the San Francisco Bay area, where there are lots of airports.
+On [https://www. openstreetmap.org](https://www.openstreetmap.org) we navigate to the San Francisco area,
+then use the Export button in the top row. On the left you can see the lat/lon extent for the current view.
+You can also choose `Manually select a different area` just below the extent numbers (not visible in the screenshot as it already
+has been selected) to more precisely select the extent of our map:
 
 ![](./Scripts/osm-export.jpg)
 
-We then use the extent listed (and zoom level based on the one from the URL) as arguments to `make_osm_map.py`.
-The zoom level determines the resolution of the output image. At zoom level 11 the resulting map covers 6x6 tiles and is 1536x1536 pixels, at zoom level 12 it covers 12x11 tiles and is 3,072x2816 pixels. Here, we use zoom level 12:
+The next step is to create the configuration JSON file. We specify the lat/lon range and other map data involved, plus specify
+the server addresses where to fetch tiles (in this case from OpenStreetMap):
+
+```
+{
+    "query": {
+        "lat_range": [
+            37.2008,
+            37.9193
+        ],
+        "lon_range": [
+            -122.6212,
+            -121.6791
+        ]
+    },
+
+    "maps": [
+        {
+            "image_source": {
+                "type": "osm",
+                "tile_servers": [
+                    "http://a.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
+                    "http://b.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
+                    "http://c.tile.openstreetmap.org/{zoom}/{x}/{y}.png"
+                ]                
+            },
+            "lat_range": [
+                37.2008,
+                37.9193
+            ],
+            "lon_range": [
+                -122.6212,
+                -121.6791
+            ],
+            "name": "sanfrancisco",
+            "zoom": 12
+        }
+    ]
+}
+```
+
+**Note that there are several different tile servers that can be used as alternatives, see [here](https://wiki.openstreetmap.org/wiki/Tile_servers).
+Also note that for the official `openstreetmap.org` servers there is a [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/).
+Finally, see the relevant FAQ entry below on why these tile server addresses are not hard-coded in the application.**
+
+The `maps` section can list one or more maps, which can be switched in the application. The `query` section determines the area
+for which plane data is queried from OpenSky Network. If you leave out the `query` section the query area will be min/max union 
+of all map range specified. Note that specifying a very large query area will lead to lots of planes that need to be rendered,
+slowing down the framerate, etc. 
+
+Next, we upload this JSON file to a location where the Dutch SKies app can retrieve it. We then generate a QR code for this URL,
+display it on a PC screen and use the `Scan QR code` button in the app UI to initiate scanning. As soon as a QR code is recognized 
+the scan function is disabled (notified by the button release sound) and the configuration will get loaded. In the process the map 
+geometry (initially all grey) and extent are updated, and the process of retrieving the necessary image tiles is started. Once all tiles are retrieved
+the map will be updated to show the image.
+
+If everything goes right, you should see this after half a minute:
+
+![](Images/hl2sanfran.jpg)
+
+If anything goes wrong in this workflow then you can check the Log window for warnings/errors.
+
+#### Tile naming scheme
+
+The current implementation is geared towards the tile naming scheme used by OpenStreetMap (x, y, zoom, 256x256 pixels). 
+
+
+### Using a static map image
+
+Instead of dynamically fetching tiles it is also possible to use static map image. This has
+some advantages:
+
+* It is usually faster to load a single image from a source you control, than a bunch of 
+  tiles from a service you don't control (or which might change its policies, price, etc)
+* You can use custom map imagery, not found in public services
+* You can easily add content to the map image in any way you like (e.g. annotations)
+
+As an example, we'll generate a map image and relevant meta-data based for the San Francisco case shown above.
+For this, we'll use the `Script/make_osm_map.py` script which retrieves the necessary tiles and pastes them
+together in a single image.
+
+We use the extent listed above as arguments to `make_osm_map.py`. The one extra value we need is the 
+zoom level, which determines the resolution of the output image. The current value is part of the URL, e.g.
+the 10 in `...#map=10/37.4956/...`. At the current zoom level (based on the resolution of the browser window)
+the map would be a bit in resolution, so we increase the zoom level a bit. At zoom level 11 the resulting map 
+covers 6x6 tiles and is 1536x1536 pixels, at zoom level 12 it covers 12x11 tiles and is 3,072x2816 pixels. 
+
+Here, we use zoom level 12:
 
 ```
 $ ./make_osm_map.py 37.2008 37.9193 -122.6212 -121.6791 12 sanfrancisco
@@ -90,16 +212,16 @@ map range:  37.160316546736766 -122.6953125 -> 37.92686760148134 -121.640625
 center:  37.54359207410906 -122.16796875
 Map size at center = 93.070 x 85.332 km
 Retrieving 12 x 11 tiles
-(652,1581) (653,1581) (654,1581) (655,1581) (656,1581) (657,1581) (658,1581) (659,1581) (660,1581) (661,1581) (662,1581) (663,1581) (652,1582) (653,1582) (654,1582) (655,1582) (656,1582) (657,1582) (658,1582) (659,1582) (660,1582) (661,1582) (662,1582) (663,1582) (652,1583) (653,1583) (654,1583) (655,1583) (656,1583) (657,1583) (658,1583) (659,1583) (660,1583) (661,1583) (662,1583) (663,1583) (652,1584) (653,1584) (654,1584) (655,1584) (656,1584) (657,1584) (658,1584) (659,1584) (660,1584) (661,1584) (662,1584) (663,1584) (652,1585) (653,1585) (654,1585) (655,1585) (656,1585) (657,1585) (658,1585) (659,1585) (660,1585) (661,1585) (662,1585) (663,1585) (652,1586) (653,1586) (654,1586) (655,1586) (656,1586) (657,1586) (658,1586) (659,1586) (660,1586) (661,1586) (662,1586) (663,1586) (652,1587) (653,1587) (654,1587) (655,1587) (656,1587) (657,1587) (658,1587) (659,1587) (660,1587) (661,1587) (662,1587) (663,1587) (652,1588) (653,1588) (654,1588) (655,1588) (656,1588) (657,1588) (658,1588) (659,1588) (660,1588) (661,1588) (662,1588) (663,1588) (652,1589) (653,1589) (654,1589) (655,1589) (656,1589) (657,1589) (658,1589) (659,1589) (660,1589) (661,1589) (662,1589) (663,1589) (652,1590) (653,1590) (654,1590) (655,1590) (656,1590) (657,1590) (658,1590) (659,1590) (660,1590) (661,1590) (662,1590) (663,1590) (652,1591) (653,1591) (654,1591) (655,1591) (656,1591) (657,1591) (658,1591) (659,1591) (660,1591) (661,1591) (662,1591) (663,1591) 
+(652,1581) (653,1581) (654,1581) (655,1581) ...
 Writing output image sanfrancisco.png ... done
 
-$ ls -l sanfrancisco.png 
--rw-r--r-- 1 melis users 6815348 Dec  2 22:48 sanfrancisco.png
+$ ls -l sanfrancisco.png
+-rw-r--r-- 1 melis users 6808172 Dec  3 21:27 sanfrancisco.png
 
-$ identify sanfrancisco.png
-sanfrancisco.png PNG 3072x2816 3072x2816+0+0 8-bit sRGB 6.49962MiB 0.000u 0:00.000
+$ ls -l sanfrancisco.png.json 
+-rw-r--r-- 1 melis users 280 Dec  3 21:27 sanfrancisco.png.json
 
-$ cat sanfrancisco.map.json 
+$ cat sanfrancisco.png.json
 {
     "image_source": {
         "type": "url",
@@ -118,88 +240,108 @@ $ cat sanfrancisco.map.json
 }
 ```
 
+Two files are created, the map image (`sanfrancisco.png`) and a JSON file holding metadata (`sanfrancisco.png.json`).
 Note that the actual lat/lon range of the map image is larger than what we specified. This is expected, as only full image tiles are used to cover
 the input lat/lon, without clipping the tiles.
 
-The JSON file produced next to the image can be used to set up the necessary configuration JSON file:
+The JSON file produced next to the image can be used to set up the necessary configuration JSON file, as shown earlier. Note that if the `url` field does
+not start with `http://` or `https://` it is assumed to be a path relative to the URL of the configuration file.
 
-```
-{
-    "query": {
-        "lat_range": [
-            37.160316546736766,
-            37.92686760148134
-        ],
-        "lon_range": [
-            -122.6953125,
-            -121.640625
-        ]
-    },
+#### Projection
 
-    "maps": [
-        {
-            "image_source": {
-                "type": "url",
-                "url": "sanfrancisco.png"
-            },
-            "lat_range": [
-                37.160316546736766,
-                37.92686760148134
-            ],
-            "lon_range": [
-                -122.6953125,
-                -121.640625
-            ],
-            "name": "sanfrancisco",
-            "zoom": 12
-        }
-    ]
-}
-```
-
-We upload this JSON file and `sanfrancisco.png` to a location where the Dutch SKies app can retrieve it. We then generate a QR code for this URL,
-display it on a PC screen and use the `Scan QR code` button in the UI to initiate scanning. As soon as a QR code is recognized the scan function is disabled
-(including button release sound) and the configuration will get loaded. In the process the map image is retrieved and applied. 
-
-You can check the Log window to check for errors is something goes wring in this workflow.
-
-XXX HL screenshot
-
-XXX Is it? XXX If you don't set an observation location the center of the map lat/lon extent is used by default (at altitude 0m).
-
-#### Custom maps
-
-The map image needs to adhere to the EPSG:3857 projection (also known as [Web Mercator](https://en.wikipedia.org/wiki/Web_Mercator_projection)).
+Any map image needs to adhere to the EPSG:3857 projection (also known as [Web Mercator](https://en.wikipedia.org/wiki/Web_Mercator_projection)).
 This is the projection used by OpenStreetMap, Google Maps and many others to match [WGS84](https://en.wikipedia.org/wiki/World_Geodetic_System#A_new_World_Geodetic_System:_WGS_84)/EPSG:4326 (basically GPS coordinates) with Web Mercator. 
 
-It is crucial that you that the WGS84 latitude/longitude map extent matches the given map image.
+It is crucial that you that the WGS84 latitude/longitude map extent matches the given map image, other plane locations won't be correct.
 
 
-### Setting an observer location
+## How to use a custom observer location
 
-Single observer location and altitude
+For getting a correct sky view of the planes you will need to set an observer location. Plus, for fine-tuning
+the alignment of the mixed reality view with the real world it can be very useful to specify a number of
+landmarks. The latter can be edges of high buildings, chimneys, Church spires, mountain peaks, etc. Preferably something 
+that stands out in the environment over which you can easily align a marker line.
+
+You specify the observer id, location and (floor) altitude, and landmark id, location, top and bottom altitude like this:
+
+```
+    ...
+
+    "observer": {
+        "id": "Office (floor @ desk)",
+        "lat": 52.3...,
+        "lon": 4.9...,
+        "alt": 0.39
+    }
+
+    "landmarks": [
+        {
+            "id": "Tall building left edge",
+            "lat": 52.3....,
+            "lon": 4.9...,
+            "topalt": 68,
+            "botalt": -4
+        },
+        {
+            "id": "Tall building right edge",
+            "lat": 52.3....,
+            "lon": 4.9....,
+            "topalt": 68,
+            "botalt": -4
+        },
+        {
+            "id": "Low building roof",
+            "lat": 52.3..., 
+            "lon": 4.9...,
+            "topalt": 10.59,
+            "botalt": 0.39
+        }
+    ]
+
+    ...
+```
+
+To get the lat/lon values, Google Maps, OpenStreetMaps and other similar services provide a function in their web UIs 
+to query the location values for a particular position on the map. A GPS receiver can be another source of values, including
+altitude. Note that the altitudes are interpreted to be WGS84 (e.g. GPS) altitudes in meters above sea level. You can estimate
+them if you don't have good values and still rely on the position of the vertical lines for trimming the view.
+
+You can either include these extra sections in the JSON configuration file holding the map (as shown earlier), or store
+each section (or both) in a separate JSON file. Whenever a QR code is scanned the corresponding JSON file is retrieved and 
+any sections in it applied to the current scene.
+
+Whenever landmarks are loaded the button `Landmarks` in the UI will list the number of landmarks. When the button is
+enabled each landmark will be drawn as a vertical line with the ID of the landmark. In general, the alignment, especially
+with respect to North, will be off substantially. The UI provides button for trimming both horizontal rotation
+and vertical translation. Use these trimming buttons to get the overlay of the landmark lines in the right place. 
 
 
-XXX
+## Known issues and bugs
 
-## Bugs and known issues
+* The device position and orientation at startup is taken as the mixed reality world origin and axis.
+  The map is placed slightly in front and below of this origin. There currently is no functionality to
+  move the map location, other than restarting (this only applies to the map, the sky view can, and usually needs to,
+  be trimmed, as described below).
 
-* The JSON parsing isn't very robustly currently, either to syntax errors in the JSON data itself,
-  nor to missing fields.
+* The JSON parsing isn't very robust currently, either to syntax errors in the JSON data itself,
+  nor to fields/values that are expected, but missing.
 
-* The map surface always represents an altitude of 0m, which will look weird for planes landing at airports
-  at much higher altitudes. Having a real 3D map with terrain height would fix that.
+* The map surface always represents an altitude of 0m (sea level), which will look weird for planes landing at airports
+  at much higher altitudes. Having a real 3D map with terrain height would fix that, although the actual
+  visible height above the map is fairly small compared to the map dimensions on most cases (see also FAQ below).
 
-* When loading a configuration that uses a large map image the rendering can briefly be interrupted
-  (with even the view going fully black), while the map is processed and uploaded to the GPU.
+* When loading a configuration that uses a large map image, the rendering can briefly be interrupted
+  (even with the view going fully black), while the map is processed and uploaded to the GPU. At the moment,
+  there is no easy fix for this.
+
 
 ## FAQ
 
-* **Can this be built for VR, e.g. Oculus Quest?**
+* **Can it be built for VR, e.g. Oculus Quest?**
 
-  In principle, the code is based mostly on StereoKit, which also supports VR. But the current
-  project file and solution are tied to UWP as platform. Also, the QR code scanning will currently
-  not work on a Quest.
+  In principle yes, as the code is based mostly on StereoKit, which also supports any OpenXR device, including
+  for VR. But the current project file and solution are tied to UWP as platform. Also, at least the QR code scanning will 
+  currently not work on a Quest (and possibly other things as well).
 
 * **The planes seem to be jump a bit every few seconds**
 
@@ -251,18 +393,14 @@ XXX
 
   For the case of The Netherlands this doesn't have much value ;-). The highest
   "mountain" in The Netherlands is 321m high (the Vaalserberg). The lowest point
-  is around 6.74m *below* sea level. The default map is around 315km wide, shown
-  at 1.5m physical size in the MR world. That translates to 210m of height
+  is around 6.74m *below* sea level. The default map is around 360km wide, shown
+  at 1.5m physical size in the MR world. That translates to 240m of altitude
   per *millimeter* of physical (MR) map size. So the height difference for The 
   Netherlands would amount to less than 2 millimeters in MR, not really worth it.
   
-  For a different area in the world, or when using a much smaller map of mountain
+  For a different area in the world, or when using a much smaller map of mountainous
   terrain, it might make more sense to include height, though.
 
-* **How about showing the Earth's curvature in the map?**
-
-  XXX
-  
 * **Why not use a (3D) terrain service, such as Bing Maps?**
 
   Indeed, there is the Stereo Kit [Bing Maps sample](https://github.com/maluoi/StereoKit-BingMaps),
@@ -270,17 +408,18 @@ XXX
   requires a Bing Maps API key, plus it would base this code on non-free (and commercial)
   software. The same would hold for other similar services.
   
-  The current setup, based on pre-generated OpenStreetMap maps, is simple and free to 
+  The current setup, based on pre-generated maps, is simple and free to 
   use and customize. It does not need registration, nor an API key. Adding your
-  own maps is fairly easy, see XXX.
+  own maps is fairly easy, see the section above.
 
 * **Why not simply hard-code OpenStreetMap tile downloading in the code? Why the indirection
-  with the JSON files?**
+  using `tile_servers` in the JSON configuration files?**
 
-  Hardcoding the URLs of OSM tile servers in the code is against the OSM [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/),
+  Hard-coding the URLs of OSM tile servers in the code is against the OSM [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/),
   or at least, it's strongly discouraged. And using the JSON file to specify tile
   servers allows future extensions to use other tile schemes and servers, or to 
-  use a [local OSM cache](https://github.com/paulmelis/osmcache).
+  use a [local OSM cache](https://github.com/paulmelis/osmcache) (the latter allows much
+  faster tile retrieval during development cycles).
   
 
 ## License
@@ -310,7 +449,7 @@ Under the following terms:
 
 ### Attribution
 
-* The map files under `Assets\Maps` are generated from [OpenStreetMap](www.openstreetmap.org) tiles,
+* The map files under `Assets/Maps` are generated from [OpenStreetMap](www.openstreetmap.org) tiles,
   using the `Scripts/make_osm_map.py` script. The tiles, and the derived map images, have credit "(C) OpenStreetMap contributors"
   and are distributed under the [Open Data Commons Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/).
   See [here](https://www.openstreetmap.org/copyright) for more info.
