@@ -7,13 +7,19 @@
 
 add surf logo
 
+Bugs:
+- Query extent is linked to the current map, but need to figure out how to handle existing planes out of the current map extent.
+  As there's also query extent specified in the JSON
+- When switching configs the sky trails sometimes use incorrect previous pos
+
 Should have:
 - More robust JSON parser
 - Highlight airport locations
 - attribution on generated OSM map images
 
 Nice to have:
-- Reset origin option (to recenter)
+- Reset back to internals maps
+- Reset MR origin option (to recenter at current position)
 - Run Tex.FromFile on loading thread if possible, as it briefly interrupts all rendering for large images
 - Allow settings to be specified in qr codes, for easy demo setup
 - FPS graph

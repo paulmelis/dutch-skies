@@ -159,6 +159,7 @@ namespace DutchSkies
             PrepareMaps();
             SetMap("The Netherlands");
             //SetMap("Schiphol Airport");
+            observer.update_map_position(current_map);
 
             //
             // Some models
@@ -508,20 +509,18 @@ namespace DutchSkies
                         else if (current_map_updated)
                         {
                             // Need some setting for observer, so pick map center at 0m altitude
+                            Log.Info("No observer set in configuration, so picking map center");
                             observer.lat = current_map.center_lat;
                             observer.lon = current_map.center_lon;
                             observer.floor_altitude = 0f;
                             observer_updated = true;
                         }
 
-                        if (observer_updated)
-                        {
-                            foreach (PlaneData plane in plane_data.Values)
-                                plane.ObserverChange(observer);
-                        }
-
                         if (config_root.HasKey("landmarks"))
                             UpdateLandmarks(config_root["landmarks"]);
+
+                        if (observer_updated)
+                            ObserverChanged();
                     }
                     else if (update_type == "map_tilefetch_progress")
                     {
@@ -1064,8 +1063,15 @@ namespace DutchSkies
                 plane.Update(draw_time);
             }
 
-            // Observer will move as well
             observer.update_map_position(current_map);
+        }
+
+        public static void ObserverChanged()
+        {
+            observer.update_map_position(current_map);
+            foreach (PlaneData plane in plane_data.Values)
+                plane.ObserverChange(observer);
+            RecomputeLandmarks();
         }
 
         public static void ClearTracks()
@@ -1206,8 +1212,6 @@ namespace DutchSkies
         }
         public static void UpdateLandmarks(JSONNode nodes)
         {
-            float x, y;
-            Matrix M;
             Landmark lm;
 
             landmarks.Clear();
@@ -1222,25 +1226,36 @@ namespace DutchSkies
                 float bottom_altitude = n["botalt"];
                 
                 lm = landmarks[id] = new Landmark(id, lat, lon, top_altitude, bottom_altitude);
+            }
 
+            RecomputeLandmarks();
+        }
+
+        public static void RecomputeLandmarks()
+        {
+            float x, y;
+            Matrix M;
+
+            foreach (Landmark lm in landmarks.Values)
+            {
                 // Map (km)
-                current_map.Project(out x, out y, lon, lat);
-                lm.map_position = new Vec3(x, y, top_altitude / 1000f);
+                current_map.Project(out x, out y, lm.lon, lm.lat);
+                lm.map_position = new Vec3(x, y, lm.top_altitude / 1000f);
 
                 // Sky (m)
-                M = Matrix.R(-lat, 0f, 0f)
+                M = Matrix.R(-lm.lat, 0f, 0f)
                     *
-                    Matrix.R(0f, lon - observer.lon, 0f)
+                    Matrix.R(0f, lm.lon - observer.lon, 0f)
                     *
                     Matrix.R(observer.lat, 0f, 0f)
                     *
                     // XXX Should also include have-above-floor distance, but the effect will be minimal
                     Matrix.T(0f, 0f, -(Projection.RADIUS_METERS + observer.floor_altitude));
 
-                Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + top_altitude);
+                Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + lm.top_altitude);
 
                 lm.sky_position = M.Transform(p);
-                Log.Info($"landmark '{id}' sky pos = {lm.sky_position}");
+                Log.Info($"landmark '{lm.id}' sky pos = {lm.sky_position}");
             }
         }
 
