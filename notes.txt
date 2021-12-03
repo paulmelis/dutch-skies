@@ -8,8 +8,6 @@
 add surf logo
 
 Bugs:
-- Query extent is linked to the current map, but need to figure out how to handle existing planes out of the current map extent.
-  As there's also query extent specified in the JSON
 - When switching configs the sky trails sometimes use incorrect previous pos
 
 Should have:
@@ -24,7 +22,6 @@ Nice to have:
 - Allow settings to be specified in qr codes, for easy demo setup
 - FPS graph
 - Allow text size selection
-- When no query range is given, set it to range of first map
 - Delete missing planes (but keep track of number deleted)?
 - Allow specifying altitude of lowest point on map and offset planes by that amount
 
