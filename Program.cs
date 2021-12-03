@@ -13,7 +13,8 @@ using StereoKit;
 
 namespace DutchSkies
 {
-    using TileFetchRequest = Tuple<int, int, int, int, int, string[], string>;
+    using URLFetchRequest = Tuple<string, string, bool, string>;
+    using TileFetchRequest = Tuple<int, int, int, int, int, string[], string>;    
 
     class Program
     {
@@ -53,7 +54,7 @@ namespace DutchSkies
         // Thread event queue (type, data, payload)        
         static ConcurrentQueue<Tuple<string, object, string>> updates_queue;
         // URL requests queue (url, type, binary, payload)
-        static ConcurrentQueue<Tuple<string, string, bool, string>> url_requests_queue;
+        static BlockingCollection<URLFetchRequest> url_requests_queue;
         // Tile fetch queue (mini/j, maxi/j, zoom, payload)
         static BlockingCollection<TileFetchRequest> tile_requests_queue;
 
@@ -206,7 +207,7 @@ namespace DutchSkies
 
             // Launch config fetch thread
             // Queue for fetching different types of data by URL
-            url_requests_queue = new ConcurrentQueue<Tuple<string, string, bool, string>>();
+            url_requests_queue = new BlockingCollection<URLFetchRequest>(new ConcurrentQueue<URLFetchRequest>());
             var url_fetch_thread = new Thread(FetchURLThread);
             url_fetch_thread.IsBackground = true;
             url_fetch_thread.Start();
@@ -222,10 +223,11 @@ namespace DutchSkies
 
             // XXX
             //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
+            string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-osmtiles.json";
             //string initial_config = "http://192.168.178.32:8000/config-newyork-image.json";
             //string initial_config = "http://192.168.178.32:8000/config-alps-image.json";
             //string initial_config = "http://192.168.178.32:8000/sanfrancisco-osmtiles.json";
-            //ScheduleURLFetch(initial_config, "config_data", false, initial_config);
+            ScheduleURLFetch(initial_config, "config_data", false, initial_config);
 
             // Prepare for QR scanning
 
@@ -328,7 +330,7 @@ namespace DutchSkies
                     {
                         byte[] map_image_file = update.Item2 as byte[];
                         string map_to_update = update.Item3;
-                        Log.Info($"Got updated map image ({map_image_file.Length} bytes), for map {map_to_update}");
+                        Log.Info($"Got updated map image ({map_image_file.Length} bytes), for map '{map_to_update}'");
                         Tex texture = Tex.FromMemory(map_image_file);
                         if (texture != null)
                         {
@@ -524,7 +526,7 @@ namespace DutchSkies
                             observer_updated = true;
                         }
 
-                        if (config_root.HasKey("landmarks"))
+                        if (config_root.HasKey("landmarks") && config_root["landmarks"].Count > 0)
                             UpdateLandmarks(config_root["landmarks"]);
 
                         if (observer_updated)
@@ -1028,6 +1030,10 @@ namespace DutchSkies
             if (qrcode_watcher != null)
                 qrcode_watcher.Stop();
 
+            // XXX should be in finally clause
+            url_requests_queue.Dispose();
+            tile_requests_queue.Dispose();
+
             SK.Shutdown();
         }
 
@@ -1105,7 +1111,7 @@ namespace DutchSkies
 
         static void ScheduleURLFetch(string url, string type, bool binary, string payload)
         {
-            url_requests_queue.Enqueue(new Tuple<string, string, bool, string>(url, type, binary, payload));
+            url_requests_queue.Add(new URLFetchRequest(url, type, binary, payload));
         }
 
         static void ScheduleTileFetch(int min_i, int max_i, int min_j, int max_j, int zoom, string[] servers, string map_name)
@@ -1116,59 +1122,49 @@ namespace DutchSkies
 
         static async void FetchURLThread()
         {
-            // XXX someone wrong with using the blocking collection?
-            // YYY probably need a BlockingCollection in the main thread as well, when placing items in it
-            //using (BlockingCollection<string> blocking_queue = new BlockingCollection<string>(url_input_queue))
+            URLFetchRequest request;
+            string type, url, payload;
+            bool binary;
+
+            HttpClient http_client = new HttpClient();
+
+            while (true)
             {
-                Tuple<string, string, bool, string> request;
-                string type, url, payload;
-                bool binary;
+                //Log.Info($"(configuration fetch thread) waiting for url");
+                request = url_requests_queue.Take();
 
-                HttpClient http_client = new HttpClient();
+                // Got updated extent
+                url = request.Item1;
+                type = request.Item2;
+                binary = request.Item3;
+                payload = request.Item4;
 
-                while (true)
+                Log.Info($"(URL fetch) Fetching URL {url} (type '{type}', binary {binary}, payload '{payload}')");
+
+                try
                 {
-                    //Log.Info($"(configuration fetch thread) waiting for url");
-                    //url = blocking_queue.Take();
-
-                    if (url_requests_queue.TryDequeue(out request))
+                    HttpResponseMessage response = await http_client.GetAsync(url);
+                    if (!response.IsSuccessStatusCode)
                     {
-                        // Got updated extent
-                        url = request.Item1;
-                        type = request.Item2;
-                        binary = request.Item3;
-                        payload = request.Item4;
-
-                        Log.Info($"(URL fetch) Fetching URL {url} (type '{type}', binary {binary}, payload '{payload}')");
-
-                        try
-                        {
-                            HttpResponseMessage response = await http_client.GetAsync(url);
-                            if (!response.IsSuccessStatusCode)
-                            {
-                                Log.Err($"(URL fetch) HTTP error {response.StatusCode} while attempting to fetch {url}!");
-                                continue;
-                            }
+                        Log.Err($"(URL fetch) HTTP error {response.StatusCode} while attempting to fetch {url}!");
+                        continue;
+                    }
                             
-                            if (binary)
-                            {
-                                byte[] data = await response.Content.ReadAsByteArrayAsync();
-                                updates_queue.Enqueue(new Tuple<string, object, string>(type, data, payload));
-                            }
-                            else
-                            {
-                                string text = await response.Content.ReadAsStringAsync();
-                                updates_queue.Enqueue(new Tuple<string, object, string>(type, text, payload));
-                            }
-
-                        }
-                        catch (Exception e)
-                        {
-                            Log.Info("(URL fetch) Exception " + e.Message);
-                        }
+                    if (binary)
+                    {
+                        byte[] data = await response.Content.ReadAsByteArrayAsync();
+                        updates_queue.Enqueue(new Tuple<string, object, string>(type, data, payload));
+                    }
+                    else
+                    {
+                        string text = await response.Content.ReadAsStringAsync();
+                        updates_queue.Enqueue(new Tuple<string, object, string>(type, text, payload));
                     }
 
-                    Thread.Sleep(500);
+                }
+                catch (Exception e)
+                {
+                    Log.Info("(URL fetch) Exception " + e.Message);
                 }
             }
         }
@@ -1283,7 +1279,7 @@ namespace DutchSkies
                 Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + lm.top_altitude);
 
                 lm.sky_position = M.Transform(p);
-                Log.Info($"landmark '{lm.id}' sky pos = {lm.sky_position}");
+                Log.Info($"Landmark '{lm.id}' sky pos = {lm.sky_position}");
             }
         }
 

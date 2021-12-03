@@ -28,6 +28,7 @@ namespace DutchSkies
             float n = MathF.Pow(2f, zoom);
             xtile = (int)((lon_deg + 180f) / 360f * n);
             ytile = (int)((1f - MathF.Log(MathF.Tan(lat_rad) + (1f / MathF.Cos(lat_rad))) / MathF.PI) / 2f * n);
+            //Log.Info($"{lat_deg}, {lon_deg}, {zoom} -> {n}, {xtile}, {ytile}");
         }
 
         // Convert tile number and zoom to lat/lon coordinate of NW-corner of tile
