@@ -69,6 +69,8 @@ You will need 3 things to use a custom map/sky view:
 
 ### Creating and configuring a map
 
+XXX map image adv: can add annotations, faster to retrieve
+
 The simplest way to generate a map and relevant meta-data is using `Script/make_osm_map.py`. 
 
 For example, let's create a map for the San Francisco Bay area, where there are lots of airports.
@@ -97,7 +99,7 @@ $ ls -l sanfrancisco.png
 $ identify sanfrancisco.png
 sanfrancisco.png PNG 3072x2816 3072x2816+0+0 8-bit sRGB 6.49962MiB 0.000u 0:00.000
 
-$ cat sanfrancisco.json 
+$ cat sanfrancisco.map.json 
 {
     "image_source": {
         "type": "url",
@@ -173,15 +175,20 @@ This is the projection used by OpenStreetMap, Google Maps and many others to mat
 It is crucial that you that the WGS84 latitude/longitude map extent matches the given map image.
 
 
-### Setting an observer
+### Setting an observer location
+
+Single observer location and altitude
 
 
 XXX
 
 ## Bugs and known issues
 
-* Map surface represent height of 0m, will look weird for planes landing at airports
-  at much higher altitudes, would need TEM for that.
+* The JSON parsing isn't very robustly currently, either to syntax errors in the JSON data itself,
+  nor to missing fields.
+
+* The map surface always represents an altitude of 0m, which will look weird for planes landing at airports
+  at much higher altitudes. Having a real 3D map with terrain height would fix that.
 
 * When loading a configuration that uses a large map image the rendering can briefly be interrupted
   (with even the view going fully black), while the map is processed and uploaded to the GPU.
