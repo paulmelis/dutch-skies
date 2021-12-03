@@ -21,6 +21,7 @@ namespace DutchSkies
         // Log
         static List<string> log_lines = new List<string>();
         static string log_text = "";
+        static LogLevel log_level = LogLevel.Info;
 
         static Dictionary<string, PlaneData> plane_data;
 
@@ -567,15 +568,23 @@ namespace DutchSkies
                     dir.y = 0f;
                     Quat textquat = Quat.LookDir(dir);
 
+                    Vec3 text_pos = pos;
+                    TextAlign pos_align = TextAlign.XLeft | TextAlign.YTop;
+                    if (pos.y < 0.05f)
+                    {
+                        pos_align = TextAlign.XLeft | TextAlign.YBottom;
+                        text_pos.y = 0.01f;
+                    }
+
                     if (detail_level == DetailLevel.CALLSIGN)
                     {
                         Text.Add(
                             $"{callsign}",
                             Matrix.TR(pos, textquat),
                             MAP_TEXT_STYLE,
+                            pos_align,
                             TextAlign.XLeft | TextAlign.YTop,
-                            TextAlign.XLeft | TextAlign.YTop,
-                            -0.01f, 0.02f);
+                            -0.01f, 0.00f);
                     }
                     else if (detail_level == DetailLevel.FULL)
                     {
@@ -606,14 +615,6 @@ namespace DutchSkies
                                 vstring = $"▲ {vrate:F0} m/s";
                             else if (vrate < -1f)
                                 vstring = $"▼ {-vrate:F0} m/s";
-                        }
-
-                        Vec3 text_pos = pos;
-                        TextAlign pos_align = TextAlign.XLeft | TextAlign.YTop;
-                        if (pos.y < 0.05f)
-                        {
-                            pos_align = TextAlign.XLeft | TextAlign.YBottom;
-                            text_pos.y = 0.01f;
                         }
 
                         Text.Add(
@@ -808,7 +809,7 @@ namespace DutchSkies
                 //
 
                 // Main window
-                UI.WindowBegin("Dutch Skies", ref main_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
+                UI.WindowBegin("Dutch SKies", ref main_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
 
                 UI.Toggle("Flight units", ref show_flight_units);
                 UI.SameLine();
@@ -880,6 +881,7 @@ namespace DutchSkies
                 UI.PushId("htrim");
                 UI.Label("H Trim (°)");
                 UI.SameLine();
+                UI.Space(-0.014f);
                 if (UI.Button("◀45")) sky_d_trim -= 450;
                 UI.SameLine();
                 if (UI.Button("◀5")) sky_d_trim -= 50;
@@ -901,6 +903,8 @@ namespace DutchSkies
 
                 UI.PushId("vtrim");
                 UI.Label("V Trim (cm)");
+                UI.SameLine();                
+                if (UI.Button("▼100")) sky_v_trim -= 100;
                 UI.SameLine();
                 if (UI.Button("▼50")) sky_v_trim -= 50;
                 UI.SameLine();
@@ -915,6 +919,8 @@ namespace DutchSkies
                 if (UI.Button("▲5")) sky_v_trim += 5;
                 UI.SameLine();
                 if (UI.Button("▲50")) sky_v_trim += 50;
+                UI.SameLine();
+                if (UI.Button("▲100")) sky_v_trim += 100;
                 UI.PopId();
 
                 UI.PopId();
@@ -938,6 +944,13 @@ namespace DutchSkies
                 {
                     UI.WindowBegin("Log", ref log_window_pose, new Vec2(80, 0) * U.cm, UIWin.Normal);
                     UI.Text(log_text);
+                    if (UI.Radio("Diagnostic", log_level == LogLevel.Diagnostic)) { log_level = Log.Filter = LogLevel.Diagnostic; }
+                    UI.SameLine();
+                    if (UI.Radio("Info", log_level == LogLevel.Info)) { log_level = Log.Filter = LogLevel.Info; }
+                    UI.SameLine();
+                    if (UI.Radio("Warning", log_level == LogLevel.Warning)) { log_level = Log.Filter = LogLevel.Warning; }
+                    UI.SameLine();
+                    if (UI.Radio("Error", log_level == LogLevel.Error)) { log_level = Log.Filter = LogLevel.Error; }
                     UI.WindowEnd();
                 }
             }));
