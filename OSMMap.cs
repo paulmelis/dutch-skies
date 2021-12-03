@@ -48,7 +48,7 @@ namespace DutchSkies
             //height = 1.0f * current_configuration.image_height / current_configuration.image_width * width;
             height = 1.0f * (max_lat - min_lat) / 360.0f * 2.0f * MathF.PI * Projection.RADIUS_KILOMETERS;
 
-            Log.Info("Approximate map size (kilometers) = " + width + " x " + height);
+            Log.Info($"Approximate map size (kilometers) = {width:F3} x {height:F3}");
 
             // This gives an approximate (but reasonable) X, Y range
             float xx, yy;
@@ -57,8 +57,8 @@ namespace DutchSkies
             Projection.epsg4326_to_epsg3857(out xx, out min_y, center_lon, min_lat);
             Projection.epsg4326_to_epsg3857(out xx, out max_y, center_lon, max_lat);
 
-            Log.Info("Map X range: " + min_x + ", " + max_x);
-            Log.Info("Map Y range: " + min_y + ", " + max_y);
+            Log.Info($"Map X range: {min_x:F6}, {max_x:F6}");
+            Log.Info($"Map Y range: {min_y:F6}, {max_y:F6}");
 
             x_extent = max_x - min_x;
             y_extent = max_y - min_y;

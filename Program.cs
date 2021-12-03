@@ -13,6 +13,8 @@ using StereoKit;
 
 namespace DutchSkies
 {
+    using TileFetchRequest = Tuple<int, int, int, int, int, string[], string>;
+
     class Program
     {
         enum DetailLevel { NONE, CALLSIGN, FULL };
@@ -52,8 +54,8 @@ namespace DutchSkies
         static ConcurrentQueue<Tuple<string, object, string>> updates_queue;
         // URL requests queue (url, type, binary, payload)
         static ConcurrentQueue<Tuple<string, string, bool, string>> url_requests_queue;
-        // Tile fetch queue (JSONNode, payload)
-        static BlockingCollection<JSONNode> tile_requests_queue;
+        // Tile fetch queue (mini/j, maxi/j, zoom, payload)
+        static BlockingCollection<TileFetchRequest> tile_requests_queue;
 
         // QR code scanning
         static bool scanning_for_qrcodes;
@@ -63,7 +65,7 @@ namespace DutchSkies
         static System.Guid last_qrcode_id;
 
         static void OnLog(LogLevel level, string text)
-        {
+        {            
             string time = DateTime.Now.ToString("HH:mm:ss.fff");
             if (log_lines.Count > 20)
                 log_lines.RemoveAt(0);
@@ -211,7 +213,7 @@ namespace DutchSkies
 
             // Tile fetch thread
             // input: lat/lon range, zoomlevel, tile servers
-            tile_requests_queue = new BlockingCollection<JSONNode>(new ConcurrentQueue<JSONNode>());
+            tile_requests_queue = new BlockingCollection<TileFetchRequest>(new ConcurrentQueue<TileFetchRequest>());
             var tiles_fetch_thread = new Thread(OSMTiles.FetchMapTiles);
             tiles_fetch_thread.IsBackground = true;            
             tiles_fetch_thread.Start(new Tuple<object,object>(tile_requests_queue,updates_queue));
@@ -221,7 +223,7 @@ namespace DutchSkies
             //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
             //string initial_config = "http://192.168.178.32:8000/config-newyork-image.json";
             //string initial_config = "http://192.168.178.32:8000/config-alps-image.json";
-            //string initial_config = "https:///192.168.178.32:8000/sanfrancisco-osmtiles.json";
+            //string initial_config = "http://192.168.178.32:8000/sanfrancisco-osmtiles.json";
             //ScheduleURLFetch(initial_config, "config_data", false, initial_config);
 
             // Prepare for QR scanning
@@ -323,7 +325,6 @@ namespace DutchSkies
 
                     if (update_type == "map_image")
                     {
-                        // XXX need to handle image update that doesn't match current map
                         byte[] map_image_file = update.Item2 as byte[];
                         string map_to_update = update.Item3;
                         Log.Info($"Got updated map image ({map_image_file.Length} bytes), for map {map_to_update}");
@@ -388,6 +389,7 @@ namespace DutchSkies
                         string config_string = update.Item2 as string;
                         // XXX handle error
                         JSONNode config_root = JSON.Parse(config_string);
+                        bool map_updated = false;
 
                         if (config_root.HasKey("query"))
                         {
@@ -407,16 +409,12 @@ namespace DutchSkies
                                 maps.Clear();
 
                                 bool first = true;
+                                float min_lat, max_lat, min_lon, max_lon;
 
                                 foreach (JSONNode jmap in jmaps)
                                 {
                                     string name = jmap["name"];
                                     Log.Info($"Have new map '{name}'");
-
-                                    OSMMap map = maps[name] = new OSMMap(
-                                            name,
-                                            jmap["lat_range"][0], jmap["lat_range"][1], jmap["lon_range"][0], jmap["lon_range"][1]
-                                        );
 
                                     JSONNode imgsource = jmap["image_source"];
                                     if (imgsource["type"] == "url")
@@ -432,12 +430,55 @@ namespace DutchSkies
                                             imgurl = $"{uri.GetLeftPart(UriPartial.Authority)}{path}{imgurl}";
                                             Log.Info($"Assuming image source relative to config URL: {imgurl}");
                                         }
+
+                                        Log.Info($"Scheduling fetching of map image {imgurl} for map '{name}'");
                                         ScheduleURLFetch(imgurl, "map_image", true, name);
+
+                                        min_lat = jmap["lat_range"][0];
+                                        max_lat = jmap["lat_range"][1];
+                                        min_lon = jmap["lon_range"][0];
+                                        max_lon = jmap["lon_range"][1];
+
+                                        OSMMap map = maps[name] = new OSMMap(name, min_lat, max_lat, min_lon, max_lon);
                                     }
                                     else if (imgsource["type"] == "osm")
                                     {
-                                        Log.Info("Scheduling fetching of map tiles");
-                                        ScheduleTileFetch(jmap);
+                                        if (!jmap.HasKey("lat_range"))
+                                        {
+                                            Log.Warn("(tile fetch thread) Map specification is missing 'lat_range'!");
+                                            continue;
+                                        }
+                                        if (!jmap.HasKey("lon_range"))
+                                        {
+                                            Log.Warn("(tile fetch thread) Map specification is missing 'lon_range'!");
+                                            continue;
+                                        }
+                                        if (!jmap.HasKey("zoom"))
+                                        {
+                                            Log.Warn("(tile fetch thread) Map specification is missing 'zoom'!");
+                                            continue;
+                                        }
+
+                                        JSONNode j_tile_servers = jmap["image_source"]["tile_servers"];
+                                        string[] tile_servers = new string[j_tile_servers.Count];
+                                        for (int i = 0; i < j_tile_servers.Count; i++)
+                                            tile_servers[i] = j_tile_servers[i];
+
+                                        Vec4 query_extent = new Vec4(jmap["lat_range"][0], jmap["lat_range"][1], jmap["lon_range"][0], jmap["lon_range"][1]);
+
+                                        int min_i, max_i, min_j, max_j;
+
+                                        // The actual map extent will be based on a set of unclipped tiles, so we need it here to set up the
+                                        // map correctly before the image fetch is complete.
+                                        OSMTiles.ComputeActualMapExtent(
+                                            out min_lat, out max_lat, out min_lon, out max_lon,
+                                            out min_i, out max_i, out min_j, out max_j,
+                                                query_extent, jmap["zoom"]);
+
+                                        OSMMap map = maps[name] = new OSMMap(name, min_lat, max_lat, min_lon, max_lon);
+
+                                        Log.Info($"Scheduling fetching of map tiles for map '{name}' ({min_i}-{max_i}, {min_j}-{max_j}, {jmap["zoom"]})");
+                                        ScheduleTileFetch(min_i, max_i, min_j, max_j, jmap["zoom"], tile_servers, name);
                                     }
 
                                     if (first)
@@ -447,36 +488,36 @@ namespace DutchSkies
                                         first = false;
                                     }
                                 }
+
+                                map_updated = true;
                             }
                             else
                                 Log.Warn("No maps defined in config, not updating!");
                         }
 
-                        if (config_root.HasKey("observers"))
+                        if (config_root.HasKey("observer"))
                         {
-                            // XXX handle multiple observer locations
-                            JSONNode observers = config_root["observers"];
-                            if (observers.Count == 0)
-                            {
-                                // Need some setting for observer
-                                observer.lat = current_map.center_lat;
-                                observer.lon = current_map.center_lon;
-                                observer.floor_altitude = 0f;
-                                observer.update_map_position(current_map);
-                            }
-                            else
-                            {
-                                JSONNode obs = observers[0];
-                                observer.lat = obs["lat"];
-                                observer.lon = obs["lon"];
-                                observer.floor_altitude = obs["alt"];
-                            }
+                            JSONNode jobs = config_root["observer"];
+                            observer.lat = jobs["lat"];
+                            observer.lon = jobs["lon"];
+                            observer.floor_altitude = jobs["alt"];
                         }
+                        else
+                        {
+                            // Need some setting for observer, so pick map center at 0m altitude
+                            observer.lat = current_map.center_lat;
+                            observer.lon = current_map.center_lon;
+                            observer.floor_altitude = 0f;                            
+                        }
+
+                        observer.update_map_position(current_map);
+                        // XXX Also need sky update
 
                         if (config_root.HasKey("landmarks"))
                             UpdateLandmarks(config_root["landmarks"]);
 
-                        plane_data.Clear();
+                        if (map_updated)
+                            plane_data.Clear();
                     }
                     else if (update_type == "map_tilefetch_progress")
                     {
@@ -901,6 +942,8 @@ namespace DutchSkies
                 if (UI.Button("45▶")) sky_d_trim += 450;
                 UI.PopId();
 
+                UI.Space(0.01f);
+
                 UI.PushId("vtrim");
                 UI.Label("V Trim (cm)");
                 UI.SameLine();                
@@ -1032,14 +1075,10 @@ namespace DutchSkies
             url_requests_queue.Enqueue(new Tuple<string, string, bool, string>(url, type, binary, payload));
         }
 
-        static void ScheduleTileFetch(JSONNode map_spec)
+        static void ScheduleTileFetch(int min_i, int max_i, int min_j, int max_j, int zoom, string[] servers, string map_name)
         {
-            if (map_spec["image_source"]["type"] != "osm")
-            {
-                Log.Warn($"Ignoring invalid tile fetch request for type {map_spec["image_source"]["type"]}");
-                return;
-            }
-            tile_requests_queue.Add(map_spec);
+            TileFetchRequest request = new TileFetchRequest(min_i, max_i, min_j, max_j, zoom, servers, map_name);
+            tile_requests_queue.Add(request);
         }
 
         static async void FetchURLThread()
