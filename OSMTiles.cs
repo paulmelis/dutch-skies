@@ -14,6 +14,8 @@ using SimpleJSON;
 
 namespace DutchSkies
 {
+    using TileFetchRequest = Tuple<int, int, int, int, int, string[], string>;
+
     class OSMTiles
     {
         const int TILE_SIZE = 256;
@@ -39,83 +41,80 @@ namespace DutchSkies
             lat_deg = lat_rad / MathF.PI * 180f;
         }
 
+        public static void ComputeActualMapExtent(
+            out float min_lat, out float max_lat, out float min_lon, out float max_lon,
+            out int min_i, out int max_i, out int min_j, out int max_j,
+            Vec4 query_extent, int zoom)
+        {
+            float q_min_lat, q_max_lat, q_min_lon, q_max_lon;
+            q_min_lat = query_extent.x;
+            q_max_lat = query_extent.y;
+            q_min_lon = query_extent.z;
+            q_max_lon = query_extent.w;
+
+            float q_center_lat = 0.5f * (q_min_lat + q_max_lat);
+            float q_center_lon = 0.5f * (q_min_lon + q_max_lon);
+
+            int dummy;
+
+            CoordinateToTile(out dummy, out max_j, q_min_lat, q_center_lon, zoom);
+            CoordinateToTile(out dummy, out min_j, q_max_lat, q_center_lon, zoom);
+
+            CoordinateToTile(out min_i, out dummy, q_center_lat, q_min_lon, zoom);
+            CoordinateToTile(out max_i, out dummy, q_center_lat, q_max_lon, zoom);
+
+            // Determine tiles needed
+            Log.Info($"(ComputeActualMapExtent) Tile range needed: i {min_i}, {max_i}; j {min_j}, {max_j}");
+
+            // Determine actual lat/lon range from tile extent
+            TileNWCorner(out max_lat, out min_lon, min_i, min_j, zoom);
+            TileNWCorner(out min_lat, out max_lon, max_i + 1, max_j + 1, zoom);
+            float a_center_lat = 0.5f * (min_lat + max_lat);
+            float a_center_lon = 0.5f * (min_lon + max_lon);
+
+            Log.Info($"(ComputeActualMapExtentd) Map range: {min_lat}, {min_lon} -> {max_lat}, {max_lon}");
+            Log.Info($"(ComputeActualMapExtent) Map center: {a_center_lat}, {a_center_lon}");
+
+            // Compute map size at center (only used to print)
+            const float R = 6378136.98f;
+            float r = R * MathF.Cos(0.5f * (min_lat + max_lat) / 180f * MathF.PI);
+            float lon_diff = max_lon - min_lon;
+            float map_width = lon_diff / 360f * 2f * MathF.PI * r;
+            float map_height = (max_lat - min_lat) / 360f * 2f * MathF.PI * R;
+            Log.Info($"(ComputeActualMapExtent) Map size at center = {map_width / 1000f:F3} x {map_height / 1000f:F3}");
+        }
+
         public static async void FetchMapTiles(object tuple)
         {
             Tuple<object, object> args = tuple as Tuple<object, object>;
-            BlockingCollection<JSONNode> input_queue = args.Item1 as BlockingCollection<JSONNode>;
+            BlockingCollection<TileFetchRequest> input_queue = args.Item1 as BlockingCollection<TileFetchRequest>;
             ConcurrentQueue<Tuple<string, object, string>> result_queue = args.Item2 as ConcurrentQueue<Tuple<string, object, string>>;
-
-            JSONNode map_spec;
-            JSONNode tile_servers;
-            string map_name;
-            float min_lat, max_lat;
-            float min_lon, max_lon;
+            
+            TileFetchRequest request;
+            int min_i, max_i, min_j, max_j;
             int zoom;
+            string[] tile_servers;
+            string map_name;
 
             while (true)
             {
-                map_spec = input_queue.Take();
-                map_name = map_spec["name"];
+                request = input_queue.Take();
+
+                min_i = request.Item1;
+                max_i = request.Item2;
+                min_j = request.Item3;
+                max_j = request.Item4;
+                zoom = request.Item5;
+                tile_servers = request.Item6;
+                map_name = request.Item7;
 
                 Log.Info($"(tile fetch thread) Fetching tiles for map '{map_name}'");
 
-                if (!map_spec.HasKey("lat_range"))
-                {
-                    Log.Warn("(tile fetch thread) Map specification is missing 'lat_range'!");
-                    continue;
-                }
-                if (!map_spec.HasKey("lon_range"))
-                {
-                    Log.Warn("(tile fetch thread) Map specification is missing 'lon_range'!");
-                    continue;
-                }
-                if (!map_spec.HasKey("zoom"))
-                {
-                    Log.Warn("(tile fetch thread) Map specification is missing 'zoom'!");
-                    continue;
-                }
+                // get tile extent, zoom, server list
 
-                min_lat = map_spec["lat_range"][0];
-                max_lat = map_spec["lat_range"][1];
-                min_lon = map_spec["lon_range"][0];
-                max_lon = map_spec["lon_range"][1];
-                zoom = map_spec["zoom"];
-                tile_servers = map_spec["image_source"]["tile_servers"];
-
-                // Determine tiles needed
-                float lat = 0.5f * (min_lat + max_lat);
-                float lon = 0.5f * (min_lon + max_lon);
-
-                int dummy, minj, maxj, mini, maxi;
-
-                CoordinateToTile(out dummy, out maxj, min_lat, lon, zoom);
-                CoordinateToTile(out dummy, out minj, max_lat, lon, zoom);
-
-                CoordinateToTile(out mini, out dummy, lat, min_lon, zoom);
-                CoordinateToTile(out maxi, out dummy, lat, max_lon, zoom);
-
-                Log.Info($"(tile fetch thread) Tile range needed: i {mini}, {maxi}; j {minj}, {maxj}");
-
-                int nrows = maxj - minj + 1;
-                int ncols = maxi - mini + 1;
+                int nrows = max_j - min_j + 1;
+                int ncols = max_i - min_i + 1;
                 int num_tiles_to_fetch = nrows * ncols;
-
-                // Determine lat/lon range from tile extent
-                float minlat, minlon, maxlat, maxlon;
-                TileNWCorner(out maxlat, out minlon, mini, minj, zoom);
-                TileNWCorner(out minlat, out maxlon, maxi + 1, maxj + 1, zoom);
-                float center_lat = 0.5f * (minlat + maxlat);
-                float center_lon = 0.5f * (minlon + maxlon);
-                Log.Info($"(tile fetch thread) Map range: {minlat}, {minlon} -> {maxlat}, {maxlon}");
-                Log.Info($"(tile fetch thread) Map center: {center_lat}, {center_lon}");
-
-                // Compute map size at center (only used to print)
-                const float R = 6378136.98f;
-                float r = R * MathF.Cos(0.5f * (min_lat + max_lat) / 180f * MathF.PI);
-                float lon_diff = max_lon - min_lon;
-                float map_width = lon_diff / 360f * 2f * MathF.PI * r;
-                float map_height = (max_lat - min_lat) / 360f * 2f * MathF.PI * R;
-                Log.Info($"(tile fetch thread) Map size at center = {map_width / 1000f:F3} x {map_height / 1000f:F3}");
 
                 Log.Info($"(tile fetch thread) Retrieving {ncols} x {nrows} OSM tiles ({ncols * TILE_SIZE} x {nrows * TILE_SIZE} pixels)");
 
@@ -130,11 +129,11 @@ namespace DutchSkies
                 int server_idx = 0;
                 string url;
 
-                for (int j = minj; j <= maxj; j++)
+                for (int j = min_j; j <= max_j; j++)
                 {
-                    int destrow = (j - minj) * TILE_SIZE;
+                    int destrow = (j - min_j) * TILE_SIZE;
 
-                    for (int i = mini; i <= maxi; i++)
+                    for (int i = min_i; i <= max_i; i++)
                     {
                         try
                         {
@@ -158,7 +157,7 @@ namespace DutchSkies
                             byte[] tile_pixels = pdp.DetachPixelData();
 
                             // Paste tile pixels in full map image
-                            int destcol = (i - mini) * TILE_SIZE;
+                            int destcol = (i - min_i) * TILE_SIZE;
                             for (int jj = 0; jj < TILE_SIZE; jj++)
                             {
                                 for (int ii = 0; ii < TILE_SIZE; ii++)
@@ -172,7 +171,7 @@ namespace DutchSkies
                             tiles_fetched++;
                             result_queue.Enqueue(new Tuple<string, object, string>("map_tilefetch_progress", 100f * tiles_fetched / num_tiles_to_fetch, map_name));
 
-                            server_idx = (server_idx + 1) % tile_servers.Count;
+                            server_idx = (server_idx + 1) % tile_servers.Length;
                         }
                         catch (Exception e)
                         {

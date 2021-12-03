@@ -235,6 +235,29 @@ namespace DutchSkies
             }
         }
 
+        public void ObserverChange(ObserverData observer)
+        {
+            Matrix M =
+                Matrix.R(-last_lat, 0f, 0f)
+                *
+                Matrix.R(0f, last_lon - observer.lon, 0f)
+                *
+                Matrix.R(observer.lat, 0f, 0f)
+                *
+                // XXX Should also include head-above-floor distance, but the effect will be minimal
+                Matrix.T(0f, 0f, -(Projection.RADIUS_METERS + observer.floor_altitude + 1.5f));
+
+            Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + last_geometric_altitude);
+
+            last_sky_position = M.Transform(p);
+            computed_sky_position = last_sky_position;
+            previous_sky_position = last_sky_position;
+
+            // XXX distance from projection center, not head position, but should relatively be only very little off
+            observer_distance = last_sky_position.Length / 1000f;
+            //Log.Info($"[{callsign}] lat {last_lat:F6}, lon {last_lon:F6} -> p = {last_sky_position.x:F6}, {last_sky_position.y:F6}, {last_sky_position.z:F6}; dist {sky_distance:F0} km (sky position)");
+        }
+
         // update_time is seconds since Unix epoch
         public void Update(double update_time)
         {

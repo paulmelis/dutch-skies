@@ -10,9 +10,10 @@ add surf logo
 Should have:
 - More robust JSON parser
 - Highlight airport locations
-- Use all observers from json
+- attribution on generated OSM map images
 
 Nice to have:
+- Reset origin option (to recenter)
 - Run Tex.FromFile on loading thread if possible, as it briefly interrupts all rendering for large images
 - Allow settings to be specified in qr codes, for easy demo setup
 - FPS graph
