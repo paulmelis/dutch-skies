@@ -142,6 +142,9 @@ namespace DutchSkies
             windrose_material.Transparency = Transparency.Blend;
             windrose_material.DepthWrite = false;
 
+            // Configuration
+            string configuration_name = "<builtin>";
+
             //
             // Maps
             //
@@ -222,12 +225,12 @@ namespace DutchSkies
             Log.Info("Tile fetch thread started");
 
             // XXX
-            //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
+            string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
             //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-osmtiles.json";
             //string initial_config = "http://192.168.178.32:8000/config-newyork-image.json";
             //string initial_config = "http://192.168.178.32:8000/config-alps-image.json";
             //string initial_config = "http://192.168.178.32:8000/sanfrancisco-osmtiles.json";
-            //ScheduleURLFetch(initial_config, "config_data", false, initial_config);
+            ScheduleURLFetch(initial_config, "config_data", false, initial_config);
 
             // Prepare for QR scanning
 
@@ -258,10 +261,10 @@ namespace DutchSkies
 
             Pose main_window_pose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
             Pose log_window_pose = new Pose(0.9f, -0.2f, 0f, Quat.LookDir(-1, 0, 1));
-
-            string configuration_name = "<builtin>";
+            
             DetailLevel detail_level = DetailLevel.FULL;
             bool show_log_window = true;
+            bool show_trim_window = false;
             bool show_flight_units = false;
             bool map_visible = true;
             bool map_show_plane_model = true, sky_show_plane_models = true;
@@ -306,7 +309,9 @@ namespace DutchSkies
             while (SK.Step(() =>
             {
                 double draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
+
                 Vec3 head_pos = Input.Head.position;
+                Quat head_orientation = Input.Head.orientation;
 
                 if (SK.System.displayType == Display.Opaque)
                     Default.MeshCube.Draw(floorMaterial, floorTransform);
@@ -401,8 +406,8 @@ namespace DutchSkies
                         JSONNode config_root = JSON.Parse(config_string);
 
                         configuration_name = update.Item3;
-                        if (configuration_name.Length > 50)
-                            configuration_name = configuration_name.Substring(0, 50) + "...";
+                        if (configuration_name.Length > 63)
+                            configuration_name = configuration_name.Substring(0, 30) + "..." + configuration_name.Substring(configuration_name.Length-30);
 
                         bool current_map_updated = false;
                         bool observer_updated = false;
@@ -516,6 +521,7 @@ namespace DutchSkies
                         if (config_root.HasKey("observer"))
                         {
                             JSONNode jobs = config_root["observer"];
+                            observer.name = jobs["id"]; // XXX "name"
                             observer.lat = jobs["lat"];
                             observer.lon = jobs["lon"];
                             observer.floor_altitude = jobs["alt"];
@@ -531,9 +537,11 @@ namespace DutchSkies
                             observer_updated = true;
                         }
 
-                        landmarks.Clear();
                         if (config_root.HasKey("landmarks") && config_root["landmarks"].Count > 0)
+                        {
+                            landmarks.Clear();
                             UpdateLandmarks(config_root["landmarks"]);
+                        }
 
                         if (observer_updated)
                             ObserverChanged();
@@ -903,6 +911,9 @@ namespace DutchSkies
                     //Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
                     SetQRCodeScan();
                 }
+                UI.SameLine();
+                UI.Space(-0.04f);
+                UI.Toggle("Trim", ref show_trim_window);
                 UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} planes in query area ({num_planes_late} late, {num_planes_missing} missing)");
 
                 UI.HSeparator();
@@ -927,7 +938,7 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Toggle("Track lines", ref map_show_track_lines);
                 UI.SameLine();
-                UI.Toggle("Observer", ref map_show_observer);
+                UI.Toggle($"Observer '{observer.name}'", ref map_show_observer);
 
                 UI.Label("Plane details");
                 UI.SameLine();
@@ -952,55 +963,6 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Toggle($"Landmarks ({landmarks.Count})", ref sky_show_landmarks);
 
-                UI.Space(0.012f);
-
-                UI.PushId("htrim");
-                UI.Label("H Trim (°)");
-                UI.SameLine();
-                UI.Space(-0.014f);
-                if (UI.Button("◀45")) sky_d_trim -= 450;
-                UI.SameLine();
-                if (UI.Button("◀5")) sky_d_trim -= 50;
-                UI.SameLine();
-                if (UI.Button("◀1")) sky_d_trim -= 10;
-                UI.SameLine();
-                if (UI.Button("◀⅒")) sky_d_trim -= 1;
-                UI.SameLine();
-                if (UI.Button("0")) sky_d_trim = 0;
-                UI.SameLine();
-                if (UI.Button("⅒▶")) sky_d_trim += 1;
-                UI.SameLine();
-                if (UI.Button("1▶")) sky_d_trim += 10;
-                UI.SameLine();
-                if (UI.Button("5▶")) sky_d_trim += 50;
-                UI.SameLine();
-                if (UI.Button("45▶")) sky_d_trim += 450;
-                UI.PopId();
-
-                UI.Space(0.01f);
-
-                UI.PushId("vtrim");
-                UI.Label("V Trim (cm)");
-                UI.SameLine();                
-                if (UI.Button("▼100")) sky_v_trim -= 100;
-                UI.SameLine();
-                if (UI.Button("▼50")) sky_v_trim -= 50;
-                UI.SameLine();
-                if (UI.Button("▼5")) sky_v_trim -= 5;
-                UI.SameLine();
-                if (UI.Button("▼1")) sky_v_trim -= 1;
-                UI.SameLine();
-                if (UI.Button("0")) sky_v_trim = 0;
-                UI.SameLine();
-                if (UI.Button("▲1")) sky_v_trim += 1;
-                UI.SameLine();
-                if (UI.Button("▲5")) sky_v_trim += 5;
-                UI.SameLine();
-                if (UI.Button("▲50")) sky_v_trim += 50;
-                UI.SameLine();
-                if (UI.Button("▲100")) sky_v_trim += 100;
-                UI.PopId();
-
                 UI.PopId();
 
                 UI.HSeparator();
@@ -1013,8 +975,84 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Label($"IP:{our_ip} • {time} • {fps:F1} FPS");
                 UI.SameLine();
-                // XXX log window
                 UI.WindowEnd();
+
+                // Trim window
+
+                if (show_trim_window)
+                {
+                    // Identity pose orientation has window front pointing to -Z, head identity pose also points to -Z
+                    Vec3 head_lookdir_xz = Matrix.R(head_orientation).Transform(new Vec3(0f, 0f, -1f));
+                    head_lookdir_xz.y = 0f;
+                    Vec3 trim_window_lookdir = -head_lookdir_xz;
+
+                    // Use atan2 for y=-z, x=x; gives CCW rotation from +x axis
+                    float angle = MathF.Atan2(-head_lookdir_xz.z, head_lookdir_xz.x) / MathF.PI * 180f;
+                    // Round to nearest multiple of N degrees
+                    angle = MathF.Round(angle / 45f) * 45f;
+                    // Zero rotation will be -Z (which is +Y and thus angle 90 for atan2)
+                    angle -= 90f;
+
+                    Vec3 window_pos = new Vec3(0f, head_pos.y-0.2f, 0f) + Matrix.R(0f, angle, 0f).Transform(-0.6f*Vec3.UnitZ); 
+
+                    Pose trim_window_pose = new Pose(
+                        window_pos,
+                        // Window needs to face the other way, hence angle+180
+                        Quat.FromAngles(0f, angle+180f, 0f)* Quat.FromAngles(30f, 0f, 0f)   // Tilt the window a bit
+                    );
+
+                    //UI.WindowBegin($"Trim; head lookdir = {head_lookdir_xz} -> angle = {angle}", ref trim_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);                    
+                    UI.WindowBegin("Trim", ref trim_window_pose, new Vec2(50, 0) * U.cm, UIWin.Body);                    
+                    UI.Toggle($"Landmarks ({landmarks.Count})", ref sky_show_landmarks);
+                    UI.SameLine();
+                    UI.Space(-0.2f);
+                    if (UI.Button("Close window")) show_trim_window = false;
+                    UI.PushId("htrim");
+                    UI.Text("H Trim (°)", TextAlign.XCenter);
+                    if (UI.Button("◀45")) sky_d_trim -= 450;
+                    UI.SameLine();
+                    if (UI.Button("◀5")) sky_d_trim -= 50;
+                    UI.SameLine();
+                    if (UI.Button("◀1")) sky_d_trim -= 10;
+                    UI.SameLine();
+                    if (UI.Button("◀⅒")) sky_d_trim -= 1;
+                    UI.SameLine();
+                    if (UI.Button("0")) sky_d_trim = 0;
+                    UI.SameLine();
+                    if (UI.Button("⅒▶")) sky_d_trim += 1;
+                    UI.SameLine();
+                    if (UI.Button("1▶")) sky_d_trim += 10;
+                    UI.SameLine();
+                    if (UI.Button("5▶")) sky_d_trim += 50;
+                    UI.SameLine();
+                    if (UI.Button("45▶")) sky_d_trim += 450;
+                    UI.PopId();
+
+                    UI.Space(0.01f);
+
+                    UI.PushId("vtrim");
+                    UI.Text("V Trim (cm)", TextAlign.XCenter);
+                    UI.SameLine();
+                    if (UI.Button("▼100")) sky_v_trim -= 100;
+                    UI.SameLine();
+                    if (UI.Button("▼50")) sky_v_trim -= 50;
+                    UI.SameLine();
+                    if (UI.Button("▼5")) sky_v_trim -= 5;
+                    UI.SameLine();
+                    if (UI.Button("▼1")) sky_v_trim -= 1;
+                    UI.SameLine();
+                    if (UI.Button("0")) sky_v_trim = 0;
+                    UI.SameLine();
+                    if (UI.Button("▲1")) sky_v_trim += 1;
+                    UI.SameLine();
+                    if (UI.Button("▲5")) sky_v_trim += 5;
+                    UI.SameLine();
+                    if (UI.Button("▲50")) sky_v_trim += 50;
+                    UI.SameLine();
+                    if (UI.Button("▲100")) sky_v_trim += 100;
+                    UI.PopId();
+                    UI.WindowEnd();
+                }
 
                 // Log window
 

@@ -13,7 +13,6 @@ ignore map images that got fetched after a new config was loaded
 
 observer: null should clean observer and set to map[0] center
 
-
 Bugs:
 - When switching configs the sky trails sometimes use incorrect previous pos
 - when no observer is set map center is used, yet it is't precisely equal to the initial map center reported?

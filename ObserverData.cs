@@ -6,6 +6,7 @@ namespace DutchSkies
 {
     public class ObserverData
     {
+        public string name;
         public float lat, lon;
         public float floor_altitude;  // meters
         public Vec3 map_position;
@@ -14,6 +15,7 @@ namespace DutchSkies
         public ObserverData()
         {
             // SURF building at Amsterdam Science Park
+            name = "SURF, Amsterdam";
             lat = 52.357036140185144f;
             lon = 4.954487434653384f;
             floor_altitude = /* street level */ -3.56f + 4f /* one floor */;
