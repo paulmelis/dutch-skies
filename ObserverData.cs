@@ -27,7 +27,7 @@ namespace DutchSkies
             float x = 0f, y = 0f;
             map.Project(out x, out y, lon, lat);
             map_position = new Vec3(x, y, floor_altitude / 1000f);
-            Log.Info($"observer lat {lat:F6}, lon {lon:F6}, alt {floor_altitude} m -> map pos = {x:F6}, {y:F6}");
+            Log.Info($"Observer: lat {lat:F6}, lon {lon:F6}, alt {floor_altitude} m (map pos = {x:F6}, {y:F6})");
         }
     };
 }

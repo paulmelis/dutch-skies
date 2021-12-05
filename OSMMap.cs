@@ -36,7 +36,7 @@ namespace DutchSkies
 
             center_lat = 0.5f * (min_lat + max_lat);
             center_lon = 0.5f * (min_lon + max_lon);
-            Log.Info("Center lat = " + center_lat + ", lon = " + center_lon);
+            Log.Info($"Center lat {center_lat:F6}, lon {center_lon:F6} (map '{name}')");
 
             // Compute width of map at center latitude
             // Radius at center latitude in kilometers
@@ -57,8 +57,8 @@ namespace DutchSkies
             Projection.epsg4326_to_epsg3857(out xx, out min_y, center_lon, min_lat);
             Projection.epsg4326_to_epsg3857(out xx, out max_y, center_lon, max_lat);
 
-            Log.Info($"Map X range: {min_x:F6}, {max_x:F6}");
-            Log.Info($"Map Y range: {min_y:F6}, {max_y:F6}");
+            Log.Info($"EPSG:3857 X range: {min_x:F6}, {max_x:F6}");
+            Log.Info($"EPSG:3857 Y range: {min_y:F6}, {max_y:F6}");
 
             x_extent = max_x - min_x;
             y_extent = max_y - min_y;

@@ -177,6 +177,8 @@ namespace DutchSkies
                         catch (Exception e)
                         {
                             Log.Err($"(tile fetch) Exception while fetching tile {i},{j}: {e.Message}");
+                            Log.Err($"(tile fetch) Inner exception: {e.InnerException.Message}");
+
                         }
                     }
                 }

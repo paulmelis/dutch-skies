@@ -223,11 +223,11 @@ namespace DutchSkies
 
             // XXX
             //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
-            string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-osmtiles.json";
+            //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-osmtiles.json";
             //string initial_config = "http://192.168.178.32:8000/config-newyork-image.json";
             //string initial_config = "http://192.168.178.32:8000/config-alps-image.json";
             //string initial_config = "http://192.168.178.32:8000/sanfrancisco-osmtiles.json";
-            ScheduleURLFetch(initial_config, "config_data", false, initial_config);
+            //ScheduleURLFetch(initial_config, "config_data", false, initial_config);
 
             // Prepare for QR scanning
 
@@ -259,6 +259,7 @@ namespace DutchSkies
             Pose main_window_pose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
             Pose log_window_pose = new Pose(0.9f, -0.2f, 0f, Quat.LookDir(-1, 0, 1));
 
+            string configuration_name = "<builtin>";
             DetailLevel detail_level = DetailLevel.FULL;
             bool show_log_window = true;
             bool show_flight_units = false;
@@ -399,6 +400,10 @@ namespace DutchSkies
                         // XXX handle error
                         JSONNode config_root = JSON.Parse(config_string);
 
+                        configuration_name = update.Item3;
+                        if (configuration_name.Length > 50)
+                            configuration_name = configuration_name.Substring(0, 50) + "...";
+
                         bool current_map_updated = false;
                         bool observer_updated = false;
                         bool explicit_query_extent = false;
@@ -526,6 +531,7 @@ namespace DutchSkies
                             observer_updated = true;
                         }
 
+                        landmarks.Clear();
                         if (config_root.HasKey("landmarks") && config_root["landmarks"].Count > 0)
                             UpdateLandmarks(config_root["landmarks"]);
 
@@ -883,7 +889,7 @@ namespace DutchSkies
                 //
 
                 // Main window
-                UI.WindowBegin("Dutch SKies", ref main_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
+                UI.WindowBegin($"Dutch SKies - {configuration_name}", ref main_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
 
                 UI.Toggle("Flight units", ref show_flight_units);
                 UI.SameLine();
@@ -1164,7 +1170,8 @@ namespace DutchSkies
                 }
                 catch (Exception e)
                 {
-                    Log.Info("(URL fetch) Exception " + e.Message);
+                    Log.Err($"(URL fetch) Exception      : {e.Message}");
+                    Log.Err($"(URL fetch) Inner exception: {e.InnerException.Message}");
                 }
             }
         }
@@ -1180,7 +1187,7 @@ namespace DutchSkies
             while (!extent_input_queue.TryDequeue(out extent))
                 Thread.Sleep(100);
 
-            Log.Info($"(data fetch) Initial query extent: lat {extent.x:F6} - {extent.y:F6}, lon {extent.z:F6} - {extent.w:F6}");
+            Log.Info($"(data fetch) Initial query extent: lat {extent.x:F6} to {extent.y:F6}; lon {extent.z:F6} to {extent.w:F6}");
             string URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
 
             while (true)
@@ -1188,7 +1195,7 @@ namespace DutchSkies
                 if (extent_input_queue.TryDequeue(out extent))
                 {
                     // Got updated extent
-                    Log.Info($"(data fetch) Got updated query extent: lat = {extent.x:F6} - {extent.y:F6}, lon = {extent.z:F6} - {extent.w:F6}");
+                    Log.Info($"(data fetch) Got updated query extent: lat {extent.x:F6} to {extent.y:F6}; lon {extent.z:F6} to {extent.w:F6}");
                     URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
                 }
 
@@ -1237,8 +1244,6 @@ namespace DutchSkies
         public static void UpdateLandmarks(JSONNode nodes)
         {
             Landmark lm;
-
-            landmarks.Clear();
 
             foreach (JSONNode n in nodes)
             {
