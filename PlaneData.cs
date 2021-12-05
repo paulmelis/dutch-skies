@@ -181,6 +181,10 @@ namespace DutchSkies
             // - +Z through lat=0, lon=0, i.e. (0, 0, R)
             // Compute transform needed to rotate and translate observer location (lat, lon) located
             // on the Earth surface onto (0, 0, 0), matching the local Up axis at (lat, lon) to the +Z axis
+            // XXX Nice, WGS84 uses +Z is North, +X is at zero longitude, +Y is East :)
+            // Should fix that at some point to be consistent
+            // XXX WGS84 spheroid is flattened, should include that here, although difference might be minimal.
+            // equatorial radius = 6378137.0 m, polar radius = 6356752.314245 m (0.335% less)
 
             // XXX a number of these can be precomputed and stored in ObserverData
             Matrix M =
