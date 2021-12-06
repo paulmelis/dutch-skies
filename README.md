@@ -312,16 +312,23 @@ any sections in it applied to the current scene.
 
 Whenever landmarks are loaded the button `Landmarks` in the UI will list the number of landmarks. When the button is
 enabled each landmark will be drawn as a vertical line with the ID of the landmark. In general, the alignment, especially
-with respect to North, will be off substantially. The UI provides button for trimming both horizontal rotation
-and vertical translation. Use these trimming buttons to get the overlay of the landmark lines in the right place. 
+with respect to North, will be off substantially. On the main UI window there's a button `Trim observer`, which
+opens a window for trimming both horizontal rotation and vertical translation. Use these trimming buttons to get 
+the overlay of the landmark lines in the right place. 
+
+Note that the Trim window will stay close to the observer
+position currently set (the wind rose on the floor), and will relocate in discrete steps based on head position. The reason
+for this is to not have to manually drag the window around while aligning landmarks that surround you, but also not to
+tie it directly to the head position and orientation (as the latter makes it harder to use). The current UX choice isn't
+perfect, so might get revisited at some point.
 
 
 ## Known issues and bugs
 
-* The device position and orientation at startup is taken as the mixed reality world origin and axis.
-  The map is placed slightly in front and below of this origin. There currently is no functionality to
-  move the map location, other than restarting (this only applies to the map, the sky view can, and usually needs to,
-  be trimmed, as described below).
+* The device position and orientation at application startup is taken as the mixed reality world origin and axis, 
+  with the view direction assumed to be North. The map is placed slightly in front and below of this origin. There currently 
+  is no functionality to move the map, other than restarting (this only applies to the map, the sky view can, and usually needs to,
+  be trimmed, as described above).
 
 * The JSON parsing isn't very robust currently, either to syntax errors in the JSON data itself,
   nor to fields/values that are expected, but missing.
