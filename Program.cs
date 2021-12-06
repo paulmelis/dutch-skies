@@ -225,12 +225,12 @@ namespace DutchSkies
             Log.Info("Tile fetch thread started");
 
             // XXX
-            string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
+            //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
             //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-osmtiles.json";
             //string initial_config = "http://192.168.178.32:8000/config-newyork-image.json";
             //string initial_config = "http://192.168.178.32:8000/config-alps-image.json";
             //string initial_config = "http://192.168.178.32:8000/sanfrancisco-osmtiles.json";
-            ScheduleURLFetch(initial_config, "config_data", false, initial_config);
+            //ScheduleURLFetch(initial_config, "config_data", false, initial_config);
 
             // Prepare for QR scanning
 
