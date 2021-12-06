@@ -106,6 +106,8 @@ You will need 3 things to use a custom map/sky view:
    By using the QR code only for providing the URL to the actual configuration allows you to update
    that configuration without having to update the QR code.
 
+See the `Example` directory for files corresponding to the examples below.
+
 ### Using a map tile service
 
 As an example, let's create a configuration for the San Francisco Bay area, where there are lots of airports.
@@ -456,7 +458,7 @@ Under the following terms:
 
 ### Attribution
 
-* The map files under `Assets/Maps` are generated from [OpenStreetMap](www.openstreetmap.org) tiles,
+* The map files under `Assets/Maps` and under `Example` are generated from [OpenStreetMap](www.openstreetmap.org) tiles,
   using the `Scripts/make_osm_map.py` script. The tiles, and the derived map images, have credit "(C) OpenStreetMap contributors"
   and are distributed under the [Open Data Commons Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/).
   See [here](https://www.openstreetmap.org/copyright) for more info.

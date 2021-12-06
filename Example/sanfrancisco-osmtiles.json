@@ -1,0 +1,24 @@
+{
+    "maps": [
+        {
+            "image_source": {
+                "type": "osm",
+                "tile_servers": [
+                    "http://a.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
+                    "http://b.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
+                    "http://c.tile.openstreetmap.org/{zoom}/{x}/{y}.png"
+                ],
+            },
+            "lat_range": [
+                37.160316546736766,
+                37.92686760148134
+            ],
+            "lon_range": [
+                -122.6953125,
+                -121.640625
+            ],
+            "name": "sanfrancisco",
+            "zoom": 12
+        }
+    ]
+}
