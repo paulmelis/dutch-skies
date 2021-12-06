@@ -5,6 +5,8 @@
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
 
+clear observer name on button when none is available
+
 add surf logo
 
 new york json: query area incorrect?
