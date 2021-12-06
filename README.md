@@ -342,7 +342,12 @@ perfect, so might get revisited at some point.
 * When loading a configuration that uses a large map image, the rendering can briefly be interrupted
   (even with the view going fully black), while the map is processed and uploaded to the GPU. At the moment,
   there is no easy fix for this.
-
+  
+* Most of the coordinate math is done in single-precision floating-point, which might be on the edge for
+  what is needed for some of the values (e.g. the EPSG:3857 map coordinates). But since StereoKit's matrix
+  and vector classes are also all single-precision there isn't much to be done about that currently (apart
+  from using double-precision replacement classes).
+  
 
 ## FAQ
 
