@@ -281,7 +281,7 @@ namespace DutchSkies
             int num_planes_on_ground = 0;
 
             const float TRACK_LINE_THICKNESS = 0.001f;
-            Color MAP_BASE_COLOR = new Color(1f, 0f, 0.5f);
+            Color MAP_BASE_COLOR = new Color(0.8f, 0f, 0.8f);
             Color32 MAP_TRACK_LINE_COLOR = new Color32(0, 0, 255, 255);
             Color SKY_BASE_COLOR = new Color(1f, 0f, 0f);
             Color SKY_TRAIL_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
@@ -518,7 +518,7 @@ namespace DutchSkies
                                 Log.Warn("No maps defined in config, not updating!");
                         }
 
-                        if (config_root.HasKey("observer"))
+                        if (config_root.HasKey("observer") && config_root["observer"].HasKey("id"))  // Guard against observer: {}
                         {
                             JSONNode jobs = config_root["observer"];
                             observer.name = jobs["id"]; // XXX "name"
@@ -531,6 +531,7 @@ namespace DutchSkies
                         {
                             // Need some setting for observer, so pick map center at 0m altitude
                             Log.Info("No observer set in configuration, so picking map center");
+                            observer.name = "<map center>";
                             observer.lat = current_map.center_lat;
                             observer.lon = current_map.center_lon;
                             observer.floor_altitude = 0f;
@@ -551,8 +552,8 @@ namespace DutchSkies
                             // Maps changed, but no query extent given. Set extent to union of all maps,
                             // to cover the whole area
                             float min_lat = 1e6f;
-                            float max_lat = 1e6f;
-                            float min_lon = -1e6f;
+                            float min_lon = 1e6f;
+                            float max_lat = -1e6f;                            
                             float max_lon = -1e6f;
                             foreach (OSMMap map in maps.Values)
                             {
@@ -913,7 +914,7 @@ namespace DutchSkies
                 }
                 UI.SameLine();
                 UI.Space(-0.04f);
-                UI.Toggle("Trim", ref show_trim_window);
+                UI.Toggle("Trim observer", ref show_trim_window);
                 UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} planes in query area ({num_planes_late} late, {num_planes_missing} missing)");
 
                 UI.HSeparator();
