@@ -51,6 +51,7 @@ def compute_energy(tx, ty, r):
     """RMS"""
     
     e2 = 0.0
+    n = 0
     for ob_origin, name, direction in OBSERVATIONS:
         #print(name)
         o2 = rot(ob_origin, r)
@@ -62,8 +63,9 @@ def compute_energy(tx, ty, r):
         dist = line_point_distance(o2, p2, GROUND_TRUTH[name])
         #print(dist)
         e2 += dist*dist
+        n += 1
         
-    return sqrt(e2)
+    return sqrt(e2/n)
     
 def rand_unit():
     return (random()-0.5)*2
@@ -117,6 +119,8 @@ if __name__ == '__main__':
         (best_energy, best_tx, best_ty, best_r))
     
     K = 20000
+    WO = 200
+    without_improvement = 0
     for k in range(0, K):
         T = 1 - (k+1)/K
         #print('Iter %d, T = %.6f' % (k, T))
@@ -148,7 +152,18 @@ if __name__ == '__main__':
             best_tx = can_tx
             best_ty = can_ty
             best_r = can_r
+            without_improvement = 0
         elif T > 0:
+            without_improvement += 1
+            if without_improvement == WO:
+                # Restart with last best solution
+                #print('Restarting')
+                tx = best_tx
+                ty = best_ty
+                r = best_r
+                without_improvement = 0
+                continue
+                
             #print(energy, best_energy, T)
             p = exp(-(energy-best_energy)/T)
             if random() <= p:
