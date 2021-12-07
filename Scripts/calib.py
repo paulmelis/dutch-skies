@@ -2,7 +2,7 @@
 from math import sqrt, degrees, radians, sin, cos, exp
 from random import random, randint, seed
 
-seed(123456)
+#seed(123456)
 
 def line_point_distance(p, q, t):
     """Return closest distance between 2D point t
@@ -100,6 +100,10 @@ if __name__ == '__main__':
     #print(compute_energy(tx, ty, r+270))
     #print(compute_energy(-2.972659, -3.278703, 155.837377-180))
     #print(compute_energy(-2.972659, -3.278703, 155.837377))    
+    
+    # Compute the transformation rot(R) followed by T(tx,ty)
+    # that maps the sky coordinate system (in which the ground truth
+    # points are defined) onto the observation coordinate system
     
     tx = 0.0
     ty = 0.0
