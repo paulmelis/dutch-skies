@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
 using System.IO;
+using System.Linq;
 using System.Threading;
+using Windows.Gaming.Input;
 using Windows.Networking;
 using Windows.Networking.Connectivity;
 using Microsoft.MixedReality.QR;
@@ -46,6 +48,7 @@ namespace DutchSkies
         static ObserverData observer;
         
         const float OBSERVER_WINDROSE_SIZE = 1f;    // meters
+        static AlignmentSolver alignment_solver;        
 
         // Query        
         const int OPENSKY_QUERY_INTERVAL = 8;
@@ -121,6 +124,14 @@ namespace DutchSkies
                 }
             }
 
+            Log.Info("Checking for gamepads...");
+            // XXX scoped lock needed?
+            //Windows.Foundation.Initialize
+            foreach (Gamepad gamepad in Gamepad.Gamepads)
+            {
+                Log.Info($"Found gamepad {gamepad}");
+            }
+
             // Planes
 
             plane_data = new Dictionary<string, PlaneData>();
@@ -135,6 +146,7 @@ namespace DutchSkies
             observer_marker_material[MatParamName.ColorTint] = new Color(1f, 0.5f, 0f);
 
             landmarks = new Dictionary<string, Landmark>();
+            alignment_solver = new AlignmentSolver();
 
             Mesh windrose_mesh = Mesh.GeneratePlane(new Vec2(1f, 1f), -Vec3.Forward, Vec3.Up);
             Material windrose_material = Material.Default.Copy();
@@ -225,12 +237,15 @@ namespace DutchSkies
             Log.Info("Tile fetch thread started");
 
             // XXX
-            //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
+            string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
             //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-osmtiles.json";
             //string initial_config = "http://192.168.178.32:8000/config-newyork-image.json";
             //string initial_config = "http://192.168.178.32:8000/config-alps-image.json";
             //string initial_config = "http://192.168.178.32:8000/sanfrancisco-osmtiles.json";
-            //ScheduleURLFetch(initial_config, "config_data", false, initial_config);
+            ScheduleURLFetch(initial_config, "config_data", false, initial_config);
+
+            initial_config = "http://192.168.178.32:8000/observer-and-landmarks-home-backroom.json";
+            ScheduleURLFetch(initial_config, "config_data", false, initial_config);
 
             // Prepare for QR scanning
 
@@ -256,6 +271,15 @@ namespace DutchSkies
                 Log.Info("Cannot perform QR code scanning, no permission given");
 
             scanning_for_qrcodes = false;
+
+            // Alignment
+
+            bool show_alignment_window = true;
+            Pose alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));
+            string current_alignment_landmark = "";
+            Vec3 alignment_offset = new Vec3();
+            float alignment_rotation = 0f;
+            bool use_alignment_transform = false;
 
             // Main settings
 
@@ -285,7 +309,10 @@ namespace DutchSkies
             Color32 MAP_TRACK_LINE_COLOR = new Color32(0, 0, 255, 255);
             Color SKY_BASE_COLOR = new Color(1f, 0f, 0f);
             Color SKY_TRAIL_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
-            Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);            
+            Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);
+
+            Color32 ALIGNMENT_LINE_COLOR = new Color32(0, 255, 0, 255);
+            const float ALIGNMENT_LINE_THICKNESS = 0.04f;
 
             const float SKY_SCALING_THRESHOLD = 3f;
             Matrix SKY_FAR_MODEL_SCALE = Matrix.S(30f);
@@ -747,7 +774,16 @@ namespace DutchSkies
                 // Assumes Forward (-Z) is pointing North, although a manual trim is applied on top of that
                 //
 
-                Hierarchy.Push(Matrix.R(0f, -sky_d_trim * 0.1f, 0f)*Matrix.T(0f, sky_v_trim*0.1f, 0f));
+                if (use_alignment_transform)
+                {
+                    Hierarchy.Push(
+                        Matrix.R(0f, alignment_rotation - sky_d_trim * 0.1f, 0f)
+                        *
+                        Matrix.T(alignment_offset + new Vec3(0f, sky_v_trim * 0.1f, 0f))
+                    );
+                }
+                else
+                    Hierarchy.Push(Matrix.R(0f, -sky_d_trim * 0.1f, 0f) * Matrix.T(0f, sky_v_trim * 0.1f, 0f));
 
                 bool scaled;
 
@@ -882,7 +918,32 @@ namespace DutchSkies
 
                 Hierarchy.Pop();
 
+                // Alignment (head coordinate space)
+                
+                Vec2 size = new Vec2(1 * U.cm, 0);
+
+                if (current_alignment_landmark != "")
+                {
+                    Hierarchy.Push(Input.Head.ToMatrix());
+
+                    Lines.Add(new Vec3(0f, -1.5f, -10f), new Vec3(0f, 1.5f, -10f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
+                    Lines.Add(new Vec3(-0.2f, 0f, -10f), new Vec3(0.2f, 0f, -10f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
+
+                    Pose awin_pose = new Pose(new Vec3(0.25f, 0f, -0.5f), Quat.FromAngles(0f, 180f, 0f));
+                    UI.WindowBegin("Alignment", ref awin_pose, size, UIWin.Empty);
+                    if (UI.Button(" Mark "))
+                    {
+                        alignment_solver.AddObservation(current_alignment_landmark,
+                            Input.Head.position, Input.Head.orientation.Rotate(new Vec3(0f, 0f, -1f)));
+                    }
+                    UI.WindowEnd();
+
+                    Hierarchy.Pop();
+                }
+
+                //                
                 // FPS counter
+                //
 
                 fps_num_frames++;
                 float now = Time.Totalf;
@@ -1052,6 +1113,42 @@ namespace DutchSkies
                     UI.SameLine();
                     if (UI.Button("▲100")) sky_v_trim += 100;
                     UI.PopId();
+                    UI.WindowEnd();
+                }
+
+                // Alignment window
+
+                if (show_alignment_window)
+                {
+                    UI.WindowBegin("Alignment", ref alignment_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
+                    if (UI.Button("Solve"))
+                        alignment_solver.Solve(out alignment_offset, out alignment_rotation);
+                    UI.SameLine();
+                    UI.Space(-0.02f);
+                    UI.Toggle("Use alignment", ref use_alignment_transform);
+                    UI.SameLine();
+                    UI.Space(-0.02f);
+                    if (UI.Button("Clear all"))
+                        alignment_solver.ClearObservations();
+                    UI.Text($"tx {alignment_offset.x:F3}, tz {alignment_offset.z:F3}, r {alignment_rotation}", TextAlign.Center);
+                    var lm_names = landmarks.Keys.ToList();
+                    lm_names.Sort();
+                    int col = 0;
+                    string caption;
+                    foreach (string lm_name in lm_names)
+                    {
+                        if (col < 3)
+                            UI.SameLine();
+                        else
+                            col = 0;
+
+                        Landmark lm = landmarks[lm_name];                       
+                        caption = $"{lm.id} [{alignment_solver.ObservationCount(lm.id)}]";
+
+                        if (UI.Radio(caption, current_alignment_landmark == lm.id))
+                            current_alignment_landmark = lm.id;
+                        col++;
+                    }
                     UI.WindowEnd();
                 }
 
@@ -1304,6 +1401,8 @@ namespace DutchSkies
             float x, y;
             Matrix M;
 
+            alignment_solver.ClearReferences();
+
             foreach (Landmark lm in landmarks.Values)
             {
                 // Map (km)
@@ -1324,6 +1423,8 @@ namespace DutchSkies
 
                 lm.sky_position = M.Transform(p);
                 Log.Info($"Landmark '{lm.id}' sky pos = {lm.sky_position}");
+
+                alignment_solver.SetReference(lm.id, lm.sky_position);
             }
         }
 
