@@ -6,7 +6,6 @@ using System.Net.Http;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using Windows.Gaming.Input;
 using Windows.Networking;
 using Windows.Networking.Connectivity;
 using Microsoft.MixedReality.QR;
@@ -124,13 +123,9 @@ namespace DutchSkies
                 }
             }
 
-            Log.Info("Checking for gamepads...");
-            // XXX scoped lock needed?
-            //Windows.Foundation.Initialize
-            foreach (Gamepad gamepad in Gamepad.Gamepads)
-            {
-                Log.Info($"Found gamepad {gamepad}");
-            }
+            // Gamepad
+
+            XboxController xbox_controller = new XboxController();
 
             // Planes
 
@@ -600,6 +595,27 @@ namespace DutchSkies
                     }
                     else
                         Log.Warn($"Unhandled update type '{update_type}!");
+                }
+
+                // Gamepad
+
+                if (xbox_controller.QueryState())
+                {
+                    if (xbox_controller.LeftThumbstickX < -0.2f)
+                        sky_d_trim--;
+                    else if (xbox_controller.LeftThumbstickX > 0.2f)
+                        sky_d_trim++;
+                    
+                    if (xbox_controller.Pressed(XboxController.DPAD_LEFT))
+                        sky_d_trim -= 5;
+                    else if (xbox_controller.Pressed(XboxController.DPAD_RIGHT))
+                        sky_d_trim += 5;
+
+                    if (xbox_controller.Pressed(XboxController.A))
+                    {
+                        alignment_solver.AddObservation(current_alignment_landmark,
+                            Input.Head.position, Input.Head.orientation.Rotate(new Vec3(0f, 0f, -1f)));
+                    }
                 }
 
                 //
