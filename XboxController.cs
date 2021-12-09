@@ -45,12 +45,28 @@ namespace DutchSkies
             // Pick first gamepad
             foreach (Gamepad gp in Gamepad.Gamepads)
             {
-                Log.Info($"Found gamepad {gp}");
+                Log.Info($"Found gamepad {gp.ToString()}");
                 gamepad = gp;
                 break;
             }
+
+            Gamepad.GamepadAdded += OnGamepadAdded;
         }
 
+        protected void OnGamepadAdded(object sender, Gamepad args)
+        {
+            Log.Info($"OnGamepadAdded {sender}, {args.ToString()}");
+            // XXX as we don't seem to get OnGamepadRemoved we can't null gamepad and the check is useless
+            //if (gamepad == null)
+            gamepad = args;
+        }
+
+        protected void OnGamepadRemoved(object sender, Gamepad args)
+        {
+            Log.Info($"OnGamepadRemoved {sender}, {args.ToString()}");
+            if (gamepad == args)
+                gamepad = null;
+        }
         public bool Detected { get { return gamepad != null;  } }
 
         public bool QueryState()

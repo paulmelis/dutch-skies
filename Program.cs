@@ -44,6 +44,7 @@ namespace DutchSkies
 
         // Sky mode
         static Dictionary<string, Landmark> landmarks;
+        static List<string> sorted_landmark_names;
         static ObserverData observer;
         
         const float OBSERVER_WINDROSE_SIZE = 1f;    // meters
@@ -141,6 +142,7 @@ namespace DutchSkies
             observer_marker_material[MatParamName.ColorTint] = new Color(1f, 0.5f, 0f);
 
             landmarks = new Dictionary<string, Landmark>();
+            sorted_landmark_names = landmarks.Keys.ToList();
             alignment_solver = new AlignmentSolver();
 
             Mesh windrose_mesh = Mesh.GeneratePlane(new Vec2(1f, 1f), -Vec3.Forward, Vec3.Up);
@@ -270,7 +272,7 @@ namespace DutchSkies
             // Alignment
 
             bool show_alignment_window = true;
-            Pose alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));
+            Pose alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));            
             string current_alignment_landmark = "";
             Vec3 alignment_offset = new Vec3();
             float alignment_rotation = 0f;
@@ -305,9 +307,10 @@ namespace DutchSkies
             Color SKY_BASE_COLOR = new Color(1f, 0f, 0f);
             Color SKY_TRAIL_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
             Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);
+            Color ALIGNMENT_TEXT_COLOR = new Color(0f, 1f, 0f);
 
             Color32 ALIGNMENT_LINE_COLOR = new Color32(0, 255, 0, 255);
-            const float ALIGNMENT_LINE_THICKNESS = 0.04f;
+            const float ALIGNMENT_LINE_THICKNESS = 0.1f;
 
             const float SKY_SCALING_THRESHOLD = 3f;
             Matrix SKY_FAR_MODEL_SCALE = Matrix.S(30f);
@@ -318,6 +321,7 @@ namespace DutchSkies
             TextStyle SKY_TEXT_STYLE = Text.MakeStyle(Default.Font, 15f * U.m, SKY_BASE_COLOR);
             TextStyle LANDMARK_TEXT_STYLE = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
             TextStyle MAP_DIMENSION_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.01f * U.m, Color.White);
+            TextStyle ALIGNMENT_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.35f * U.m, ALIGNMENT_TEXT_COLOR);
 
             Tuple<string, object, string> update;
             string update_type;
@@ -561,10 +565,7 @@ namespace DutchSkies
                         }
 
                         if (config_root.HasKey("landmarks") && config_root["landmarks"].Count > 0)
-                        {
-                            landmarks.Clear();
                             UpdateLandmarks(config_root["landmarks"]);
-                        }
 
                         if (observer_updated)
                             ObserverChanged();
@@ -605,11 +606,24 @@ namespace DutchSkies
                         sky_d_trim--;
                     else if (xbox_controller.LeftThumbstickX > 0.2f)
                         sky_d_trim++;
-                    
+
                     if (xbox_controller.Pressed(XboxController.DPAD_LEFT))
-                        sky_d_trim -= 5;
+                        sky_d_trim -= 10;
                     else if (xbox_controller.Pressed(XboxController.DPAD_RIGHT))
-                        sky_d_trim += 5;
+                        sky_d_trim += 10;
+
+                    if (xbox_controller.Pressed(XboxController.DPAD_UP))
+                    {
+                        int idx = sorted_landmark_names.IndexOf(current_alignment_landmark);
+                        idx = Math.Max(idx - 1, 0);
+                        current_alignment_landmark = sorted_landmark_names[idx];
+                    }
+                    else if (xbox_controller.Pressed(XboxController.DPAD_DOWN))
+                    {
+                        int idx = sorted_landmark_names.IndexOf(current_alignment_landmark);
+                        idx = Math.Min(sorted_landmark_names.Count-1, idx + 1);
+                        current_alignment_landmark = sorted_landmark_names[idx];
+                    }
 
                     if (xbox_controller.Pressed(XboxController.A))
                     {
@@ -942,17 +956,18 @@ namespace DutchSkies
                 {
                     Hierarchy.Push(Input.Head.ToMatrix());
 
-                    Lines.Add(new Vec3(0f, -1.5f, -10f), new Vec3(0f, 1.5f, -10f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
-                    Lines.Add(new Vec3(-0.2f, 0f, -10f), new Vec3(0.2f, 0f, -10f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
+                    Lines.Add(new Vec3(0f, -1.5f, -20f), new Vec3(0f, 1.5f, -20f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
+                    Lines.Add(new Vec3(-0.2f, 0f, -20f), new Vec3(0.2f, 0f, -20f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
+                    Text.Add(current_alignment_landmark, Matrix.R(0f,180f,0f)*Matrix.T(0f, -2f, -20f), ALIGNMENT_TEXT_STYLE);
 
-                    Pose awin_pose = new Pose(new Vec3(0.25f, 0f, -0.5f), Quat.FromAngles(0f, 180f, 0f));
+                    /*Pose awin_pose = new Pose(new Vec3(0.25f, 0f, -0.5f), Quat.FromAngles(0f, 180f, 0f));
                     UI.WindowBegin("Alignment", ref awin_pose, size, UIWin.Empty);
                     if (UI.Button(" Mark "))
                     {
                         alignment_solver.AddObservation(current_alignment_landmark,
                             Input.Head.position, Input.Head.orientation.Rotate(new Vec3(0f, 0f, -1f)));
                     }
-                    UI.WindowEnd();
+                    UI.WindowEnd();*/
 
                     Hierarchy.Pop();
                 }
@@ -1147,11 +1162,9 @@ namespace DutchSkies
                     if (UI.Button("Clear all"))
                         alignment_solver.ClearObservations();
                     UI.Text($"tx {alignment_offset.x:F3}, tz {alignment_offset.z:F3}, r {alignment_rotation}", TextAlign.Center);
-                    var lm_names = landmarks.Keys.ToList();
-                    lm_names.Sort();
                     int col = 0;
                     string caption;
-                    foreach (string lm_name in lm_names)
+                    foreach (string lm_name in sorted_landmark_names)
                     {
                         if (col < 3)
                             UI.SameLine();
@@ -1163,6 +1176,7 @@ namespace DutchSkies
 
                         if (UI.Radio(caption, current_alignment_landmark == lm.id))
                             current_alignment_landmark = lm.id;
+
                         col++;
                     }
                     UI.WindowEnd();
@@ -1258,7 +1272,7 @@ namespace DutchSkies
             observer.update_map_position(current_map);
             foreach (PlaneData plane in plane_data.Values)
                 plane.ObserverChange(observer);
-            RecomputeLandmarks();
+            RecomputeLandmarkPositions();
         }
 
         public static void ClearTracks()
@@ -1397,6 +1411,8 @@ namespace DutchSkies
         {
             Landmark lm;
 
+            landmarks.Clear();
+
             foreach (JSONNode n in nodes)
             {
                 // XXX needs more checks
@@ -1409,10 +1425,12 @@ namespace DutchSkies
                 lm = landmarks[id] = new Landmark(id, lat, lon, top_altitude, bottom_altitude);
             }
 
-            RecomputeLandmarks();
+            sorted_landmark_names = landmarks.Keys.ToList();
+
+            RecomputeLandmarkPositions();
         }
 
-        public static void RecomputeLandmarks()
+        public static void RecomputeLandmarkPositions()
         {
             float x, y;
             Matrix M;
