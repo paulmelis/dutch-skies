@@ -192,9 +192,9 @@ namespace DutchSkies
 
             // Floor (for non-seethrough devices)
 
-            Matrix floorTransform = Matrix.TS(0, -1.5f, 0, new Vec3(30, 0.1f, 30));
-            Material floorMaterial = new Material(Shader.FromFile("floor.hlsl"));
-            floorMaterial.Transparency = Transparency.Blend;
+            //Matrix floorTransform = Matrix.TS(0, -1.5f, 0, new Vec3(30, 0.1f, 30));
+            //Material floorMaterial = new Material(Shader.FromFile("floor.hlsl"));
+            //floorMaterial.Transparency = Transparency.Blend;
 
             //
             // Start some background threads
@@ -339,8 +339,8 @@ namespace DutchSkies
                 Vec3 head_pos = Input.Head.position;
                 Quat head_orientation = Input.Head.orientation;
 
-                if (SK.System.displayType == Display.Opaque)
-                    Default.MeshCube.Draw(floorMaterial, floorTransform);
+                //if (SK.System.displayType == Display.Opaque)
+                //    Default.MeshCube.Draw(floorMaterial, floorTransform);
 
                 // World origin (for debugging)
                 if (show_origin)
@@ -625,11 +625,24 @@ namespace DutchSkies
                         current_alignment_landmark = sorted_landmark_names[idx];
                     }
 
-                    if (xbox_controller.Pressed(XboxController.A))
+                    if (!use_alignment_transform && xbox_controller.Pressed(XboxController.A))
                     {
                         alignment_solver.AddObservation(current_alignment_landmark,
                             Input.Head.position, Input.Head.orientation.Rotate(new Vec3(0f, 0f, -1f)));
                     }
+                    else if (!use_alignment_transform && xbox_controller.Pressed(XboxController.X))
+                    {
+                        alignment_solver.RemoveObservations(current_alignment_landmark);
+                    }
+                    else if (xbox_controller.Pressed(XboxController.B))
+                    {
+                        alignment_solver.Solve(out alignment_offset, out alignment_rotation);
+                    }
+                    else if (xbox_controller.Pressed(XboxController.Y))
+                    {
+                        // Toggle use of alignment
+                        use_alignment_transform = !use_alignment_transform;
+                    }                    
                 }
 
                 //
@@ -958,7 +971,11 @@ namespace DutchSkies
 
                     Lines.Add(new Vec3(0f, -1.5f, -20f), new Vec3(0f, 1.5f, -20f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
                     Lines.Add(new Vec3(-0.2f, 0f, -20f), new Vec3(0.2f, 0f, -20f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
-                    Text.Add(current_alignment_landmark, Matrix.R(0f,180f,0f)*Matrix.T(0f, -2f, -20f), ALIGNMENT_TEXT_STYLE);
+                    Text.Add($"{current_alignment_landmark} ({alignment_solver.ObservationCount(current_alignment_landmark)})", 
+                        Matrix.R(0f,180f,0f)*Matrix.T(0f, -2f, -20f), ALIGNMENT_TEXT_STYLE);
+                    Text.Add($"tx {alignment_offset.x}, tz {alignment_offset.z}, r {alignment_rotation}", Matrix.R(0f, 180f, 0f) * Matrix.T(0f, -2.6f, -20f), ALIGNMENT_TEXT_STYLE);
+                    if (use_alignment_transform)
+                        Text.Add("(alignment transform used)", Matrix.R(0f, 180f, 0f) * Matrix.T(0f, -3.2f, -20f), ALIGNMENT_TEXT_STYLE);
 
                     /*Pose awin_pose = new Pose(new Vec3(0.25f, 0f, -0.5f), Quat.FromAngles(0f, 180f, 0f));
                     UI.WindowBegin("Alignment", ref awin_pose, size, UIWin.Empty);

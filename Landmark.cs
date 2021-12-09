@@ -135,6 +135,14 @@ namespace DutchSkies
             LandmarkObservation lmo = new LandmarkObservation(head_position, view_direction);
             observations[name].Add(lmo);
         }
+
+        public void RemoveObservations(string name)
+        {
+            if (!observations.ContainsKey(name))
+                return;
+
+            observations[name].Clear();
+        }
         public int ObservationCount(string name)
         {
             if (!observations.ContainsKey(name))
