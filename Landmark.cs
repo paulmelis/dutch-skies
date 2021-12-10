@@ -29,89 +29,95 @@ namespace DutchSkies
 
     class LandmarkObservation
     {
-        public Vec2 origin;
-        public Vec2 direction;
+        public Vec3 origin;
+        public Vec3 direction;
         public LandmarkObservation(Vec3 pos, Vec3 dir)
         {
-            origin = new Vec2(pos.x, -pos.z);
-            direction = new Vec2(dir.x, -dir.z);
+            origin = pos;
+            direction = dir;
             //Log.Info($"LO: {origin}, {direction}");
         }
     };
 
+    /*
+     * Given a set of reference points in the local tangent plane, and a set of observations
+     * (head position + view direction) in the SK world coordinate system, compute a rotation in Y,
+     * followed by translation in XZ, that maps the observations onto the reference points.
+     * This currently uses a pretty naive (but functional) solution strategy through simulated annealing.
+     */
     class AlignmentSolver
-    {
-        public Dictionary<string, Vec2> references;
+    {        
+        // Reference points in local tangent plane (i.e. sky coordinate system, +Y is up)
+        public Dictionary<string, Vec3> reference_points;
+        // All observations in SK world coordinate space, i.e. +Y is up
         public Dictionary<string, List<LandmarkObservation>> observations;
         public Random random;
 
-        // Return closest distance between 2D point t and the line between points p and q
-        static float line_point_distance(Vec2 p, Vec2 q, Vec2 t)
+        // Return closest distance *in the XZ plane* between the line from points p to q, and point t
+        static float line_point_distance_xz(Vec3 p, Vec3 q, Vec3 t)
         {
             float x1 = p.x;
-            float y1 = p.y;
+            //float y1 = p.y;
+            float z1 = p.z;
 
             float x2 = q.x;
-            float y2 = q.y;
+            //float y2 = q.y;
+            float z2 = q.z;
 
             float x0 = t.x;
-            float y0 = t.y;
+            //float y0 = t.y;
+            float z0 = t.z;
 
-            float num = MathF.Abs((x2 - x1) * (y1 - y0) - (x1 - x0) * (y2 - y1));
-            float den = MathF.Sqrt(MathF.Pow(x2 - x1, 2f) + MathF.Pow(y2 - y1, 2f));
+            float num = MathF.Abs((x2 - x1) * (z1 - z0) - (x1 - x0) * (z2 - z1));
+            float den = MathF.Sqrt(MathF.Pow(x2 - x1, 2f) + MathF.Pow(z2 - z1, 2f));
 
             return num / den;
         }
 
         // Positive rotation = CCW
-        static Vec2 rotate(Vec2 p, float angle_degrees)
+        // XXX can probably use Matrix.R directly here
+        static Vec3 rotate_y(Vec3 p, float angle_degrees)
         {
             float a = angle_degrees / 180f * MathF.PI;
             float cos_a = MathF.Cos(a);
             float sin_a = MathF.Sin(a);
 
-            float qx = cos_a * p.x - sin_a * p.y;
-            float qy = sin_a * p.x + cos_a * p.y;
+            float qx = cos_a * p.x + sin_a * p.z;
+            float qz = -sin_a * p.x + cos_a * p.z;
 
-            return new Vec2(qx, qy);
+            return new Vec3(qx, p.y, qz);
         }
 
         static public void Test()
         {
             AlignmentSolver s = new AlignmentSolver();
 
-            s.SetReference("A", new Vec3(3f, 0f, -6f));
-            s.SetReference("B", new Vec3(-7f, 0f, 11f));
-            s.SetReference("C", new Vec3(2f, 0f, 3f));
-            s.SetReference("D", new Vec3(-6f, 0f, -8f));
+            s.SetReference("RT", new Vec3(-891.0309f, 148f, 701.9933f));
+            s.SetReference("HKF", new Vec3(222.3811f, 33.5f, -189.894100f));
+            s.SetReference("HKB", new Vec3(259.083f, 30.5f, -178.2989f));
+            s.SetReference("BR", new Vec3(303.6142f, 30.5f, 79.835310f));
+            s.SetReference("DHL", new Vec3(-476.4835f, 64f, 254.3338f));
+            s.SetReference("SS", new Vec3(-52.751860f, 11f, -22.81f));
+            s.SetReference("BOOM", new Vec3(50.029740f, 9f, 115.9509f));
 
-            s.AddObservation("A", new Vec3(0f, 0f, 0f), new Vec3(1.7f, 0f, -10.8f));
-            s.AddObservation("A", new Vec3(-2.5f, 0f, -1.5f), new Vec3(3.9f, 0f, -9.9f));
-            s.AddObservation("B", new Vec3(0f, 0f, 0f), new Vec3(-0.6f, 0f, 8.7f));
-            s.AddObservation("C", new Vec3(0f, 0f, 0f), new Vec3(4.4f, 0f, -2.3f));
-            s.AddObservation("D", new Vec3(0f, 0f, 0f), new Vec3(-7.5f, 0f, -9f));
-
-            float tx = -2.9f;
-            float ty = -3.3f;
-            float r = -25.06f;
-
-            Log.Info($"{s.ComputeEnergy(tx, ty, r)}");
-            Log.Info($"{s.ComputeEnergy(tx, ty, r + 90f)}");
-            Log.Info($"{s.ComputeEnergy(tx, ty, r + 180f)}");
-            Log.Info($"{s.ComputeEnergy(tx, ty, r + 270f)}");
-            Log.Info($"{s.ComputeEnergy(-2.972659f, -3.278703f, 155.837377f - 180f)}");
-            Log.Info($"{s.ComputeEnergy(-2.972659f, -3.278703f, 155.837377f)}");
+            s.AddObservation("DHL", new Vec3(1.070687f, 0.084614f, 3.150276f), new Vec3(0.922612f, 0.123531f, -0.365413f));
+            s.AddObservation("SS", new Vec3(1.187483f, 0.075501f, 3.316733f), new Vec3(0.762326f, 0.122043f, 0.635582f));
+            s.AddObservation("BOOM", new Vec3(1.207898f, 0.053789f, 3.258828f), new Vec3(-0.362435f, 0.037529f, -0.931253f));
+            s.AddObservation("BOOM", new Vec3(2.160876f, 0.044619f, -5.497616f), new Vec3(-0.394080f, 0.017386f, -0.918912f));
+            s.AddObservation("SS", new Vec3(2.198612f, 0.063130f, -5.415352f), new Vec3(0.691618f, 0.079084f, 0.717921f));
+            s.AddObservation("HKF", new Vec3(2.145756f, 0.059008f, -5.169587f), new Vec3(-0.792862f, 0.044595f, 0.607767f));
+            s.AddObservation("RT", new Vec3(1.912785f, 0.056219f, -5.512104f), new Vec3(0.844261f, 0.071267f, -0.531173f));
 
             Vec3 t;
-
+            float r;
             s.Solve(out t, out r);
 
-            Log.Info($"solution tx={t.x}, ty={-t.z}, r={r}");
+            Log.Info($"solution tx={t.x}, ty={t.y}, tz={t.z}, r={r}");
         }
 
         public AlignmentSolver()
         {
-            references = new Dictionary<string, Vec2>();
+            reference_points = new Dictionary<string, Vec3>();
             observations = new Dictionary<string, List<LandmarkObservation>>();
             random = new Random();
         }
@@ -124,7 +130,7 @@ namespace DutchSkies
 
         public void SetReference(string name, Vec3 position)
         {
-            references[name] = new Vec2(position.x, -position.z);
+            reference_points[name] = position;
         }
 
         public void AddObservation(string name, Vec3 head_position, Vec3 view_direction)
@@ -151,11 +157,11 @@ namespace DutchSkies
             return observations[name].Count;
         }
 
-        public float ComputeEnergy(float tx, float ty, float r)
+        public float ComputeEnergy(float tx, float ty, float tz, float r)
         {
             float e2 = 0f;
             int n = 0;
-            Vec2 o2, p2;
+            Vec3 o2, p2;
             float dist;
 
             foreach (KeyValuePair<string,List<LandmarkObservation>> item in observations)
@@ -165,15 +171,15 @@ namespace DutchSkies
 
                 foreach (LandmarkObservation ob in item.Value)
                 {
-                    o2 = rotate(ob.origin, r);
-                    o2 = new Vec2(o2.x + tx, o2.y + ty);
+                    Vec3 translation = new Vec3(tx, ty, tz);
+
+                    o2 = rotate_y(ob.origin, r) + translation;
                     //Log.Info($"{o2}");
 
-                    p2 = rotate(ob.origin + ob.direction, r);
-                    p2 = new Vec2(p2.x + tx, p2.y + ty);
+                    p2 = rotate_y(ob.origin + ob.direction, r) + translation;
                     //Log.Info($"{p2}");
 
-                    dist = line_point_distance(o2, p2, references[name]);
+                    dist = line_point_distance_xz(o2, p2, reference_points[name]);
                     //Log.Info($"{dist}");
 
                     e2 += dist * dist;
@@ -189,13 +195,13 @@ namespace DutchSkies
 
         public void Clear()
         {
-            references.Clear();
+            reference_points.Clear();
             observations.Clear();
         }
 
         public void ClearReferences()
         {
-            references.Clear();
+            reference_points.Clear();
         }
 
         public void ClearObservations()
@@ -203,19 +209,20 @@ namespace DutchSkies
             observations.Clear();
         }
         
-        // Outputs as (tx, 0, -ty), to be consistent with the way input values are set
+        // XXX ty is never changed and will always be 0
         public void Solve(out Vec3 translation, out float rotation)
         {
-            float tx = 0f, ty = 0f, r = 0f, energy;
-            float best_tx, best_ty, best_r;
-            float cand_tx, cand_ty, cand_r;
+            float tx = 0f, ty = 0f, tz = 0f, r = 0f, energy;
+            float best_tx, best_ty, best_tz, best_r;
+            float cand_tx, cand_ty, cand_tz, cand_r;
             float best_energy;
 
             best_tx = tx;
             best_ty = ty;
+            best_tz = tz;
             best_r = r;
-            best_energy = ComputeEnergy(tx, ty, r);
-            Log.Info($"Energy {best_energy:F6} (initial) | tx={tx:F6}, ty={ty:F6}, r={r:F6}");
+            best_energy = ComputeEnergy(tx, ty, tz, r);
+            Log.Info($"Energy {best_energy:F6} (initial) | tx={tx:F6}, ty={ty:F6}, tz={tz:F6}, r={r:F6}");
 
             const int K = 20000;
             const int WO = 200;
@@ -230,24 +237,28 @@ namespace DutchSkies
                 // Pick neighbour
                 cand_tx = tx;
                 cand_ty = ty;
+                cand_tz = tz;
                 cand_r = r;
 
                 idx = random.Next() % 3;
                 if (idx == 0)
                     cand_tx = tx + RandUnit() * 200f * T;
+                // Note: ty is never altered
                 else if (idx == 1)
-                    cand_ty = ty + RandUnit() * 200f * T;
+                    cand_tz = tz + RandUnit() * 200f * T;
                 else
                     cand_r = (r + RandUnit() * 360f * T) % 360;
 
-                energy = ComputeEnergy(cand_tx, cand_ty, cand_r);
+                energy = ComputeEnergy(cand_tx, cand_ty, cand_tz, cand_r);
 
                 if (energy < best_energy)
                 {
-                    Log.Info($"[{k}] Energy {energy:F6} (new best) | tx={tx:F6}, ty={ty:F6}, r={r:F6}");
+                    // Better solution, always accept
+                    Log.Info($"[{k}] Energy {energy:F6} (new best) | tx={cand_tx:F6}, ty={cand_ty:F6}, tz={cand_tz:F6}, r={cand_r:F6}");
                     best_energy = energy;
                     best_tx = cand_tx;
                     best_ty = cand_ty;
+                    best_tz = cand_tz;
                     best_r = cand_r;
                     without_improvement = 0;
                 }
@@ -256,10 +267,11 @@ namespace DutchSkies
                     without_improvement += 1;
                     if (without_improvement == WO)
                     {
-                        // Restart with last best solution
+                        // Stuck in local minimum, restart with best solution found so far
                         Log.Info($"[{k}] Restarting with best solution so far");
                         tx = best_tx;
                         ty = best_ty;
+                        tz = best_tz;
                         r = best_r;
                         without_improvement = 0;
                         continue;
@@ -268,16 +280,18 @@ namespace DutchSkies
                     p = MathF.Exp(-(energy - best_energy) / T);
                     if (random.Next() <= p)
                     {
+                        // Worse solution, but accept anyway
                         tx = cand_tx;
                         ty = cand_ty;
+                        tz = cand_tz;
                         r = cand_r;
                     }
                 }
             }
 
-            Log.Info($"Best: tx={tx:F6}, ty={ty:F6}, r={r:F6} (energy {best_energy:F6})");
+            Log.Info($"Best: tx={tx:F6}, ty={ty:F6}, tz={tz:F6}, r={r:F6} (energy {best_energy:F6})");
 
-            translation = new Vec3(best_tx, 0f, -best_ty);
+            translation = new Vec3(best_tx, best_ty, best_tz);
             rotation = best_r;
         }
     };

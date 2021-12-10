@@ -5,7 +5,9 @@ using System.Globalization;
 using System.Net.Http;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
+using Windows.Data.Json;
 using Windows.Networking;
 using Windows.Networking.Connectivity;
 using Microsoft.MixedReality.QR;
@@ -15,12 +17,18 @@ using StereoKit;
 namespace DutchSkies
 {
     using URLFetchRequest = Tuple<string, string, bool, string>;
-    using TileFetchRequest = Tuple<int, int, int, int, int, string[], string>;    
+    using TileFetchRequest = Tuple<int, int, int, int, int, string[], string>;
+    using PostMessageRequest = Tuple<string>;
 
     class Program
     {
         enum DetailLevel { NONE, CALLSIGN, FULL };
         const float PLANE_SIZE_METERS = 0.015f;
+
+        // Some often used transforms
+        static Matrix ROT_90_X = Matrix.R(-90f, 0f, 0f);
+        static Matrix ROT_MIN90_X = Matrix.R(-90f, 0f, 0f);
+        static Matrix ROT_180_Y = Matrix.R(0f, 180f, 0f);
 
         // Log
         static List<string> log_lines = new List<string>();
@@ -60,6 +68,7 @@ namespace DutchSkies
         static BlockingCollection<URLFetchRequest> url_requests_queue;
         // Tile fetch queue (mini/j, maxi/j, zoom, payload)
         static BlockingCollection<TileFetchRequest> tile_requests_queue;
+        static BlockingCollection<PostMessageRequest> message_send_queue;
 
         // QR code scanning
         static bool scanning_for_qrcodes;
@@ -106,10 +115,6 @@ namespace DutchSkies
             Renderer.SetClip(0.08f, 10000f);
             Renderer.EnableSky = false;
 
-            // Some often used transforms
-            Matrix ROT_MIN90_X = Matrix.R(-90f, 0f, 0f);
-            Matrix ROT_180_Y = Matrix.R(0f, 180f, 0f);
-
             // Determine IP address (useful in debugging)
             string our_ip = "<unknown>";
             foreach (HostName localHostName in NetworkInformation.GetHostNames())
@@ -143,6 +148,8 @@ namespace DutchSkies
 
             landmarks = new Dictionary<string, Landmark>();
             sorted_landmark_names = landmarks.Keys.ToList();
+            AlignmentSolver.Test();
+            SK.Quit();
             alignment_solver = new AlignmentSolver();
 
             Mesh windrose_mesh = Mesh.GeneratePlane(new Vec2(1f, 1f), -Vec3.Forward, Vec3.Up);
@@ -233,16 +240,24 @@ namespace DutchSkies
             tiles_fetch_thread.Start(new Tuple<object,object>(tile_requests_queue,updates_queue));
             Log.Info("Tile fetch thread started");
 
-            // XXX
-            string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
-            //string initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-osmtiles.json";
-            //string initial_config = "http://192.168.178.32:8000/config-newyork-image.json";
-            //string initial_config = "http://192.168.178.32:8000/config-alps-image.json";
-            //string initial_config = "http://192.168.178.32:8000/sanfrancisco-osmtiles.json";
-            ScheduleURLFetch(initial_config, "config_data", false, initial_config);
+            message_send_queue = new BlockingCollection<PostMessageRequest>(new ConcurrentQueue<PostMessageRequest>());
+            var post_messages_thread = new Thread(PostMessagesThread);
+            post_messages_thread.IsBackground = true;
+            post_messages_thread.Start();
+            Log.Info("Message post thread started");
 
+            // XXX
+            string initial_config = "";
+            //initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
+            //initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-osmtiles.json";
+            //initial_config = "http://192.168.178.32:8000/config-newyork-image.json";
+            //initial_config = "http://192.168.178.32:8000/config-alps-image.json";
+            //initial_config = "http://192.168.178.32:8000/sanfrancisco-osmtiles.json";
+            //initial_config = "https://surfdrive.surf.nl/files/index.php/s/mzR0FisZZQkKLm1/download?path=%2F&files=observer-and-landmarks-frankendael.json";
+            //ScheduleURLFetch(initial_config, "config_data", false, initial_config);
             initial_config = "http://192.168.178.32:8000/observer-and-landmarks-home-backroom.json";
-            ScheduleURLFetch(initial_config, "config_data", false, initial_config);
+            if (initial_config != "")
+                ScheduleURLFetch(initial_config, "config_data", false, initial_config);
 
             // Prepare for QR scanning
 
@@ -330,6 +345,8 @@ namespace DutchSkies
             int fps_num_frames = 0;
             float fps_start_time = Time.Totalf;
             float fps = 0f;
+
+            SchedulePostMessage("Entering main loop");
 
             // Core application loop
             while (SK.Step(() =>
@@ -631,16 +648,24 @@ namespace DutchSkies
 
                     if (!use_alignment_transform && xbox_controller.Pressed(XboxController.A))
                     {
-                        alignment_solver.AddObservation(current_alignment_landmark,
-                            Input.Head.position, Input.Head.orientation.Rotate(new Vec3(0f, 0f, -1f)));
+                        var hp = Input.Head.position;
+                        var ho = Input.Head.orientation.Rotate(new Vec3(0f, 0f, -1f));
+                        JsonObject jo = new JsonObject();
+                        jo["lm"] = JsonValue.CreateStringValue(current_alignment_landmark);
+                        jo["head_pos"] = JsonValue.CreateStringValue($"[{hp.x:F6}, {hp.y:F6}, {hp.z:F6}]");
+                        jo["head_ori"] = JsonValue.CreateStringValue($"[{ho.x:F6}, {ho.y:F6}, {ho.z:F6}]");
+                        SchedulePostMessage(jo.ToString());
+                        alignment_solver.AddObservation(current_alignment_landmark, hp, ho);                            
                     }
                     else if (!use_alignment_transform && xbox_controller.Pressed(XboxController.X))
                     {
+                        SchedulePostMessage($"Remove observations, lm {current_alignment_landmark}, ");
                         alignment_solver.RemoveObservations(current_alignment_landmark);
                     }
                     else if (xbox_controller.Pressed(XboxController.B))
-                    {
+                    {                        
                         alignment_solver.Solve(out alignment_offset, out alignment_rotation);
+                        SchedulePostMessage($"Solve -> ({alignment_offset.x:F6}, {alignment_offset.y:F6}, {alignment_offset.z:F6}), {alignment_rotation}");
                     }
                     else if (xbox_controller.Pressed(XboxController.Y))
                     {
@@ -1314,6 +1339,11 @@ namespace DutchSkies
             TileFetchRequest request = new TileFetchRequest(min_i, max_i, min_j, max_j, zoom, servers, map_name);
             tile_requests_queue.Add(request);
         }
+        static void SchedulePostMessage(string message)
+        {
+            PostMessageRequest request = new PostMessageRequest(message);
+            message_send_queue.Add(request);
+        }
 
         static async void FetchURLThread()
         {
@@ -1364,6 +1394,58 @@ namespace DutchSkies
                 }
             }
         }
+
+        static async void PostMessagesThread()
+        {
+            PostMessageRequest request;
+            string message;            
+            string webhook_url = "";
+            string json_message;
+            StringContent data;
+
+            HttpClient http_client = new HttpClient();
+
+            while (true)
+            {
+                //Log.Info($"(configuration fetch thread) waiting for url");
+                request = message_send_queue.Take();
+                message = request.Item1;
+
+                if (webhook_url == "")
+                {
+                    Log.Info($"No discord webhook set, not sending message '{message}'");
+                    continue;
+                }
+
+                Log.Info($"(Post message) Sending '{message}'");
+
+                JsonObject dataobj = new JsonObject();
+                dataobj["content"] = JsonValue.CreateStringValue(message);
+                json_message = dataobj.ToString();
+
+                data = new StringContent(json_message, Encoding.UTF8, "application/json");
+
+                try
+                {
+                    HttpResponseMessage response = await http_client.PostAsync(webhook_url, data);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        Log.Err($"(Post message) HTTP error {response.StatusCode} while attempting to post to {webhook_url}!");
+                        continue;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.Err($"(Post message) Exception      : {e.Message}");
+                    Log.Err($"(Post message) Inner exception: {e.InnerException.Message}");
+                }
+
+                // Avoid TooManyRequests error
+                // XXX handle errors in a better way by reposting after a backoff
+                Thread.Sleep(200);
+            }
+        }
+
 
         static async void FetchPlaneUpdates(object obj)
         {
@@ -1446,6 +1528,8 @@ namespace DutchSkies
                 float bottom_altitude = n["botalt"];
                 
                 lm = landmarks[id] = new Landmark(id, lat, lon, top_altitude, bottom_altitude);
+
+                SchedulePostMessage($"landmark {n.ToString()}");
             }
 
             sorted_landmark_names = landmarks.Keys.ToList();            
@@ -1459,6 +1543,8 @@ namespace DutchSkies
             Matrix M;
 
             alignment_solver.ClearReferences();
+
+            SchedulePostMessage($"RecomputeLandmarkPositions: observer lat {observer.lat:F6}, lon {observer.lon:F6}, alt {observer.floor_altitude:F6}");
 
             foreach (Landmark lm in landmarks.Values)
             {
@@ -1478,8 +1564,11 @@ namespace DutchSkies
 
                 Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + lm.top_altitude);
 
-                lm.sky_position = M.Transform(p);
-                Log.Info($"Landmark '{lm.id}' sky pos = {lm.sky_position}");
+                // Note: Z-up to Y-up
+                lm.sky_position = ROT_90_X.Transform(M.Transform(p));                
+
+                Log.Info($"Landmark '{lm.id}' sky pos reference (Y-up) = {lm.sky_position}");
+                SchedulePostMessage($"(skypos reference, Y-up) landmark {lm.id} lat {lm.lat}, lon {lm.lon} -> {lm.sky_position.x:F6}, {lm.sky_position.y:F6}, {lm.sky_position.z:F6}");
 
                 alignment_solver.SetReference(lm.id, lm.sky_position);
             }

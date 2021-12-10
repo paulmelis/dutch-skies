@@ -5,6 +5,11 @@
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
 
+
+use Windows.Data.Json instead of SimpleJSON
+
+
+
 guard against empty id's and names in configs
 
 clear observer name on button when none is available
