@@ -271,8 +271,8 @@ namespace DutchSkies
 
             // Alignment
 
-            bool show_alignment_window = true;
-            Pose alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));            
+            bool alignment_mode = false;
+            Pose alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));                       
             string current_alignment_landmark = "";
             Vec3 alignment_offset = new Vec3();
             float alignment_rotation = 0f;
@@ -565,7 +565,11 @@ namespace DutchSkies
                         }
 
                         if (config_root.HasKey("landmarks") && config_root["landmarks"].Count > 0)
+                        {
                             UpdateLandmarks(config_root["landmarks"]);
+                            if (sorted_landmark_names.Count > 0)
+                                current_alignment_landmark = sorted_landmark_names[0];
+                        }
 
                         if (observer_updated)
                             ObserverChanged();
@@ -600,7 +604,7 @@ namespace DutchSkies
 
                 // Gamepad
 
-                if (xbox_controller.QueryState())
+                if (alignment_mode && xbox_controller.QueryState())
                 {
                     if (xbox_controller.LeftThumbstickX < -0.2f)
                         sky_d_trim--;
@@ -961,17 +965,17 @@ namespace DutchSkies
 
                 Hierarchy.Pop();
 
-                // Alignment (head coordinate space)
-                
-                Vec2 size = new Vec2(1 * U.cm, 0);
+                // Alignment (head coordinate space)                                
 
-                if (current_alignment_landmark != "")
+                if (alignment_mode && current_alignment_landmark != "")
                 {
+                    Vec2 size = new Vec2(1 * U.cm, 0);
+
                     Hierarchy.Push(Input.Head.ToMatrix());
 
                     Lines.Add(new Vec3(0f, -1.5f, -20f), new Vec3(0f, 1.5f, -20f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
                     Lines.Add(new Vec3(-0.2f, 0f, -20f), new Vec3(0.2f, 0f, -20f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
-                    Text.Add($"{current_alignment_landmark} ({alignment_solver.ObservationCount(current_alignment_landmark)})", 
+                    Text.Add($"[{alignment_solver.ObservationCount(current_alignment_landmark)}] {current_alignment_landmark}", 
                         Matrix.R(0f,180f,0f)*Matrix.T(0f, -2f, -20f), ALIGNMENT_TEXT_STYLE);
                     Text.Add($"tx {alignment_offset.x}, tz {alignment_offset.z}, r {alignment_rotation}", Matrix.R(0f, 180f, 0f) * Matrix.T(0f, -2.6f, -20f), ALIGNMENT_TEXT_STYLE);
                     if (use_alignment_transform)
@@ -1023,7 +1027,9 @@ namespace DutchSkies
                 }
                 UI.SameLine();
                 UI.Space(-0.04f);
-                UI.Toggle("Trim observer", ref show_trim_window);
+                UI.Toggle("Alignment", ref alignment_mode);
+                UI.SameLine();
+                UI.Toggle("Trim", ref show_trim_window);
                 UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} planes in query area ({num_planes_late} late, {num_planes_missing} missing)");
 
                 UI.HSeparator();
@@ -1166,7 +1172,7 @@ namespace DutchSkies
 
                 // Alignment window
 
-                if (show_alignment_window)
+                if (alignment_mode)
                 {
                     UI.WindowBegin("Alignment", ref alignment_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
                     if (UI.Button("Solve"))
@@ -1189,7 +1195,7 @@ namespace DutchSkies
                             col = 0;
 
                         Landmark lm = landmarks[lm_name];                       
-                        caption = $"{lm.id} [{alignment_solver.ObservationCount(lm.id)}]";
+                        caption = $"[{alignment_solver.ObservationCount(lm.id)}] {lm.id}";
 
                         if (UI.Radio(caption, current_alignment_landmark == lm.id))
                             current_alignment_landmark = lm.id;
@@ -1442,7 +1448,7 @@ namespace DutchSkies
                 lm = landmarks[id] = new Landmark(id, lat, lon, top_altitude, bottom_altitude);
             }
 
-            sorted_landmark_names = landmarks.Keys.ToList();
+            sorted_landmark_names = landmarks.Keys.ToList();            
 
             RecomputeLandmarkPositions();
         }
