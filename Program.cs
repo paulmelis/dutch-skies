@@ -56,7 +56,7 @@ namespace DutchSkies
         static ObserverData observer;
         
         const float OBSERVER_WINDROSE_SIZE = 1f;    // meters
-        static AlignmentSolver alignment_solver;        
+        static AlignmentSolver alignment_solver;
 
         // Query        
         const int OPENSKY_QUERY_INTERVAL = 8;

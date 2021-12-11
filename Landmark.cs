@@ -74,6 +74,17 @@ namespace DutchSkies
             return num / den;
         }
 
+        static bool behind_xz(Vec3 p, Vec3 q, Vec3 t)
+        {
+            /* Return if point t is behind the observer at p (who is viewing from p to q).
+            Ignores Y */
+            Vec3 v = q - p;
+            v.y = 0f;
+            Vec3 w = t - p;
+            w.y = 0f;
+            return Vec3.Dot(v, w) < 0f;
+        }
+
         // Positive rotation = CCW
         // XXX can probably use Matrix.R directly here
         static Vec3 rotate_y(Vec3 p, float angle_degrees)
@@ -163,30 +174,36 @@ namespace DutchSkies
         {
             float e2 = 0f;
             int n = 0;
-            Vec3 o2, p2;
+            Vec3 ob2;
+            Vec3 r2;
             float dist;
+            string ref_name;
+            Vec3 ref_position;
 
-            foreach (KeyValuePair<string,List<LandmarkObservation>> item in observations)
+            foreach (KeyValuePair<string, Vec3> ref_point in reference_points)
             {
-                string name = item.Key;
-                //Log.Info(name);
+                ref_name = ref_point.Key;
 
-                foreach (LandmarkObservation ob in item.Value)
+                if (!observations.ContainsKey(ref_name))
+                    continue;
+
+                ref_position = ref_point.Value;
+                r2 = rotate_y(ref_position, r) + new Vec3(tx, ty, tz);
+
+                foreach (LandmarkObservation ob in observations[ref_name])
                 {
-                    Vec3 translation = new Vec3(tx, ty, tz);
-
-                    o2 = rotate_y(ob.origin, r) + translation;
-                    //Log.Info($"{o2}");
-
-                    p2 = rotate_y(ob.origin + ob.direction, r) + translation;
-                    //Log.Info($"{p2}");
-
-                    dist = line_point_distance_xz(o2, p2, reference_points[name]);
+                    ob2 = ob.origin + ob.direction;
+                    dist = line_point_distance_xz(ob.origin, ob2, r2);
                     //Log.Info($"{dist}");
 
+                    // Penalize solution when point is behind, as seen along viewing direction
+                    if (behind_xz(ob.origin, ob2, r2))
+                        dist += 1000f;
+
                     e2 += dist * dist;
-                    n++;
                 }
+
+                n++;
             }
 
             if (n == 0)
@@ -226,8 +243,8 @@ namespace DutchSkies
             best_energy = ComputeEnergy(tx, ty, tz, r);
             Log.Info($"Energy {best_energy:F6} (initial) | tx={tx:F6}, ty={ty:F6}, tz={tz:F6}, r={r:F6}");
 
-            const int K = 20000;
-            const int WO = 400;
+            const int K = 50000;
+            const int WO = 2000;
             int without_improvement = 0;
             float T, p;
             int idx;
@@ -263,6 +280,10 @@ namespace DutchSkies
                     best_tz = cand_tz;
                     best_r = cand_r;
                     without_improvement = 0;
+                    tx = cand_tx;
+                    ty = cand_ty;
+                    tz = cand_tz;
+                    r = cand_r;
                 }
                 else if (T > 0f)
                 {
