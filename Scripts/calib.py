@@ -96,12 +96,12 @@ if __name__ == '__main__':
         ((0,0), 'D', (-7.5, 9))
     ]
     
-    #print(compute_energy(tx, ty, r))
-    #print(compute_energy(tx, ty, r+90))
-    #print(compute_energy(tx, ty, r+180))    
-    #print(compute_energy(tx, ty, r+270))
-    #print(compute_energy(-2.972659, -3.278703, 155.837377-180))
-    #print(compute_energy(-2.972659, -3.278703, 155.837377))    
+    print(compute_energy(tx, ty, r))
+    print(compute_energy(tx, ty, r+90))
+    print(compute_energy(tx, ty, r+180))    
+    print(compute_energy(tx, ty, r+270))
+    print(compute_energy(-2.972659, -3.278703, 155.837377-180))
+    print(compute_energy(-2.972659, -3.278703, 155.837377))    
     
     # Compute the transformation rot(R) followed by T(tx,ty)
     # that maps the sky coordinate system (in which the ground truth
