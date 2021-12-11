@@ -69,6 +69,7 @@ namespace DutchSkies
         // Tile fetch queue (mini/j, maxi/j, zoom, payload)
         static BlockingCollection<TileFetchRequest> tile_requests_queue;
         static BlockingCollection<PostMessageRequest> message_send_queue;
+        static bool discord_messages_enabled = false;
 
         // QR code scanning
         static bool scanning_for_qrcodes;
@@ -148,8 +149,6 @@ namespace DutchSkies
 
             landmarks = new Dictionary<string, Landmark>();
             sorted_landmark_names = landmarks.Keys.ToList();
-            AlignmentSolver.Test();
-            SK.Quit();
             alignment_solver = new AlignmentSolver();
 
             Mesh windrose_mesh = Mesh.GeneratePlane(new Vec2(1f, 1f), -Vec3.Forward, Vec3.Up);
@@ -664,8 +663,10 @@ namespace DutchSkies
                     }
                     else if (xbox_controller.Pressed(XboxController.B))
                     {                        
-                        alignment_solver.Solve(out alignment_offset, out alignment_rotation);
-                        SchedulePostMessage($"Solve -> ({alignment_offset.x:F6}, {alignment_offset.y:F6}, {alignment_offset.z:F6}), {alignment_rotation}");
+                        // The found solution transform the observations onto the world coordinate system
+                        float res = alignment_solver.Solve(out alignment_offset, out alignment_rotation);
+
+                        SchedulePostMessage($"Solve -> ({alignment_offset.x:F6}, {alignment_offset.y:F6}, {alignment_offset.z:F6}), {alignment_rotation} (energy {res:F6})");
                     }
                     else if (xbox_controller.Pressed(XboxController.Y))
                     {
@@ -1044,17 +1045,19 @@ namespace DutchSkies
                     ClearTracks();
                 UI.SameLine();
                 // See https://github.com/maluoi/StereoKit/issues/248
-                UI.Space(-0.04f);
+                UI.Space(-0.02f);
                 if (UI.Toggle("Scan QR code", ref scanning_for_qrcodes))
                 {
                     //Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
                     SetQRCodeScan();
                 }
                 UI.SameLine();
-                UI.Space(-0.04f);
+                UI.Space(-0.03f);
                 UI.Toggle("Alignment", ref alignment_mode);
                 UI.SameLine();
                 UI.Toggle("Trim", ref show_trim_window);
+                UI.SameLine();
+                UI.Space(-0.03f);                
                 UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} planes in query area ({num_planes_late} late, {num_planes_missing} missing)");
 
                 UI.HSeparator();
@@ -1110,9 +1113,11 @@ namespace DutchSkies
                 string time = DateTime.Now.ToString("HH:mm:ss");
                 UI.Label("Debug:");
                 UI.SameLine();
+                UI.Toggle("Origin", ref show_origin);
+                UI.SameLine();
                 UI.Toggle("Log", ref show_log_window);
                 UI.SameLine();
-                UI.Toggle("Origin", ref show_origin);
+                UI.Toggle("Discord", ref discord_messages_enabled);
                 UI.SameLine();
                 UI.Label($"IP:{our_ip} • {time} • {fps:F1} FPS");
                 UI.SameLine();
@@ -1341,6 +1346,8 @@ namespace DutchSkies
         }
         static void SchedulePostMessage(string message)
         {
+            if (!discord_messages_enabled)
+                return;
             PostMessageRequest request = new PostMessageRequest(message);
             message_send_queue.Add(request);
         }
@@ -1564,13 +1571,14 @@ namespace DutchSkies
 
                 Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + lm.top_altitude);
 
+                lm.sky_position = M.Transform(p);
+
+                Log.Info($"Landmark '{lm.id}' sky pos reference (Z-up) = {lm.sky_position}");
+                SchedulePostMessage($"(skypos reference, Z-up) landmark {lm.id} lat {lm.lat}, lon {lm.lon} -> {lm.sky_position.x:F6}, {lm.sky_position.y:F6}, {lm.sky_position.z:F6}");
+
                 // Note: Z-up to Y-up
-                lm.sky_position = ROT_90_X.Transform(M.Transform(p));                
-
-                Log.Info($"Landmark '{lm.id}' sky pos reference (Y-up) = {lm.sky_position}");
-                SchedulePostMessage($"(skypos reference, Y-up) landmark {lm.id} lat {lm.lat}, lon {lm.lon} -> {lm.sky_position.x:F6}, {lm.sky_position.y:F6}, {lm.sky_position.z:F6}");
-
-                alignment_solver.SetReference(lm.id, lm.sky_position);
+                // XXX Should really alter the above transform to produce Y-up positions directly
+                alignment_solver.SetReference(lm.id, ROT_90_X.Transform(lm.sky_position));
             }
         }
 

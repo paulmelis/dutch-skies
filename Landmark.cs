@@ -130,6 +130,7 @@ namespace DutchSkies
 
         public void SetReference(string name, Vec3 position)
         {
+            Log.Info($"Solver: reference point '{name}', position {position} (Y-up)");
             reference_points[name] = position;
         }
 
@@ -138,6 +139,7 @@ namespace DutchSkies
             if (!observations.ContainsKey(name))
                 observations[name] = new List<LandmarkObservation>();
 
+            Log.Info($"Solver: observation '{name}', head_position {head_position}, view_direction {view_direction} (Y-up)");
             LandmarkObservation lmo = new LandmarkObservation(head_position, view_direction);
             observations[name].Add(lmo);
         }
@@ -210,7 +212,7 @@ namespace DutchSkies
         }
         
         // XXX ty is never changed and will always be 0
-        public void Solve(out Vec3 translation, out float rotation)
+        public float Solve(out Vec3 translation, out float rotation)
         {
             float tx = 0f, ty = 0f, tz = 0f, r = 0f, energy;
             float best_tx, best_ty, best_tz, best_r;
@@ -225,7 +227,7 @@ namespace DutchSkies
             Log.Info($"Energy {best_energy:F6} (initial) | tx={tx:F6}, ty={ty:F6}, tz={tz:F6}, r={r:F6}");
 
             const int K = 20000;
-            const int WO = 200;
+            const int WO = 400;
             int without_improvement = 0;
             float T, p;
             int idx;
@@ -242,10 +244,10 @@ namespace DutchSkies
 
                 idx = random.Next() % 3;
                 if (idx == 0)
-                    cand_tx = tx + RandUnit() * 200f * T;
+                    cand_tx = tx + RandUnit() * 400f * T;
                 // Note: ty is never altered
                 else if (idx == 1)
-                    cand_tz = tz + RandUnit() * 200f * T;
+                    cand_tz = tz + RandUnit() * 400f * T;
                 else
                     cand_r = (r + RandUnit() * 360f * T) % 360;
 
@@ -293,6 +295,8 @@ namespace DutchSkies
 
             translation = new Vec3(best_tx, best_ty, best_tz);
             rotation = best_r;
+
+            return best_energy;
         }
     };
 

@@ -8,6 +8,7 @@
 
 use Windows.Data.Json instead of SimpleJSON
 
+use monospace font for log window?
 
 
 guard against empty id's and names in configs
