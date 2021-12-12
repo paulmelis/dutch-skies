@@ -1106,8 +1106,7 @@ namespace DutchSkies
 
         public static void PrepareBuiltinMaps()
         {
-            MapSet map_set = new MapSet();
-
+            MapSet map_set = new MapSet("<default>");
             OSMMap map;
 
             // Whole of the Netherlands
@@ -1311,7 +1310,7 @@ namespace DutchSkies
             while (!extent_input_queue.TryDequeue(out extent))
                 Thread.Sleep(100);
 
-            Log.Info($"(data fetch) Initial query extent: lat {extent.x:F6} to {extent.y:F6}; lon {extent.z:F6} to {extent.w:F6}");
+            Log.Info($"(Data fetch) Initial query extent: lat {extent.x:F6} to {extent.y:F6}; lon {extent.z:F6} to {extent.w:F6}");
             string URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
 
             while (true)
@@ -1319,7 +1318,7 @@ namespace DutchSkies
                 if (extent_input_queue.TryDequeue(out extent))
                 {
                     // Got updated extent
-                    Log.Info($"(data fetch) Got updated query extent: lat {extent.x:F6} to {extent.y:F6}; lon {extent.z:F6} to {extent.w:F6}");
+                    Log.Info($"(Data fetch) Got updated query extent: lat {extent.x:F6} to {extent.y:F6}; lon {extent.z:F6} to {extent.w:F6}");
                     URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
                 }
 
@@ -1328,14 +1327,15 @@ namespace DutchSkies
                     HttpResponseMessage response = await http_client.GetAsync(URL);
                     response.EnsureSuccessStatusCode();
                     string body = await response.Content.ReadAsStringAsync();
-                    //Log.Info("(data fetch): " + body);
+                    //Log.Info("(Data fetch): " + body);
 
                     JSONNode root_node = JSON.Parse(body);
                     updates_queue.Enqueue(new Tuple<string, object, string>("plane_data", root_node, ""));
                 }
-                catch (HttpRequestException e)
+                catch (Exception e)
                 {
-                    Log.Info("(data fetch): Exception " + e.Message);
+                    Log.Err($"(Data fetch) Exception      : {e.Message}");
+                    Log.Err($"(Data fetch) Inner exception: {e.InnerException.Message}");
                 }
 
                 Thread.Sleep(OPENSKY_QUERY_INTERVAL * 1000);
@@ -1461,13 +1461,33 @@ namespace DutchSkies
                 explicit_query_extent = true;
             }*/
 
-            if (config_root.HasKey("maps"))
+            if (config_root.HasKey("map_sets"))
             {
-                JSONArray jmaps = config_root["maps"].AsArray;
-
-                if (jmaps.Count > 0)
+                JSONArray jmap_sets = config_root["map_sets"].AsArray;
+                JSONArray jmaps;
+                MapSet map_set;
+                string map_set_id;
+                OSMMap map;
+                
+                foreach (JSONNode jmap_set in jmap_sets)
                 {
-                    maps.Clear();
+                    if (!jmap_set.HasKey("id"))
+                    {
+                        // XXX list index in sets
+                        Log.Err($"Map-set does not have 'id' field, ignoring!");
+                        continue;
+                    }
+
+                    map_set_id = jmap_set["id"];
+
+                    if (!jmap_set.HasKey("items") || jmap_set["items"].Count == 0)
+                    {
+                        Log.Err($"Map-set '{map_set_id}' does not contain any maps, ignoring!");
+                        continue;
+                    }
+
+                    map_set = new MapSet(map_set_id);
+                    jmaps = jmap_set["items"].AsArray;
 
                     bool first = true;
                     float min_lat, max_lat, min_lon, max_lon;
@@ -1492,6 +1512,7 @@ namespace DutchSkies
                                 Log.Info($"Assuming image source relative to config URL: {imgurl}");
                             }
 
+                            // XXX needs to include (map_set, name)
                             Log.Info($"Scheduling fetching of map image {imgurl} for map '{name}'");
                             ScheduleURLFetch(imgurl, "map_image", true, name);
 
@@ -1500,7 +1521,8 @@ namespace DutchSkies
                             min_lon = jmap["lon_range"][0];
                             max_lon = jmap["lon_range"][1];
 
-                            OSMMap map = maps[name] = new OSMMap(name, min_lat, max_lat, min_lon, max_lon);
+                            map = new OSMMap(name, min_lat, max_lat, min_lon, max_lon);
+                            map_set.Add(name, map);                            
                         }
                         else if (imgsource["type"] == "osm")
                         {
@@ -1536,8 +1558,10 @@ namespace DutchSkies
                                 out min_i, out max_i, out min_j, out max_j,
                                     query_extent, jmap["zoom"]);
 
-                            OSMMap map = maps[name] = new OSMMap(name, min_lat, max_lat, min_lon, max_lon);
+                            map = new OSMMap(name, min_lat, max_lat, min_lon, max_lon);
+                            map_set.Add(name, map);
 
+                            // XXX needs to include (map_set, name)
                             Log.Info($"Scheduling fetching of map tiles for map '{name}' ({min_i}-{max_i}, {min_j}-{max_j}, {jmap["zoom"]})");
                             ScheduleTileFetch(min_i, max_i, min_j, max_j, jmap["zoom"], tile_servers, name);
                         }
@@ -1551,11 +1575,7 @@ namespace DutchSkies
                             current_map_updated = true;
                         }
                     }
-
-                    //Configuration.StoreConfiguration("maps", 
                 }
-                else
-                    Log.Warn("No maps defined in config, not updating!");
             }
 
             if (config_root.HasKey("observer") && config_root["observer"].HasKey("id"))  // Guard against observer: {}

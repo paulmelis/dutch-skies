@@ -11,6 +11,15 @@ use Windows.Data.Json instead of SimpleJSON
 use monospace font for log window?
 
 
+when alignment solution is applied, observer windrose needs to move
+to current position (and not original observer position), plus
+its orientation will need to be based on the true North, instead of
+transformed startup Forward direction
+
+could show actual observer location after alignment solution?
+if we can find a way to map back to lat, lon
+
+
 guard against empty id's and names in configs
 
 clear observer name on button when none is available

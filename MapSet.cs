@@ -9,8 +9,9 @@ namespace DutchSkies
 		public Dictionary<string, OSMMap> maps;
 		public string default_map;
 
-		public MapSet()
+		public MapSet(string id)
 		{
+			this.id = id;
 			maps = new Dictionary<string, OSMMap>();
 			default_map = "";
 		}
