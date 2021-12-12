@@ -73,6 +73,7 @@
   <ItemGroup>
     <Compile Include="Configuration.cs" />
     <Compile Include="Landmark.cs" />
+    <Compile Include="MapSet.cs" />
     <Compile Include="ObserverData.cs" />
     <Compile Include="OSMMap.cs" />
     <Compile Include="OSMTiles.cs" />

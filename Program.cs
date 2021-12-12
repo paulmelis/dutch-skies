@@ -47,6 +47,7 @@ namespace DutchSkies
         static float realworld_map_height;
         const float MAP_WINDROSE_SIZE = 0.1f;      // meters
 
+        static Dictionary<string, MapSet> map_sets;
         static Dictionary<string, OSMMap> maps;
         static string current_map_name;
         static OSMMap current_map;
@@ -172,19 +173,17 @@ namespace DutchSkies
 
             Matrix MAP_PLACEMENT_XFORM = Matrix.T(1f * Vec3.Forward - 0.7f * Vec3.Up);
 
-            maps = new Dictionary<string, OSMMap>();
-
             map_material = Default.Material.Copy();
             // Disable backface culling on the map for now, for debugging
             map_material.FaceCull = Cull.None;
 
             map_scale_km_to_scene = 0.001f;
 
+            map_sets = new Dictionary<string, MapSet>();
+
             // Prepare built-in maps and select default
-            PrepareMaps();
-            SetMap("The Netherlands");
-            //SetMap("Schiphol Airport");
-            observer.update_map_position(current_map);
+            PrepareBuiltinMaps();
+            SelectMapSet("<default>");
 
             //
             // Some models
@@ -1105,32 +1104,36 @@ namespace DutchSkies
             SK.Shutdown();
         }
 
-        public static void PrepareMaps()
+        public static void PrepareBuiltinMaps()
         {
+            MapSet map_set = new MapSet();
+
             OSMMap map;
 
             // Whole of the Netherlands
-            map = maps["The Netherlands"] = new OSMMap(
+            map = new OSMMap(
                     "The Netherlands",
                     50.51342652633955f, 53.9560855309879f, 2.8125f, 8.0859375f, 10);
-
             map.texture = Tex.FromFile("Maps\\netherlands.png");
+            map_set.Add("The Netherlands", map);
 
             // Schiphol Airport
-            map = maps["Schiphol Airport"] = new OSMMap(
+            map = new OSMMap(
                 "Schiphol Airport",
                 51.89005393521691f, 52.69636107827448f, 4.04296875f, 5.361328125f, 12
             );
-
             map.texture = Tex.FromFile("Maps\\schiphol.png");
+            map_set.Add("Schiphol Airport", map);
 
             // Eindhoven Airport
-            map = maps["Eindhoven Airport"] = new OSMMap(
+            map = new OSMMap(
                 "Eindhoven Airport",
                 51.28940590271678f, 51.6180165487737f, 5.09765625f, 5.712890625f, 12
             );
-
             map.texture = Tex.FromFile("Maps\\eindhoven.png");
+            map_set.Add("Eindhoven Airport", map);
+
+            map_sets["<default>"] = map_set;
         }
 
         public static void SetMap(string map, double draw_time = 0.0)
@@ -1425,6 +1428,15 @@ namespace DutchSkies
             }
         }
 
+        public static void SelectMapSet(string id)
+        {
+            // XXX
+            MapSet map_set = map_sets[id];
+            maps = map_set.maps;
+            SetMap(map_set.default_map);
+            observer.update_map_position(current_map);
+        }
+
         // XXX get rid of draw_time
         public static void ProcessConfigurationData(string config_string, string config_url, double draw_time)
         {
@@ -1549,7 +1561,7 @@ namespace DutchSkies
             if (config_root.HasKey("observer") && config_root["observer"].HasKey("id"))  // Guard against observer: {}
             {
                 JSONNode jobs = config_root["observer"];
-                observer.name = jobs["id"]; // XXX "name"
+                observer.name = jobs["id"];
                 observer.lat = jobs["lat"];
                 observer.lon = jobs["lon"];
                 observer.floor_altitude = jobs["alt"];
