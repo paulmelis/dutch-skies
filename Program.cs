@@ -35,6 +35,7 @@ namespace DutchSkies
         static string log_text = "";
         static LogLevel log_level = LogLevel.Info;
 
+        // Plane data
         static Dictionary<string, PlaneData> plane_data;
 
         // Map geometry 
@@ -54,7 +55,7 @@ namespace DutchSkies
         static Dictionary<string, Landmark> landmarks;
         static List<string> sorted_landmark_names;
         static ObserverData observer;
-        
+
         const float OBSERVER_WINDROSE_SIZE = 1f;    // meters
         static AlignmentSolver alignment_solver;
 
@@ -79,7 +80,7 @@ namespace DutchSkies
         static System.Guid last_qrcode_id;
 
         static void OnLog(LogLevel level, string text)
-        {            
+        {
             string time = DateTime.Now.ToString("HH:mm:ss.fff");
             if (log_lines.Count > 20)
                 log_lines.RemoveAt(0);
@@ -141,7 +142,7 @@ namespace DutchSkies
             // Observer
 
             observer = new ObserverData();
-            
+
             Mesh observer_cylinder_marker = Mesh.GenerateCylinder(0.002f, 0.02f, Vec3.UnitY, 8);
             Mesh observer_sphere_marker = Mesh.GenerateSphere(0.006f, 8);
             Material observer_marker_material = Default.Material.Copy();
@@ -235,8 +236,8 @@ namespace DutchSkies
             // input: lat/lon range, zoomlevel, tile servers
             tile_requests_queue = new BlockingCollection<TileFetchRequest>(new ConcurrentQueue<TileFetchRequest>());
             var tiles_fetch_thread = new Thread(OSMTiles.FetchMapTiles);
-            tiles_fetch_thread.IsBackground = true;            
-            tiles_fetch_thread.Start(new Tuple<object,object>(tile_requests_queue,updates_queue));
+            tiles_fetch_thread.IsBackground = true;
+            tiles_fetch_thread.Start(new Tuple<object, object>(tile_requests_queue, updates_queue));
             Log.Info("Tile fetch thread started");
 
             message_send_queue = new BlockingCollection<PostMessageRequest>(new ConcurrentQueue<PostMessageRequest>());
@@ -286,7 +287,7 @@ namespace DutchSkies
             // Alignment
 
             bool alignment_mode = false;
-            Pose alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));                       
+            Pose alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));
             string current_alignment_landmark = "";
             Vec3 alignment_offset = new Vec3();
             float alignment_rotation = 0f;
@@ -296,7 +297,7 @@ namespace DutchSkies
 
             Pose main_window_pose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
             Pose log_window_pose = new Pose(0.9f, -0.2f, 0f, Quat.LookDir(-1, 0, 1));
-            
+
             DetailLevel detail_level = DetailLevel.FULL;
             bool show_log_window = true;
             bool show_trim_window = false;
@@ -307,7 +308,7 @@ namespace DutchSkies
             bool map_show_track_lines = true, sky_show_trail_lines = true;
             bool map_show_observer = false;
             bool sky_show_landmarks = true;
-            bool show_origin = false;            
+            bool show_origin = false;
             int sky_d_trim = 0;         // In 0.1 degree increments
             int sky_v_trim = 0;         // In centimeters
 
@@ -449,7 +450,7 @@ namespace DutchSkies
 
                         configuration_name = update.Item3;
                         if (configuration_name.Length > 63)
-                            configuration_name = configuration_name.Substring(0, 30) + "..." + configuration_name.Substring(configuration_name.Length-30);
+                            configuration_name = configuration_name.Substring(0, 30) + "..." + configuration_name.Substring(configuration_name.Length - 30);
 
                         bool current_map_updated = false;
                         bool observer_updated = false;
@@ -596,7 +597,7 @@ namespace DutchSkies
                             // to cover the whole area
                             float min_lat = 1e6f;
                             float min_lon = 1e6f;
-                            float max_lat = -1e6f;                            
+                            float max_lat = -1e6f;
                             float max_lon = -1e6f;
                             foreach (OSMMap map in maps.Values)
                             {
@@ -641,7 +642,7 @@ namespace DutchSkies
                     else if (xbox_controller.Pressed(XboxController.DPAD_DOWN))
                     {
                         int idx = sorted_landmark_names.IndexOf(current_alignment_landmark);
-                        idx = Math.Min(sorted_landmark_names.Count-1, idx + 1);
+                        idx = Math.Min(sorted_landmark_names.Count - 1, idx + 1);
                         current_alignment_landmark = sorted_landmark_names[idx];
                     }
 
@@ -654,7 +655,7 @@ namespace DutchSkies
                         jo["head_pos"] = JsonValue.CreateStringValue($"[{hp.x:F6}, {hp.y:F6}, {hp.z:F6}]");
                         jo["head_ori"] = JsonValue.CreateStringValue($"[{ho.x:F6}, {ho.y:F6}, {ho.z:F6}]");
                         SchedulePostMessage(jo.ToString());
-                        alignment_solver.AddObservation(current_alignment_landmark, hp, ho);                            
+                        alignment_solver.AddObservation(current_alignment_landmark, hp, ho);
                     }
                     else if (!use_alignment_transform && xbox_controller.Pressed(XboxController.X))
                     {
@@ -662,7 +663,7 @@ namespace DutchSkies
                         alignment_solver.RemoveObservations(current_alignment_landmark);
                     }
                     else if (xbox_controller.Pressed(XboxController.B))
-                    {                        
+                    {
                         // The found solution transform the observations onto the world coordinate system
                         float res = alignment_solver.Solve(out alignment_offset, out alignment_rotation);
 
@@ -672,7 +673,7 @@ namespace DutchSkies
                     {
                         // Toggle use of alignment
                         use_alignment_transform = !use_alignment_transform;
-                    }                    
+                    }
                 }
 
                 //
@@ -693,21 +694,21 @@ namespace DutchSkies
                     windrose_mesh.Draw(windrose_material,
                         ROT_MIN90_X *
                         Matrix.S(MAP_WINDROSE_SIZE) *
-                        Matrix.T(-REALWORLD_MAP_WIDTH*0.5f + 0.52f*MAP_WINDROSE_SIZE, ABOVE, realworld_map_height*0.5f -0.52f*MAP_WINDROSE_SIZE));
+                        Matrix.T(-REALWORLD_MAP_WIDTH * 0.5f + 0.52f * MAP_WINDROSE_SIZE, ABOVE, realworld_map_height * 0.5f - 0.52f * MAP_WINDROSE_SIZE));
 
                     // Dimensions
-                    Text.Add($"{current_map.width:F0} km", ROT_180_Y*ROT_MIN90_X*Matrix.T(0f, 0f, 0.5f*realworld_map_height+0.01f), MAP_DIMENSION_TEXT_STYLE,
+                    Text.Add($"{current_map.width:F0} km", ROT_180_Y * ROT_MIN90_X * Matrix.T(0f, 0f, 0.5f * realworld_map_height + 0.01f), MAP_DIMENSION_TEXT_STYLE,
                         TextAlign.TopCenter);
-                    Text.Add($"{current_map.height:F0} km", ROT_180_Y*ROT_MIN90_X*Matrix.R(0f,-90f,0f)*Matrix.T(0.5f * REALWORLD_MAP_WIDTH+0.01f, 0f, 0f), MAP_DIMENSION_TEXT_STYLE,
-                        TextAlign.CenterLeft);                    
+                    Text.Add($"{current_map.height:F0} km", ROT_180_Y * ROT_MIN90_X * Matrix.R(0f, -90f, 0f) * Matrix.T(0.5f * REALWORLD_MAP_WIDTH + 0.01f, 0f, 0f), MAP_DIMENSION_TEXT_STYLE,
+                        TextAlign.CenterLeft);
                 }
-                
+
                 // Planes
 
                 num_planes_on_map = 0;
                 num_planes_on_ground = 0;
                 num_planes_late = 0;
-                num_planes_missing = 0;                
+                num_planes_missing = 0;
 
                 foreach (var plane in plane_data.Values)
                 {
@@ -720,7 +721,7 @@ namespace DutchSkies
                         continue;
                     }
                     else if (plane.update_state == PlaneData.UpdateState.LATE)
-                    {                        
+                    {
                         callsign = $"({callsign})";
                         num_planes_late++;
                     }
@@ -729,7 +730,7 @@ namespace DutchSkies
 
                     var map_pos = plane.computed_map_position;
                     var pos = ROT_MIN90_X * map_pos * map_scale_km_to_scene;
-    
+
                     // XXX should use interpolated map-space position
                     if (!current_map.OnMapLatLon(plane.last_lat, plane.last_lon))
                         continue;
@@ -752,7 +753,7 @@ namespace DutchSkies
                     }
 
                     // Plane information
-                    
+
                     Vec3 dir = head_pos - MAP_PLACEMENT_XFORM.Transform(pos);
                     dir.y = 0f;
                     Quat textquat = Quat.LookDir(dir);
@@ -863,7 +864,7 @@ namespace DutchSkies
                 foreach (var plane in plane_data.Values)
                 {
                     if (plane.on_ground)
-                        continue;                    
+                        continue;
 
                     if (plane.update_state == PlaneData.UpdateState.MISSING)
                         continue;
@@ -987,7 +988,7 @@ namespace DutchSkies
 
                 // Observer origin and orientation
                 // XXX as we don't have an exact distance to the floor use a good guess
-                windrose_mesh.Draw(windrose_material, ROT_MIN90_X*Matrix.S(OBSERVER_WINDROSE_SIZE)*Matrix.T(0f, -1.5f, 0f));
+                windrose_mesh.Draw(windrose_material, ROT_MIN90_X * Matrix.S(OBSERVER_WINDROSE_SIZE) * Matrix.T(0f, -1.5f, 0f));
 
                 Hierarchy.Pop();
 
@@ -1001,8 +1002,8 @@ namespace DutchSkies
 
                     Lines.Add(new Vec3(0f, -1.5f, -20f), new Vec3(0f, 1.5f, -20f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
                     Lines.Add(new Vec3(-0.2f, 0f, -20f), new Vec3(0.2f, 0f, -20f), ALIGNMENT_LINE_COLOR, ALIGNMENT_LINE_THICKNESS);
-                    Text.Add($"[{alignment_solver.ObservationCount(current_alignment_landmark)}] {current_alignment_landmark}", 
-                        Matrix.R(0f,180f,0f)*Matrix.T(0f, -2f, -20f), ALIGNMENT_TEXT_STYLE);
+                    Text.Add($"[{alignment_solver.ObservationCount(current_alignment_landmark)}] {current_alignment_landmark}",
+                        Matrix.R(0f, 180f, 0f) * Matrix.T(0f, -2f, -20f), ALIGNMENT_TEXT_STYLE);
                     Text.Add($"tx {alignment_offset.x}, tz {alignment_offset.z}, r {alignment_rotation}", Matrix.R(0f, 180f, 0f) * Matrix.T(0f, -2.6f, -20f), ALIGNMENT_TEXT_STYLE);
                     if (use_alignment_transform)
                         Text.Add("(alignment transform used)", Matrix.R(0f, 180f, 0f) * Matrix.T(0f, -3.2f, -20f), ALIGNMENT_TEXT_STYLE);
@@ -1057,7 +1058,7 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Toggle("Trim", ref show_trim_window);
                 UI.SameLine();
-                UI.Space(-0.03f);                
+                UI.Space(-0.03f);
                 UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} planes in query area ({num_planes_late} late, {num_planes_missing} missing)");
 
                 UI.HSeparator();
@@ -1139,16 +1140,16 @@ namespace DutchSkies
                     // Zero rotation will be -Z (which is +Y and thus angle 90 for atan2)
                     angle -= 90f;
 
-                    Vec3 window_pos = new Vec3(0f, head_pos.y-0.2f, 0f) + Matrix.R(0f, angle, 0f).Transform(-0.6f*Vec3.UnitZ); 
+                    Vec3 window_pos = new Vec3(0f, head_pos.y - 0.2f, 0f) + Matrix.R(0f, angle, 0f).Transform(-0.6f * Vec3.UnitZ);
 
                     Pose trim_window_pose = new Pose(
                         window_pos,
                         // Window needs to face the other way, hence angle+180
-                        Quat.FromAngles(0f, angle+180f, 0f)* Quat.FromAngles(30f, 0f, 0f)   // Tilt the window a bit
+                        Quat.FromAngles(0f, angle + 180f, 0f) * Quat.FromAngles(30f, 0f, 0f)   // Tilt the window a bit
                     );
 
                     //UI.WindowBegin($"Trim; head lookdir = {head_lookdir_xz} -> angle = {angle}", ref trim_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);                    
-                    UI.WindowBegin("Trim", ref trim_window_pose, new Vec2(50, 0) * U.cm, UIWin.Body);                    
+                    UI.WindowBegin("Trim", ref trim_window_pose, new Vec2(50, 0) * U.cm, UIWin.Body);
                     UI.Toggle($"Landmarks ({landmarks.Count})", ref sky_show_landmarks);
                     UI.SameLine();
                     UI.Space(-0.2f);
@@ -1224,7 +1225,7 @@ namespace DutchSkies
                         else
                             col = 0;
 
-                        Landmark lm = landmarks[lm_name];                       
+                        Landmark lm = landmarks[lm_name];
                         caption = $"[{alignment_solver.ObservationCount(lm.id)}] {lm.id}";
 
                         if (UI.Radio(caption, current_alignment_landmark == lm.id))
@@ -1250,7 +1251,7 @@ namespace DutchSkies
                     if (UI.Radio("Error", log_level == LogLevel.Error)) { log_level = Log.Filter = LogLevel.Error; }
                     UI.WindowEnd();
                 }
-            }));
+            })) ;
 
             if (qrcode_watcher != null)
                 qrcode_watcher.Stop();
@@ -1263,7 +1264,7 @@ namespace DutchSkies
         }
 
         public static void PrepareMaps()
-        {            
+        {
             OSMMap map;
 
             // Whole of the Netherlands
@@ -1290,11 +1291,11 @@ namespace DutchSkies
             map.texture = Tex.FromFile("Maps\\eindhoven.png");
         }
 
-        public static void SetMap(string map, double draw_time=0.0)
+        public static void SetMap(string map, double draw_time = 0.0)
         {
             current_map_name = map;
             current_map = maps[map];
-            
+
             // Compute MR size for map
             realworld_map_height = REALWORLD_MAP_WIDTH * current_map.height / current_map.width;
             Log.Info($"Map physical size {REALWORLD_MAP_WIDTH:F2} x {realworld_map_height:F2} m");
@@ -1381,7 +1382,7 @@ namespace DutchSkies
                         Log.Err($"(URL fetch) HTTP error {response.StatusCode} while attempting to fetch {url}!");
                         continue;
                     }
-                            
+
                     if (binary)
                     {
                         byte[] data = await response.Content.ReadAsByteArrayAsync();
@@ -1405,7 +1406,7 @@ namespace DutchSkies
         static async void PostMessagesThread()
         {
             PostMessageRequest request;
-            string message;            
+            string message;
             string webhook_url = "";
             string json_message;
             StringContent data;
@@ -1478,14 +1479,14 @@ namespace DutchSkies
                 }
 
                 try
-                {                    
+                {
                     HttpResponseMessage response = await http_client.GetAsync(URL);
                     response.EnsureSuccessStatusCode();
                     string body = await response.Content.ReadAsStringAsync();
                     //Log.Info("(data fetch): " + body);
 
                     JSONNode root_node = JSON.Parse(body);
-                    updates_queue.Enqueue(new Tuple<string,object,string>("plane_data", root_node, ""));
+                    updates_queue.Enqueue(new Tuple<string, object, string>("plane_data", root_node, ""));
                 }
                 catch (HttpRequestException e)
                 {
@@ -1533,13 +1534,13 @@ namespace DutchSkies
                 float lon = n["lon"];
                 float top_altitude = n["topalt"];
                 float bottom_altitude = n["botalt"];
-                
+
                 lm = landmarks[id] = new Landmark(id, lat, lon, top_altitude, bottom_altitude);
 
                 SchedulePostMessage($"landmark {n.ToString()}");
             }
 
-            sorted_landmark_names = landmarks.Keys.ToList();            
+            sorted_landmark_names = landmarks.Keys.ToList();
 
             RecomputeLandmarkPositions();
         }
@@ -1581,6 +1582,5 @@ namespace DutchSkies
                 alignment_solver.SetReference(lm.id, ROT_90_X.Transform(lm.sky_position));
             }
         }
-
     }
 }
