@@ -78,7 +78,7 @@
     <Compile Include="OSMMap.cs" />
     <Compile Include="OSMTiles.cs" />
     <Compile Include="PlaneData.cs" />
-    <Compile Include="Program.cs" />
+    <Compile Include="Application.cs" />
     <Compile Include="Projection.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SimpleJSON.cs" />

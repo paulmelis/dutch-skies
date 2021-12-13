@@ -20,7 +20,7 @@ namespace DutchSkies
     using TileFetchRequest = Tuple<int, int, int, int, int, string[], string>;
     using PostMessageRequest = Tuple<string>;
 
-    class Program
+    class Application
     {
         enum DetailLevel { NONE, CALLSIGN, FULL };
         const float PLANE_SIZE_METERS = 0.015f;
@@ -31,73 +31,98 @@ namespace DutchSkies
         static Matrix ROT_180_Y = Matrix.R(0f, 180f, 0f);
 
         // Log
-        static List<string> log_lines = new List<string>();
-        static string log_text = "";
-        static LogLevel log_level = LogLevel.Info;
+        List<string> log_lines = new List<string>();
+        string log_text;
+        LogLevel log_level = LogLevel.Info;
+
+        string our_ip;
+        float fps;
 
         // Configurations
-        static string configuration_name;
+        List<string> available_map_sets;
+        List<string> available_landmark_sets;
+        List<string> available_observers;
+        string configuration_name;
+
+        // UI
+        Pose main_window_pose, log_window_pose;
+        bool show_log_window;
+        bool show_trim_window;
+        bool show_flight_units;
 
         // Plane data
-        static ConcurrentQueue<Vec4> query_extent_update_queue;
-        static Dictionary<string, PlaneData> plane_data;
+        ConcurrentQueue<Vec4> query_extent_update_queue;
+        Dictionary<string, PlaneData> plane_data;
+
+        int num_planes_on_map;
+        int num_planes_late, num_planes_missing;
+        int num_planes_on_ground;
+
+        DetailLevel detail_level;
+        bool map_visible;
+        bool map_show_plane_model, sky_show_plane_models;
+        bool map_show_vlines, sky_show_vlines;
+        bool map_show_track_lines, sky_show_trail_lines;
+        bool map_show_observer;
+        bool sky_show_landmarks;
+        bool show_origin;
+
+        int sky_d_trim;         // In 0.1 degree increments
+        int sky_v_trim;         // In centimeters
+
+        double draw_time;
+        Vec3 head_pos;
+        Quat head_orientation;
 
         // Map geometry 
         const float REALWORLD_MAP_WIDTH = 1.5f;     // meters
-        static float realworld_map_height;
         const float MAP_WINDROSE_SIZE = 0.1f;      // meters
+        float realworld_map_height;
 
-        static Dictionary<string, MapSet> map_sets;
-        static Dictionary<string, OSMMap> maps;
-        static string current_map_name;
-        static OSMMap current_map;
-        static Material map_material;
-        static float map_scale_km_to_scene;
-        static Mesh map_quad;
-        static Tex map_texture;
+        Dictionary<string, MapSet> map_sets;
+        Dictionary<string, OSMMap> maps;
+        string current_map_name;
+        OSMMap current_map;
+        Material map_material;
+        float map_scale_km_to_scene;
+        Mesh map_quad;
+        Tex map_texture;
 
         // Sky mode
-        static Dictionary<string, Landmark> landmarks;
-        static List<string> sorted_landmark_names;
-        static ObserverData observer;
+        // XXX prefix with sky_
+        Dictionary<string, Landmark> landmarks;
+        List<string> sorted_landmark_names;
+        ObserverData observer;
 
         const float OBSERVER_WINDROSE_SIZE = 1f;    // meters
-        static AlignmentSolver alignment_solver;
-        static string current_alignment_landmark;
+        AlignmentSolver alignment_solver;
+        string current_alignment_landmark;
+
+        bool alignment_mode;
+        Pose alignment_window_pose;
+        Vec3 alignment_offset;
+        float alignment_rotation;
+        bool use_alignment_transform;
 
         // Query        
         const int OPENSKY_QUERY_INTERVAL = 8;
 
         // XXX rename payload to marker or something
         // Thread event queue (type, data, payload)        
-        static ConcurrentQueue<Tuple<string, object, string>> updates_queue;
+        ConcurrentQueue<Tuple<string, object, string>> updates_queue;
         // URL requests queue (url, type, binary, payload)
-        static BlockingCollection<URLFetchRequest> url_requests_queue;
+        BlockingCollection<URLFetchRequest> url_requests_queue;
         // Tile fetch queue (mini/j, maxi/j, zoom, payload)
-        static BlockingCollection<TileFetchRequest> tile_requests_queue;
-        static BlockingCollection<PostMessageRequest> message_send_queue;
-        static bool discord_messages_enabled = false;
+        BlockingCollection<TileFetchRequest> tile_requests_queue;
+        BlockingCollection<PostMessageRequest> message_send_queue;
+        bool discord_messages_enabled;
 
         // QR code scanning
-        static bool scanning_for_qrcodes;
-        static QRCodeWatcher qrcode_watcher;
-        static DateTime qrcode_watcher_start;
+        bool scanning_for_qrcodes;
+        QRCodeWatcher qrcode_watcher;
+        DateTime qrcode_watcher_start;
         //Dictionary<Guid, QRData> poses = new Dictionary<Guid, QRData>();
-        static System.Guid last_qrcode_id;
-
-        static void OnLog(LogLevel level, string text)
-        {
-            string time = DateTime.Now.ToString("HH:mm:ss.fff");
-            if (log_lines.Count > 20)
-                log_lines.RemoveAt(0);
-            text = $"{time} {text}";
-            //log_lines.Add(text.Length < 120 ? text : text.Substring(0, 120) + "...\n");
-            log_lines.Add(text);
-
-            log_text = "";
-            for (int i = 0; i < log_lines.Count; i++)
-                log_text += log_lines[i];
-        }
+        System.Guid last_qrcode_id;
 
         static void Main(string[] args)
         {
@@ -116,15 +141,40 @@ namespace DutchSkies
             if (!SK.Initialize(settings))
                 Environment.Exit(1);
 
-            // Set up log window
+            Application app = new Application();
+            app.Run();
+
+            SK.Shutdown();
+        }
+
+        void OnLog(LogLevel level, string text)
+        {
+            string time = DateTime.Now.ToString("HH:mm:ss.fff");
+            if (log_lines.Count > 20)
+                log_lines.RemoveAt(0);
+            text = $"{time} {text}";
+            //log_lines.Add(text.Length < 120 ? text : text.Substring(0, 120) + "...\n");
+            log_lines.Add(text);
+
+            log_text = "";
+            for (int i = 0; i < log_lines.Count; i++)
+                log_text += log_lines[i];
+        }
+
+        public void Run()
+        {
+            // Set up logging
+            List<string> log_lines = new List<string>();
+            log_level = LogLevel.Info;
             Log.Subscribe(OnLog);
+            discord_messages_enabled = false;
 
             // Tweak renderer
             Renderer.SetClip(0.08f, 10000f);
             Renderer.EnableSky = false;
 
             // Determine IP address (useful in debugging)
-            string our_ip = "<unknown>";
+            our_ip = "<unknown>";
             foreach (HostName localHostName in NetworkInformation.GetHostNames())
             {
                 if (localHostName.IPInformation != null)
@@ -140,6 +190,32 @@ namespace DutchSkies
             // Gamepad
 
             XboxController xbox_controller = new XboxController();
+
+
+            // Configurations
+
+            configuration_name = "<builtin>";
+
+            //Configuration.DeleteConfigurationsOfType(Configuration.ConfigType.MAP_SET);
+            //Configuration.DeleteConfigurationsOfType(Configuration.ConfigType.LANDMARK_SET);
+            //Configuration.DeleteConfigurationsOfType(Configuration.ConfigType.OBSERVER);
+
+            available_map_sets = new List<string>();
+            available_landmark_sets = new List<string>();
+            available_observers = new List<string>();
+
+            UpdateConfigurationLists();
+
+            Log.Info("Available stored configurations:");
+            
+            foreach (string s in available_map_sets)
+                Log.Info($"[MAP_SET] '{s}'");
+            
+            foreach (string s in available_map_sets)
+                Log.Info($"[LANDMARK_SET] '{s}'");
+
+            foreach (string s in available_observers)
+                Log.Info($"[OBSERVER] '{s}'");
 
             // Planes
 
@@ -163,9 +239,6 @@ namespace DutchSkies
             windrose_material[MatParamName.DiffuseTex] = Tex.FromFile("Windrose.png");
             windrose_material.Transparency = Transparency.Blend;
             windrose_material.DepthWrite = false;
-
-            // Configuration
-            configuration_name = "<builtin>";
 
             //
             // Maps
@@ -292,35 +365,40 @@ namespace DutchSkies
 
             // Alignment
 
-            bool alignment_mode = false;
-            Pose alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));            
-            Vec3 alignment_offset = new Vec3();
-            float alignment_rotation = 0f;
-            bool use_alignment_transform = false;
+            alignment_mode = false;
+            alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));            
+            alignment_offset = new Vec3();
+            alignment_rotation = 0f;
+            use_alignment_transform = false;
             current_alignment_landmark = "";
 
             // Main settings
 
-            Pose main_window_pose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
-            Pose log_window_pose = new Pose(0.9f, -0.2f, 0f, Quat.LookDir(-1, 0, 1));
+            main_window_pose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
+            log_window_pose = new Pose(0.9f, -0.2f, 0f, Quat.LookDir(-1, 0, 1));
 
-            DetailLevel detail_level = DetailLevel.FULL;
-            bool show_log_window = true;
-            bool show_trim_window = false;
-            bool show_flight_units = false;
-            bool map_visible = true;
-            bool map_show_plane_model = true, sky_show_plane_models = true;
-            bool map_show_vlines = true, sky_show_vlines = false;
-            bool map_show_track_lines = true, sky_show_trail_lines = true;
-            bool map_show_observer = false;
-            bool sky_show_landmarks = true;
-            bool show_origin = false;
-            int sky_d_trim = 0;         // In 0.1 degree increments
-            int sky_v_trim = 0;         // In centimeters
+            detail_level = DetailLevel.FULL;
+            show_log_window = true;
+            show_trim_window = false;
+            show_flight_units = false;
+            map_visible = true;
+            map_show_plane_model = true;
+            sky_show_plane_models = true;
+            map_show_vlines = true;
+            sky_show_vlines = false;
+            map_show_track_lines = true;
+            sky_show_trail_lines = true;
+            map_show_observer = false;
+            sky_show_landmarks = true;
+            show_origin = false;
 
-            int num_planes_on_map = 0;
-            int num_planes_late = 0, num_planes_missing = 0;
-            int num_planes_on_ground = 0;
+            sky_d_trim = 0;
+            sky_v_trim = 0;
+
+            num_planes_on_map = 0;
+            num_planes_late = 0;
+            num_planes_missing = 0;
+            num_planes_on_ground = 0;
 
             const float TRACK_LINE_THICKNESS = 0.001f;
             Color MAP_BASE_COLOR = new Color(0.8f, 0f, 0.8f);
@@ -350,17 +428,17 @@ namespace DutchSkies
 
             int fps_num_frames = 0;
             float fps_start_time = Time.Totalf;
-            float fps = 0f;
+            fps = 0f;
 
             SchedulePostMessage("Entering main loop");
 
             // Core application loop
             while (SK.Step(() =>
             {
-                double draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
+                draw_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() * 0.001;
 
-                Vec3 head_pos = Input.Head.position;
-                Quat head_orientation = Input.Head.orientation;
+                head_pos = Input.Head.position;
+                head_orientation = Input.Head.orientation;
 
                 //if (SK.System.displayType == Display.Opaque)
                 //    Default.MeshCube.Draw(floorMaterial, floorTransform);
@@ -450,7 +528,7 @@ namespace DutchSkies
                     }
                     else if (update_type == "config_data")
                     {
-                        ProcessConfigurationData(update.Item2 as string, update.Item3, draw_time);
+                        ProcessConfigurationData(update.Item2 as string, update.Item3);
                     }
                     else if (update_type == "map_tilefetch_progress")
                     {
@@ -878,220 +956,8 @@ namespace DutchSkies
                 // UI (drawn late, so we can show accurate statistics)
                 //
 
-                // Main window
-                UI.WindowBegin($"Dutch SKies - {configuration_name}", ref main_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
+                DrawUIWindows();
 
-                UI.Toggle("Flight units", ref show_flight_units);
-                UI.SameLine();
-                if (UI.Button("Clear tracks"))
-                    ClearTracks();
-                UI.SameLine();
-                // See https://github.com/maluoi/StereoKit/issues/248
-                UI.Space(-0.02f);
-                if (UI.Toggle("Scan QR code", ref scanning_for_qrcodes))
-                {
-                    //Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
-                    SetQRCodeScan();
-                }
-                UI.SameLine();
-                UI.Space(-0.03f);
-                UI.Toggle("Alignment", ref alignment_mode);
-                UI.SameLine();
-                UI.Toggle("Trim", ref show_trim_window);
-                UI.SameLine();
-                UI.Space(-0.03f);
-                UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} planes in query area ({num_planes_late} late, {num_planes_missing} missing)");
-
-                UI.HSeparator();
-                UI.PushId("map");
-
-                UI.Label("Map:");
-                foreach (OSMMap map in maps.Values)
-                {
-                    UI.SameLine();
-                    if (UI.Radio(map.name, current_map_name == map.name))
-                    {
-                        // Switch map
-                        SetMap(map.name, draw_time);
-                    }
-                }
-
-                UI.Toggle("Visible", ref map_visible);
-                UI.SameLine();
-                UI.Toggle("Planes", ref map_show_plane_model);
-                UI.SameLine();
-                UI.Toggle("VLines", ref map_show_vlines);
-                UI.SameLine();
-                UI.Toggle("Track lines", ref map_show_track_lines);
-                UI.SameLine();
-                UI.Toggle($"Observer '{observer.name}'", ref map_show_observer);
-
-                UI.Label("Plane details");
-                UI.SameLine();
-                if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
-                UI.SameLine();
-                if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
-                UI.SameLine();
-                if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
-
-                UI.PopId();
-
-                UI.HSeparator();
-                UI.PushId("sky");
-
-                UI.Label("Sky:");
-                UI.SameLine();
-                UI.Toggle("Planes", ref sky_show_plane_models);
-                UI.SameLine();
-                UI.Toggle("VLines", ref sky_show_vlines);
-                UI.SameLine();
-                UI.Toggle("Trails", ref sky_show_trail_lines);
-                UI.SameLine();
-                UI.Toggle($"Landmarks ({landmarks.Count})", ref sky_show_landmarks);
-
-                UI.PopId();
-
-                UI.HSeparator();
-                string time = DateTime.Now.ToString("HH:mm:ss");
-                UI.Label("Debug:");
-                UI.SameLine();
-                UI.Toggle("Origin", ref show_origin);
-                UI.SameLine();
-                UI.Toggle("Log", ref show_log_window);
-                UI.SameLine();
-                UI.Toggle("Discord", ref discord_messages_enabled);
-                UI.SameLine();
-                UI.Label($"IP:{our_ip} • {time} • {fps:F1} FPS");
-                UI.SameLine();
-                UI.WindowEnd();
-
-                // Trim window
-
-                if (show_trim_window)
-                {
-                    // Identity pose orientation has window front pointing to -Z, head identity pose also points to -Z
-                    Vec3 head_lookdir_xz = Matrix.R(head_orientation).Transform(new Vec3(0f, 0f, -1f));
-                    head_lookdir_xz.y = 0f;
-                    Vec3 trim_window_lookdir = -head_lookdir_xz;
-
-                    // Use atan2 for y=-z, x=x; gives CCW rotation from +x axis
-                    float angle = MathF.Atan2(-head_lookdir_xz.z, head_lookdir_xz.x) / MathF.PI * 180f;
-                    // Round to nearest multiple of N degrees
-                    angle = MathF.Round(angle / 45f) * 45f;
-                    // Zero rotation will be -Z (which is +Y and thus angle 90 for atan2)
-                    angle -= 90f;
-
-                    Vec3 window_pos = new Vec3(0f, head_pos.y - 0.2f, 0f) + Matrix.R(0f, angle, 0f).Transform(-0.6f * Vec3.UnitZ);
-
-                    Pose trim_window_pose = new Pose(
-                        window_pos,
-                        // Window needs to face the other way, hence angle+180
-                        Quat.FromAngles(0f, angle + 180f, 0f) * Quat.FromAngles(30f, 0f, 0f)   // Tilt the window a bit
-                    );
-
-                    //UI.WindowBegin($"Trim; head lookdir = {head_lookdir_xz} -> angle = {angle}", ref trim_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);                    
-                    UI.WindowBegin("Trim", ref trim_window_pose, new Vec2(50, 0) * U.cm, UIWin.Body);
-                    UI.Toggle($"Landmarks ({landmarks.Count})", ref sky_show_landmarks);
-                    UI.SameLine();
-                    UI.Space(-0.2f);
-                    if (UI.Button("Close window")) show_trim_window = false;
-                    UI.PushId("htrim");
-                    UI.Text("H Trim (°)", TextAlign.XCenter);
-                    if (UI.Button("◀45")) sky_d_trim -= 450;
-                    UI.SameLine();
-                    if (UI.Button("◀5")) sky_d_trim -= 50;
-                    UI.SameLine();
-                    if (UI.Button("◀1")) sky_d_trim -= 10;
-                    UI.SameLine();
-                    if (UI.Button("◀⅒")) sky_d_trim -= 1;
-                    UI.SameLine();
-                    if (UI.Button("0")) sky_d_trim = 0;
-                    UI.SameLine();
-                    if (UI.Button("⅒▶")) sky_d_trim += 1;
-                    UI.SameLine();
-                    if (UI.Button("1▶")) sky_d_trim += 10;
-                    UI.SameLine();
-                    if (UI.Button("5▶")) sky_d_trim += 50;
-                    UI.SameLine();
-                    if (UI.Button("45▶")) sky_d_trim += 450;
-                    UI.PopId();
-
-                    UI.Space(0.01f);
-
-                    UI.PushId("vtrim");
-                    UI.Text("V Trim (cm)", TextAlign.XCenter);
-                    UI.SameLine();
-                    if (UI.Button("▼100")) sky_v_trim -= 100;
-                    UI.SameLine();
-                    if (UI.Button("▼50")) sky_v_trim -= 50;
-                    UI.SameLine();
-                    if (UI.Button("▼5")) sky_v_trim -= 5;
-                    UI.SameLine();
-                    if (UI.Button("▼1")) sky_v_trim -= 1;
-                    UI.SameLine();
-                    if (UI.Button("0")) sky_v_trim = 0;
-                    UI.SameLine();
-                    if (UI.Button("▲1")) sky_v_trim += 1;
-                    UI.SameLine();
-                    if (UI.Button("▲5")) sky_v_trim += 5;
-                    UI.SameLine();
-                    if (UI.Button("▲50")) sky_v_trim += 50;
-                    UI.SameLine();
-                    if (UI.Button("▲100")) sky_v_trim += 100;
-                    UI.PopId();
-                    UI.WindowEnd();
-                }
-
-                // Alignment window
-
-                if (alignment_mode)
-                {
-                    UI.WindowBegin("Alignment", ref alignment_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
-                    if (UI.Button("Solve"))
-                        alignment_solver.Solve(out alignment_offset, out alignment_rotation);
-                    UI.SameLine();
-                    UI.Space(-0.02f);
-                    UI.Toggle("Use alignment", ref use_alignment_transform);
-                    UI.SameLine();
-                    UI.Space(-0.02f);
-                    if (UI.Button("Clear all"))
-                        alignment_solver.ClearObservations();
-                    UI.Text($"tx {alignment_offset.x:F3}, tz {alignment_offset.z:F3}, r {alignment_rotation}", TextAlign.Center);
-                    int col = 0;
-                    string caption;
-                    foreach (string lm_name in sorted_landmark_names)
-                    {
-                        if (col < 3)
-                            UI.SameLine();
-                        else
-                            col = 0;
-
-                        Landmark lm = landmarks[lm_name];
-                        caption = $"[{alignment_solver.ObservationCount(lm.id)}] {lm.id}";
-
-                        if (UI.Radio(caption, current_alignment_landmark == lm.id))
-                            current_alignment_landmark = lm.id;
-
-                        col++;
-                    }
-                    UI.WindowEnd();
-                }
-
-                // Log window
-
-                if (show_log_window)
-                {
-                    UI.WindowBegin("Log", ref log_window_pose, new Vec2(80, 0) * U.cm, UIWin.Normal);
-                    UI.Text(log_text);
-                    if (UI.Radio("Diagnostic", log_level == LogLevel.Diagnostic)) { log_level = Log.Filter = LogLevel.Diagnostic; }
-                    UI.SameLine();
-                    if (UI.Radio("Info", log_level == LogLevel.Info)) { log_level = Log.Filter = LogLevel.Info; }
-                    UI.SameLine();
-                    if (UI.Radio("Warning", log_level == LogLevel.Warning)) { log_level = Log.Filter = LogLevel.Warning; }
-                    UI.SameLine();
-                    if (UI.Radio("Error", log_level == LogLevel.Error)) { log_level = Log.Filter = LogLevel.Error; }
-                    UI.WindowEnd();
-                }
             })) ;
 
             if (qrcode_watcher != null)
@@ -1099,12 +965,228 @@ namespace DutchSkies
 
             // XXX should be in finally clause
             url_requests_queue.Dispose();
-            tile_requests_queue.Dispose();
-
-            SK.Shutdown();
+            tile_requests_queue.Dispose();            
         }
 
-        public static void PrepareBuiltinMaps()
+        public void DrawUIWindows()
+        {
+            // Main window
+            UI.WindowBegin($"Dutch SKies - {configuration_name}", ref main_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
+
+            UI.Toggle("Flight units", ref show_flight_units);
+            UI.SameLine();
+            if (UI.Button("Clear tracks"))
+                ClearTracks();
+            UI.SameLine();
+            // See https://github.com/maluoi/StereoKit/issues/248
+            UI.Space(-0.02f);
+            if (UI.Toggle("Scan QR code", ref scanning_for_qrcodes))
+            {
+                //Log.Info($"qr code button toggled, now {scanning_for_qrcodes}");
+                SetQRCodeScan();
+            }
+            UI.SameLine();
+            UI.Space(-0.03f);
+            UI.Toggle("Alignment", ref alignment_mode);
+            UI.SameLine();
+            UI.Toggle("Trim", ref show_trim_window);
+            UI.SameLine();
+            UI.Space(-0.03f);
+            UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} planes in query area ({num_planes_late} late, {num_planes_missing} missing)");
+
+            UI.HSeparator();
+            UI.PushId("map");
+
+            UI.Label("Map:");
+            foreach (OSMMap map in maps.Values)
+            {
+                UI.SameLine();
+                if (UI.Radio(map.name, current_map_name == map.name))
+                {
+                    // Switch map
+                    SetMap(map.name);
+                }
+            }
+
+            UI.Toggle("Visible", ref map_visible);
+            UI.SameLine();
+            UI.Toggle("Planes", ref map_show_plane_model);
+            UI.SameLine();
+            UI.Toggle("VLines", ref map_show_vlines);
+            UI.SameLine();
+            UI.Toggle("Track lines", ref map_show_track_lines);
+            UI.SameLine();
+            UI.Toggle($"Observer '{observer.name}'", ref map_show_observer);
+
+            UI.Label("Plane details");
+            UI.SameLine();
+            if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
+            UI.SameLine();
+            if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
+            UI.SameLine();
+            if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
+
+            UI.PopId();
+
+            UI.HSeparator();
+            UI.PushId("sky");
+
+            UI.Label("Sky:");
+            UI.SameLine();
+            UI.Toggle("Planes", ref sky_show_plane_models);
+            UI.SameLine();
+            UI.Toggle("VLines", ref sky_show_vlines);
+            UI.SameLine();
+            UI.Toggle("Trails", ref sky_show_trail_lines);
+            UI.SameLine();
+            UI.Toggle($"Landmarks ({landmarks.Count})", ref sky_show_landmarks);
+
+            UI.PopId();
+
+            UI.HSeparator();
+            string time = DateTime.Now.ToString("HH:mm:ss");
+            UI.Label("Debug:");
+            UI.SameLine();
+            UI.Toggle("Origin", ref show_origin);
+            UI.SameLine();
+            UI.Toggle("Log", ref show_log_window);
+            UI.SameLine();
+            UI.Toggle("Discord", ref discord_messages_enabled);
+            UI.SameLine();
+            UI.Label($"IP:{our_ip} • {time} • {fps:F1} FPS");
+            UI.SameLine();
+            UI.WindowEnd();
+
+            // Trim window
+
+            if (show_trim_window)
+            {
+                // Identity pose orientation has window front pointing to -Z, head identity pose also points to -Z
+                Vec3 head_lookdir_xz = Matrix.R(head_orientation).Transform(new Vec3(0f, 0f, -1f));
+                head_lookdir_xz.y = 0f;
+                Vec3 trim_window_lookdir = -head_lookdir_xz;
+
+                // Use atan2 for y=-z, x=x; gives CCW rotation from +x axis
+                float angle = MathF.Atan2(-head_lookdir_xz.z, head_lookdir_xz.x) / MathF.PI * 180f;
+                // Round to nearest multiple of N degrees
+                angle = MathF.Round(angle / 45f) * 45f;
+                // Zero rotation will be -Z (which is +Y and thus angle 90 for atan2)
+                angle -= 90f;
+
+                Vec3 window_pos = new Vec3(0f, head_pos.y - 0.2f, 0f) + Matrix.R(0f, angle, 0f).Transform(-0.6f * Vec3.UnitZ);
+
+                Pose trim_window_pose = new Pose(
+                    window_pos,
+                    // Window needs to face the other way, hence angle+180
+                    Quat.FromAngles(0f, angle + 180f, 0f) * Quat.FromAngles(30f, 0f, 0f)   // Tilt the window a bit
+                );
+
+                //UI.WindowBegin($"Trim; head lookdir = {head_lookdir_xz} -> angle = {angle}", ref trim_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);                    
+                UI.WindowBegin("Trim", ref trim_window_pose, new Vec2(50, 0) * U.cm, UIWin.Body);
+                UI.Toggle($"Landmarks ({landmarks.Count})", ref sky_show_landmarks);
+                UI.SameLine();
+                UI.Space(-0.2f);
+                if (UI.Button("Close window")) show_trim_window = false;
+                UI.PushId("htrim");
+                UI.Text("H Trim (°)", TextAlign.XCenter);
+                if (UI.Button("◀45")) sky_d_trim -= 450;
+                UI.SameLine();
+                if (UI.Button("◀5")) sky_d_trim -= 50;
+                UI.SameLine();
+                if (UI.Button("◀1")) sky_d_trim -= 10;
+                UI.SameLine();
+                if (UI.Button("◀⅒")) sky_d_trim -= 1;
+                UI.SameLine();
+                if (UI.Button("0")) sky_d_trim = 0;
+                UI.SameLine();
+                if (UI.Button("⅒▶")) sky_d_trim += 1;
+                UI.SameLine();
+                if (UI.Button("1▶")) sky_d_trim += 10;
+                UI.SameLine();
+                if (UI.Button("5▶")) sky_d_trim += 50;
+                UI.SameLine();
+                if (UI.Button("45▶")) sky_d_trim += 450;
+                UI.PopId();
+
+                UI.Space(0.01f);
+
+                UI.PushId("vtrim");
+                UI.Text("V Trim (cm)", TextAlign.XCenter);
+                UI.SameLine();
+                if (UI.Button("▼100")) sky_v_trim -= 100;
+                UI.SameLine();
+                if (UI.Button("▼50")) sky_v_trim -= 50;
+                UI.SameLine();
+                if (UI.Button("▼5")) sky_v_trim -= 5;
+                UI.SameLine();
+                if (UI.Button("▼1")) sky_v_trim -= 1;
+                UI.SameLine();
+                if (UI.Button("0")) sky_v_trim = 0;
+                UI.SameLine();
+                if (UI.Button("▲1")) sky_v_trim += 1;
+                UI.SameLine();
+                if (UI.Button("▲5")) sky_v_trim += 5;
+                UI.SameLine();
+                if (UI.Button("▲50")) sky_v_trim += 50;
+                UI.SameLine();
+                if (UI.Button("▲100")) sky_v_trim += 100;
+                UI.PopId();
+                UI.WindowEnd();
+            }
+
+            // Alignment window
+
+            if (alignment_mode)
+            {
+                UI.WindowBegin("Alignment", ref alignment_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
+                if (UI.Button("Solve"))
+                    alignment_solver.Solve(out alignment_offset, out alignment_rotation);
+                UI.SameLine();
+                UI.Space(-0.02f);
+                UI.Toggle("Use alignment", ref use_alignment_transform);
+                UI.SameLine();
+                UI.Space(-0.02f);
+                if (UI.Button("Clear all"))
+                    alignment_solver.ClearObservations();
+                UI.Text($"tx {alignment_offset.x:F3}, tz {alignment_offset.z:F3}, r {alignment_rotation}", TextAlign.Center);
+                int col = 0;
+                string caption;
+                foreach (string lm_name in sorted_landmark_names)
+                {
+                    if (col < 3)
+                        UI.SameLine();
+                    else
+                        col = 0;
+
+                    Landmark lm = landmarks[lm_name];
+                    caption = $"[{alignment_solver.ObservationCount(lm.id)}] {lm.id}";
+
+                    if (UI.Radio(caption, current_alignment_landmark == lm.id))
+                        current_alignment_landmark = lm.id;
+
+                    col++;
+                }
+                UI.WindowEnd();
+            }
+
+            // Log window
+
+            if (show_log_window)
+            {
+                UI.WindowBegin("Log", ref log_window_pose, new Vec2(80, 0) * U.cm, UIWin.Normal);
+                UI.Text(log_text);
+                if (UI.Radio("Diagnostic", log_level == LogLevel.Diagnostic)) { log_level = Log.Filter = LogLevel.Diagnostic; }
+                UI.SameLine();
+                if (UI.Radio("Info", log_level == LogLevel.Info)) { log_level = Log.Filter = LogLevel.Info; }
+                UI.SameLine();
+                if (UI.Radio("Warning", log_level == LogLevel.Warning)) { log_level = Log.Filter = LogLevel.Warning; }
+                UI.SameLine();
+                if (UI.Radio("Error", log_level == LogLevel.Error)) { log_level = Log.Filter = LogLevel.Error; }
+                UI.WindowEnd();
+            }
+        }
+
+        public void PrepareBuiltinMaps()
         {
             MapSet map_set = new MapSet("<default>");
             OSMMap map;
@@ -1135,7 +1217,7 @@ namespace DutchSkies
             map_sets["<default>"] = map_set;
         }
 
-        public static void SetMap(string map, double draw_time = 0.0)
+        public void SetMap(string map)
         {
             current_map_name = map;
             current_map = maps[map];
@@ -1165,7 +1247,7 @@ namespace DutchSkies
             observer.update_map_position(current_map);
         }
 
-        public static void ObserverChanged()
+        public void ObserverChanged()
         {
             observer.update_map_position(current_map);
             foreach (PlaneData plane in plane_data.Values)
@@ -1173,23 +1255,23 @@ namespace DutchSkies
             RecomputeLandmarkPositions();
         }
 
-        public static void ClearTracks()
+        public void ClearTracks()
         {
             foreach (var plane in plane_data.Values)
                 plane.ClearTrack();
         }
 
-        static void ScheduleURLFetch(string url, string type, bool binary, string payload)
+        void ScheduleURLFetch(string url, string type, bool binary, string payload)
         {
             url_requests_queue.Add(new URLFetchRequest(url, type, binary, payload));
         }
 
-        static void ScheduleTileFetch(int min_i, int max_i, int min_j, int max_j, int zoom, string[] servers, string map_name)
+        void ScheduleTileFetch(int min_i, int max_i, int min_j, int max_j, int zoom, string[] servers, string map_name)
         {
             TileFetchRequest request = new TileFetchRequest(min_i, max_i, min_j, max_j, zoom, servers, map_name);
             tile_requests_queue.Add(request);
         }
-        static void SchedulePostMessage(string message)
+         void SchedulePostMessage(string message)
         {
             if (!discord_messages_enabled)
                 return;
@@ -1197,7 +1279,7 @@ namespace DutchSkies
             message_send_queue.Add(request);
         }
 
-        static async void FetchURLThread()
+        async void FetchURLThread()
         {
             URLFetchRequest request;
             string type, url, payload;
@@ -1247,7 +1329,7 @@ namespace DutchSkies
             }
         }
 
-        static async void PostMessagesThread()
+        async void PostMessagesThread()
         {
             PostMessageRequest request;
             string message;
@@ -1299,7 +1381,7 @@ namespace DutchSkies
         }
 
 
-        static async void FetchPlaneUpdates(object obj)
+        async void FetchPlaneUpdates(object obj)
         {
             ConcurrentQueue<Vec4> extent_input_queue = obj as ConcurrentQueue<Vec4>;
 
@@ -1342,7 +1424,7 @@ namespace DutchSkies
             }
         }
 
-        public static void SetQRCodeScan()
+        public void SetQRCodeScan()
         {
             //Log.Info($"SetQRCodeScan, scanning_for_qr_codes = {scanning_for_qrcodes}");
             if (qrcode_watcher == null)
@@ -1365,7 +1447,7 @@ namespace DutchSkies
                 qrcode_watcher.Stop();
             }
         }
-        public static void UpdateLandmarks(JSONNode nodes)
+        public void UpdateLandmarks(JSONNode nodes)
         {
             Landmark lm;
 
@@ -1390,7 +1472,7 @@ namespace DutchSkies
             RecomputeLandmarkPositions();
         }
 
-        public static void RecomputeLandmarkPositions()
+        public void RecomputeLandmarkPositions()
         {
             float x, y;
             Matrix M;
@@ -1428,7 +1510,7 @@ namespace DutchSkies
             }
         }
 
-        public static void SelectMapSet(string id)
+        public void SelectMapSet(string id)
         {
             // XXX
             MapSet map_set = map_sets[id];
@@ -1437,8 +1519,14 @@ namespace DutchSkies
             observer.update_map_position(current_map);
         }
 
-        // XXX get rid of draw_time
-        public static void ProcessConfigurationData(string config_string, string config_url, double draw_time)
+        public void UpdateConfigurationLists()
+        {
+            Configuration.ListConfigurations(Configuration.ConfigType.MAP_SET, ref available_map_sets);
+            Configuration.ListConfigurations(Configuration.ConfigType.LANDMARK_SET, ref available_map_sets);
+            Configuration.ListConfigurations(Configuration.ConfigType.OBSERVER, ref available_observers);
+        }
+
+        public void ProcessConfigurationData(string config_string, string config_url)
         {
             // XXX handle error
             JSONNode config_root = JSON.Parse(config_string);
@@ -1566,11 +1654,14 @@ namespace DutchSkies
                             ScheduleTileFetch(min_i, max_i, min_j, max_j, jmap["zoom"], tile_servers, name);
                         }
 
-                        if (first)
+                        // XXX check if valid map_set config, before storing
+                        Configuration.StoreConfiguration(Configuration.ConfigType.MAP_SET, map_set_id, jmap_set);
+
+                        if (first && false)
                         {
                             // Update map to use first entry
                             // Will also update observer and plane interpolation
-                            SetMap(name, draw_time);
+                            SetMap(name);
                             first = false;
                             current_map_updated = true;
                         }

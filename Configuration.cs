@@ -4,9 +4,14 @@ using SimpleJSON;
 using StereoKit;
 
 namespace DutchSkies
-{
+{    
     public class Configuration
     {
+        public enum ConfigType
+        {
+            MAP_SET, LANDMARK_SET, OBSERVER
+        };
+
         /*
          * section: "map_sets", "landmark_sets", "observers"
          * 
@@ -23,11 +28,21 @@ namespace DutchSkies
          * 
          */
 
-        public static void StoreConfiguration(string section, string id, JSONNode data)
+        protected static string type2section(ConfigType type)
+        {
+            if (type == ConfigType.MAP_SET)
+                return "map_sets";
+            else if (type == ConfigType.LANDMARK_SET)
+                return "landmark_sets";
+            else
+                return "observers";
+        }
+
+        public static void StoreConfiguration(ConfigType type, string id, JSONNode data)
         {
             ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
+            string section = type2section(type);
 
-            string sdata = data.ToString();
             ApplicationDataContainer type_container;
 
             if (localSettings.Containers.ContainsKey(section))
@@ -35,27 +50,30 @@ namespace DutchSkies
             else
                 type_container = localSettings.CreateContainer(section, ApplicationDataCreateDisposition.Always);
 
-            type_container.Values[id] = sdata;
+            type_container.Values[id] = data.ToString();         
         }
 
-        public static void ListConfigurations(string section, ref List<string> items)
+        public static void ListConfigurations(ConfigType type, ref List<string> items)
         {
+            items.Clear();
+
             ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
+            string section = type2section(type);
 
             if (!localSettings.Containers.ContainsKey(section))
                 return;
-
+            
             ApplicationDataContainer type_container = localSettings.Containers[section];
-
-            items.Clear();
+            
             foreach (string id in type_container.Values.Keys)
                 items.Add(id);
             items.Sort();
         }
 
-        public static bool LoadConfiguration(string section, string id, out JSONNode node)
+        public static bool LoadConfiguration(ConfigType type, string id, out JSONNode node)
         {
             ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
+            string section = type2section(type);
 
             if (!localSettings.Containers.ContainsKey(section))
             {
@@ -79,15 +97,18 @@ namespace DutchSkies
             return true;
         }
 
-        public static void DeleteSectionConfigurations(string section)
+        public static void DeleteConfigurationsOfType(ConfigType type)
         {
             ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
+            string section = type2section(type);
+
             localSettings.DeleteContainer(section);
         }
 
-        public static void DeleteConfiguration(string section, string id)
+        public static void DeleteConfiguration(ConfigType type, string id)
         {
             ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
+            string section = type2section(type);
 
             if (!localSettings.Containers.ContainsKey(section))
             {
