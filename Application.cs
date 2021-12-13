@@ -42,6 +42,15 @@ namespace DutchSkies
         List<string> available_map_sets;
         List<string> available_landmark_sets;
         List<string> available_observers;
+
+        Dictionary<string, MapSet> map_sets;
+
+        MapSet current_map_set;
+        string current_map_set_name;
+        string current_landmark_set_name;
+        string current_observer_name;
+
+        // XXX no longer needed
         string configuration_name;
 
         // UI
@@ -79,8 +88,7 @@ namespace DutchSkies
         const float MAP_WINDROSE_SIZE = 0.1f;      // meters
         float realworld_map_height;
 
-        Dictionary<string, MapSet> map_sets;
-        Dictionary<string, OSMMap> maps;
+        Dictionary<string, OSMMap> maps_in_current_set;
         string current_map_name;
         OSMMap current_map;
         Material map_material;
@@ -200,13 +208,17 @@ namespace DutchSkies
             //Configuration.DeleteConfigurationsOfType(Configuration.ConfigType.LANDMARK_SET);
             //Configuration.DeleteConfigurationsOfType(Configuration.ConfigType.OBSERVER);
 
+            current_map_set_name = "";
+            current_landmark_set_name = "";
+            current_observer_name = "";
+
             available_map_sets = new List<string>();
             available_landmark_sets = new List<string>();
             available_observers = new List<string>();
 
             UpdateConfigurationLists();
 
-            Log.Info("Available stored configurations:");
+            Log.Info("--- Available stored configurations ---");
             
             foreach (string s in available_map_sets)
                 Log.Info($"[MAP_SET] '{s}'");
@@ -216,6 +228,8 @@ namespace DutchSkies
 
             foreach (string s in available_observers)
                 Log.Info($"[OBSERVER] '{s}'");
+
+            Log.Info("--- Available stored configurations ---");
 
             // Planes
 
@@ -251,11 +265,11 @@ namespace DutchSkies
             map_material.FaceCull = Cull.None;
 
             map_scale_km_to_scene = 0.001f;
-
             map_sets = new Dictionary<string, MapSet>();
 
             // Prepare built-in maps and select default
             PrepareBuiltinMaps();
+            
             SelectMapSet("<default>");
 
             //
@@ -467,9 +481,9 @@ namespace DutchSkies
                         Tex texture = Tex.FromMemory(map_image_file);
                         if (texture != null)
                         {
-                            maps[map_to_update].texture = texture;
+                            maps_in_current_set[map_to_update].texture = texture;
                             if (current_map_name == map_to_update)
-                                map_material[MatParamName.DiffuseTex] = maps[map_to_update].texture;
+                                map_material[MatParamName.DiffuseTex] = maps_in_current_set[map_to_update].texture;
                         }
                         else
                             Log.Err($"Could not load map image file!");
@@ -998,13 +1012,13 @@ namespace DutchSkies
             UI.PushId("map");
 
             UI.Label("Map:");
-            foreach (OSMMap map in maps.Values)
+            foreach (OSMMap map in maps_in_current_set.Values)
             {
                 UI.SameLine();
-                if (UI.Radio(map.name, current_map_name == map.name))
+                if (UI.Radio(map.id, current_map_name == map.id))
                 {
                     // Switch map
-                    SetMap(map.name);
+                    SelectMap(map.id);
                 }
             }
 
@@ -1217,36 +1231,6 @@ namespace DutchSkies
             map_sets["<default>"] = map_set;
         }
 
-        public void SetMap(string map)
-        {
-            current_map_name = map;
-            current_map = maps[map];
-
-            // Compute MR size for map
-            realworld_map_height = REALWORLD_MAP_WIDTH * current_map.height / current_map.width;
-            Log.Info($"Map physical size {REALWORLD_MAP_WIDTH:F2} x {realworld_map_height:F2} m");
-            map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, realworld_map_height), -Vec3.Forward, Vec3.Up);
-            map_scale_km_to_scene = REALWORLD_MAP_WIDTH / current_map.width;
-
-            map_texture = current_map.texture;
-            if (map_texture != null)
-            {
-                // Texture will be set later, after retrieval
-                map_material[MatParamName.DiffuseTex] = map_texture;
-            }
-            else
-                map_material[MatParamName.DiffuseTex] = Tex.White;
-
-            // Need to recompute extrapolated plane map positions 
-            foreach (PlaneData plane in plane_data.Values)
-            {
-                plane.MapChange(current_map);
-                plane.Update(draw_time);
-            }
-
-            observer.update_map_position(current_map);
-        }
-
         public void ObserverChanged()
         {
             observer.update_map_position(current_map);
@@ -1324,7 +1308,8 @@ namespace DutchSkies
                 catch (Exception e)
                 {
                     Log.Err($"(URL fetch) Exception      : {e.Message}");
-                    Log.Err($"(URL fetch) Inner exception: {e.InnerException.Message}");
+                    if (e.InnerException != null)
+                        Log.Err($"(URL fetch) Inner exception: {e.InnerException.Message}");
                 }
             }
         }
@@ -1371,7 +1356,8 @@ namespace DutchSkies
                 catch (Exception e)
                 {
                     Log.Err($"(Post message) Exception      : {e.Message}");
-                    Log.Err($"(Post message) Inner exception: {e.InnerException.Message}");
+                    if (e.InnerException != null)
+                        Log.Err($"(Post message) Inner exception: {e.InnerException.Message}");
                 }
 
                 // Avoid TooManyRequests error
@@ -1417,7 +1403,8 @@ namespace DutchSkies
                 catch (Exception e)
                 {
                     Log.Err($"(Data fetch) Exception      : {e.Message}");
-                    Log.Err($"(Data fetch) Inner exception: {e.InnerException.Message}");
+                    if (e.InnerException != null)
+                        Log.Err($"(Data fetch) Inner exception: {e.InnerException.Message}");
                 }
 
                 Thread.Sleep(OPENSKY_QUERY_INTERVAL * 1000);
@@ -1512,18 +1499,56 @@ namespace DutchSkies
 
         public void SelectMapSet(string id)
         {
-            // XXX
-            MapSet map_set = map_sets[id];
-            maps = map_set.maps;
-            SetMap(map_set.default_map);
+            Log.Info($"Selecting map-set '{id}'");
+
+            // XXX check id exists
+            current_map_set = map_sets[id];
+            current_map_set_name = id;
+
+            maps_in_current_set = current_map_set.maps;
+
+            SelectMap(current_map_set.default_map);
+            // XXX fold into SelectMap?
+            observer.update_map_position(current_map);            
+        }
+
+        public void SelectMap(string id)
+        {
+            Log.Info($"Selecting map '{id}'");
+
+            current_map_name = id;
+            current_map = maps_in_current_set[id];
+
+            // Compute MR size for map
+            realworld_map_height = REALWORLD_MAP_WIDTH * current_map.height / current_map.width;
+            Log.Info($"Map physical size {REALWORLD_MAP_WIDTH:F2} x {realworld_map_height:F2} m");
+            map_quad = Mesh.GeneratePlane(new Vec2(REALWORLD_MAP_WIDTH, realworld_map_height), -Vec3.Forward, Vec3.Up);
+            map_scale_km_to_scene = REALWORLD_MAP_WIDTH / current_map.width;
+
+            map_texture = current_map.texture;
+            if (map_texture != null)
+            {
+                // Texture will be set later, after retrieval
+                map_material[MatParamName.DiffuseTex] = map_texture;
+            }
+            else
+                map_material[MatParamName.DiffuseTex] = Tex.White;
+
+            // Need to recompute extrapolated plane map positions 
+            foreach (PlaneData plane in plane_data.Values)
+            {
+                plane.MapChange(current_map);
+                plane.Update(draw_time);
+            }
+
             observer.update_map_position(current_map);
         }
 
         public void UpdateConfigurationLists()
         {
-            Configuration.ListConfigurations(Configuration.ConfigType.MAP_SET, ref available_map_sets);
-            Configuration.ListConfigurations(Configuration.ConfigType.LANDMARK_SET, ref available_map_sets);
-            Configuration.ListConfigurations(Configuration.ConfigType.OBSERVER, ref available_observers);
+            ConfigurationStore.List(ConfigurationStore.ConfigType.MAP_SET, ref available_map_sets);
+            ConfigurationStore.List(ConfigurationStore.ConfigType.LANDMARK_SET, ref available_landmark_sets);
+            ConfigurationStore.List(ConfigurationStore.ConfigType.OBSERVER, ref available_observers);
         }
 
         public void ProcessConfigurationData(string config_string, string config_url)
@@ -1556,36 +1581,72 @@ namespace DutchSkies
                 MapSet map_set;
                 string map_set_id;
                 OSMMap map;
+
+                bool first = true;
+                float min_lat, max_lat, min_lon, max_lon;
+                int set_idx = 0;
                 
                 foreach (JSONNode jmap_set in jmap_sets)
                 {
                     if (!jmap_set.HasKey("id"))
                     {
-                        // XXX list index in sets
-                        Log.Err($"Map-set does not have 'id' field, ignoring!");
+                        // XXX list index in sets in message
+                        Log.Err($"Map-set (index {set_idx}) does not have 'id' field, ignoring!");
+                        set_idx++;
                         continue;
                     }
 
                     map_set_id = jmap_set["id"];
 
+                    // XXX avoid '<default>'?
+                    if (map_set_id == "")
+                    {
+                        Log.Err($"Map-set (index {set_idx}) should not have empty 'id' field, ignoring!");
+                        set_idx++;
+                        continue;
+                    }
+
                     if (!jmap_set.HasKey("items") || jmap_set["items"].Count == 0)
                     {
                         Log.Err($"Map-set '{map_set_id}' does not contain any maps, ignoring!");
+                        set_idx++;
                         continue;
                     }
 
                     map_set = new MapSet(map_set_id);
                     jmaps = jmap_set["items"].AsArray;
 
-                    bool first = true;
-                    float min_lat, max_lat, min_lon, max_lon;
+                    // Optional list of tile servers
+                    Dictionary<string, TileServerConfiguration> tile_server_configurations = new Dictionary<string, TileServerConfiguration>();
 
+                    if (jmap_set.HasKey("tile_servers"))
+                    {
+                        foreach (JSONNode jtileserver in jmap_set["tile_servers"])
+                        {
+                            TileServerConfiguration ts = TileServerConfiguration.FromJSON(jtileserver);
+                            tile_server_configurations[ts.id] = ts;
+                        }
+                    }
+
+                    // Maps in map set
                     foreach (JSONNode jmap in jmaps)
                     {
-                        string name = jmap["name"];
-                        Log.Info($"Have new map '{name}'");
+                        string map_id = jmap["id"];
+                        Log.Info($"Have new map '{map_id}'");
+
+                        if (!jmap.HasKey("lat_range"))
+                        {
+                            Log.Err("Map specification is missing 'lat_range'!");
+                            continue;
+                        }
+                        if (!jmap.HasKey("lon_range"))
+                        {
+                            Log.Err("Map specification is missing 'lon_range'!");
+                            continue;
+                        }
 
                         JSONNode imgsource = jmap["image_source"];
+
                         if (imgsource["type"] == "url")
                         {
                             string imgurl = imgsource["url"];
@@ -1600,40 +1661,25 @@ namespace DutchSkies
                                 Log.Info($"Assuming image source relative to config URL: {imgurl}");
                             }
 
-                            // XXX needs to include (map_set, name)
-                            Log.Info($"Scheduling fetching of map image {imgurl} for map '{name}'");
-                            ScheduleURLFetch(imgurl, "map_image", true, name);
+                            // XXX needs to include (map_set, name) to make sure fetched result gets put in the right place
+                            Log.Info($"Scheduling fetching of map image {imgurl} for map '{map_id}'");
+                            ScheduleURLFetch(imgurl, "map_image", true, map_id);
 
                             min_lat = jmap["lat_range"][0];
                             max_lat = jmap["lat_range"][1];
                             min_lon = jmap["lon_range"][0];
                             max_lon = jmap["lon_range"][1];
 
-                            map = new OSMMap(name, min_lat, max_lat, min_lon, max_lon);
-                            map_set.Add(name, map);                            
+                            map = new OSMMap(map_id, min_lat, max_lat, min_lon, max_lon);
+                            map_set.Add(map_id, map);
                         }
-                        else if (imgsource["type"] == "osm")
+                        else if (imgsource["type"] == "tile_server")
                         {
-                            if (!jmap.HasKey("lat_range"))
-                            {
-                                Log.Err("(tile fetch) Map specification is missing 'lat_range'!");
-                                continue;
-                            }
-                            if (!jmap.HasKey("lon_range"))
-                            {
-                                Log.Err("(tile fetch) Map specification is missing 'lon_range'!");
-                                continue;
-                            }
                             if (!jmap.HasKey("zoom"))
                             {
-                                Log.Err("(tile fetch) Map specification is missing 'zoom'!");
+                                Log.Err("Map specification '{map_id}' uses tile-server, but is missing 'zoom' value!");
                                 continue;
                             }
-
-                            JSONNode j_tile_servers = jmap["image_source"]["tile_servers"];
-                            string[] tile_servers = new string[j_tile_servers.Count];
-                            for (int i = 0; i < j_tile_servers.Count; i++)
-                                tile_servers[i] = j_tile_servers[i];
 
                             Vec4 query_extent = new Vec4(jmap["lat_range"][0], jmap["lat_range"][1], jmap["lon_range"][0], jmap["lon_range"][1]);
 
@@ -1646,25 +1692,30 @@ namespace DutchSkies
                                 out min_i, out max_i, out min_j, out max_j,
                                     query_extent, jmap["zoom"]);
 
-                            map = new OSMMap(name, min_lat, max_lat, min_lon, max_lon);
-                            map_set.Add(name, map);
+                            map = new OSMMap(map_id, min_lat, max_lat, min_lon, max_lon);
+                            map_set.Add(map_id, map);
 
                             // XXX needs to include (map_set, name)
-                            Log.Info($"Scheduling fetching of map tiles for map '{name}' ({min_i}-{max_i}, {min_j}-{max_j}, {jmap["zoom"]})");
-                            ScheduleTileFetch(min_i, max_i, min_j, max_j, jmap["zoom"], tile_servers, name);
+                            // XXX should not schedule from here, but when selecting this map set
+                            Log.Info($"Scheduling fetching of map tiles for map '{map_id}' ({min_i}-{max_i}, {min_j}-{max_j}, {jmap["zoom"]})");
+                            ScheduleTileFetch(min_i, max_i, min_j, max_j, jmap["zoom"], 
+                                tile_server_configurations[imgsource["id"]].urls, map_id);
                         }
+                        else
+                            Log.Warn($"Unknown map image-source type '{imgsource["type"]}'!");
+                    }
 
-                        // XXX check if valid map_set config, before storing
-                        Configuration.StoreConfiguration(Configuration.ConfigType.MAP_SET, map_set_id, jmap_set);
+                    // XXX check if valid map_set config, before storing
+                    ConfigurationStore.Store(ConfigurationStore.ConfigType.MAP_SET, map_set_id, jmap_set);
 
-                        if (first && false)
-                        {
-                            // Update map to use first entry
-                            // Will also update observer and plane interpolation
-                            SetMap(name);
-                            first = false;
-                            current_map_updated = true;
-                        }
+                    map_sets[map_set_id] = map_set;
+
+                    if (first)
+                    {
+                        // Switch to this map set
+                        SelectMapSet(map_set_id);
+                        first = false;
+                        current_map_updated = true;
                     }
                 }
             }
@@ -1708,7 +1759,7 @@ namespace DutchSkies
                 float max_lat = -1e6f;
                 float max_lon = -1e6f;
 
-                foreach (OSMMap map in maps.Values)
+                foreach (OSMMap map in maps_in_current_set.Values)
                 {
                     min_lat = MathF.Min(min_lat, map.min_lat);
                     max_lat = MathF.Max(max_lat, map.max_lat);

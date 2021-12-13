@@ -6,7 +6,7 @@ namespace DutchSkies
 {
     public class OSMMap
     {
-        public string name;
+        public string id;
 
         // EPSG:4326 (WGS84)
         public float min_lat, max_lat;
@@ -25,9 +25,9 @@ namespace DutchSkies
         // Approximate map size in kilometers
         public float width, height;             
 
-        public OSMMap(string name, float minlat, float maxlat, float minlon, float maxlon, int zm=0)
+        public OSMMap(string id, float minlat, float maxlat, float minlon, float maxlon, int zm=0)
         {
-            this.name = name;
+            this.id = id;
             min_lat = minlat;
             max_lat = maxlat;
             min_lon = minlon;
@@ -36,7 +36,7 @@ namespace DutchSkies
 
             center_lat = 0.5f * (min_lat + max_lat);
             center_lon = 0.5f * (min_lon + max_lon);
-            Log.Info($"Center lat {center_lat:F6}, lon {center_lon:F6} (map '{name}')");
+            Log.Info($"Center lat {center_lat:F6}, lon {center_lon:F6} (map '{this.id}')");
 
             // Compute width of map at center latitude
             // Radius at center latitude in kilometers

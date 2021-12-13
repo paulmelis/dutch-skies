@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using StereoKit;
 
 namespace DutchSkies
 {
@@ -16,11 +17,16 @@ namespace DutchSkies
 			default_map = "";
 		}
 
-		public void Add(string id, OSMMap map)
-        {
-			maps[id] = map;
+		public void Add(string map_id, OSMMap map)
+		{
+			Log.Info($"MapSet.Add '{map_id}'");
+			maps[map_id] = map;
 			if (maps.Count == 1)
-				default_map = id;
+            {
+				Log.Info($"Map set '{id}: default map set to '{map_id}'");
+				default_map = map_id;
+				Log.Info($"default_map = '{default_map}'");
+			}				
 		}
 	}
 }

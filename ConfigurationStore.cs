@@ -5,7 +5,7 @@ using StereoKit;
 
 namespace DutchSkies
 {    
-    public class Configuration
+    public class ConfigurationStore
     {
         public enum ConfigType
         {
@@ -38,10 +38,12 @@ namespace DutchSkies
                 return "observers";
         }
 
-        public static void StoreConfiguration(ConfigType type, string id, JSONNode data)
-        {
+        public static void Store(ConfigType type, string id, JSONNode data)
+        {            
             ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
             string section = type2section(type);
+
+            Log.Info($"Storing configuration section '{section}', id '{id}'");
 
             ApplicationDataContainer type_container;
 
@@ -50,10 +52,32 @@ namespace DutchSkies
             else
                 type_container = localSettings.CreateContainer(section, ApplicationDataCreateDisposition.Always);
 
-            type_container.Values[id] = data.ToString();         
+            type_container.Values[id] = data.ToString();
         }
 
-        public static void ListConfigurations(ConfigType type, ref List<string> items)
+        public static void Delete(ConfigType type, string id)
+        {
+            ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
+            string section = type2section(type);
+
+            if (!localSettings.Containers.ContainsKey(section))
+            {
+                Log.Err($"No configurations of type '{section}' stored (id '{id}')");
+                return;
+            }
+
+            ApplicationDataContainer type_container = localSettings.Containers[section];
+            type_container.Values.Remove(id);
+        }
+        public static void DeleteAllOfType(ConfigType type)
+        {
+            ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
+            string section = type2section(type);
+
+            localSettings.DeleteContainer(section);
+        }
+
+        public static void List(ConfigType type, ref List<string> items)
         {
             items.Clear();
 
@@ -70,7 +94,7 @@ namespace DutchSkies
             items.Sort();
         }
 
-        public static bool LoadConfiguration(ConfigType type, string id, out JSONNode node)
+        public static bool Load(ConfigType type, string id, out JSONNode node)
         {
             ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
             string section = type2section(type);
@@ -96,28 +120,5 @@ namespace DutchSkies
 
             return true;
         }
-
-        public static void DeleteConfigurationsOfType(ConfigType type)
-        {
-            ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
-            string section = type2section(type);
-
-            localSettings.DeleteContainer(section);
-        }
-
-        public static void DeleteConfiguration(ConfigType type, string id)
-        {
-            ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
-            string section = type2section(type);
-
-            if (!localSettings.Containers.ContainsKey(section))
-            {
-                Log.Err($"No configurations of type '{section}' stored (id '{id}')");
-                return;
-            }
-
-            ApplicationDataContainer type_container = localSettings.Containers[section];
-            type_container.DeleteContainer(id);
-        }
-    }
+   }
 }
