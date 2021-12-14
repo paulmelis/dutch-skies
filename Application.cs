@@ -16,9 +16,10 @@ using StereoKit;
 
 namespace DutchSkies
 {
-    using URLFetchRequest = Tuple<string, string, bool, string>;
-    using TileFetchRequest = Tuple<int, int, int, int, int, string[], string>;
+    using URLFetchRequest = Tuple<string, string, bool, object>;
+    using TileFetchRequest = Tuple<int, int, int, int, int, string[], OSMMap>;
     using PostMessageRequest = Tuple<string>;
+    using Update = Tuple<string, object, object>;
 
     class Application
     {
@@ -118,7 +119,7 @@ namespace DutchSkies
 
         // XXX rename payload to marker or something
         // Thread event queue (type, data, payload)        
-        ConcurrentQueue<Tuple<string, object, string>> updates_queue;
+        ConcurrentQueue<Update> updates_queue;
         // URL requests queue (url, type, binary, payload)
         BlockingCollection<URLFetchRequest> url_requests_queue;
         // Tile fetch queue (mini/j, maxi/j, zoom, payload)
@@ -206,7 +207,7 @@ namespace DutchSkies
             //
 
             // Queue for receiving updates from threads
-            updates_queue = new ConcurrentQueue<Tuple<string, object, string>>();
+            updates_queue = new ConcurrentQueue<Update>();
 
             // Launch data update thread            
             // Queue for sending updated query range to thread
@@ -229,7 +230,7 @@ namespace DutchSkies
             tile_requests_queue = new BlockingCollection<TileFetchRequest>(new ConcurrentQueue<TileFetchRequest>());
             var tiles_fetch_thread = new Thread(OSMTiles.FetchMapTiles);
             tiles_fetch_thread.IsBackground = true;
-            tiles_fetch_thread.Start(new Tuple<object, object>(tile_requests_queue, updates_queue));
+            tiles_fetch_thread.Start(new Tuple<object,object>(tile_requests_queue, updates_queue));
             Log.Info("Tile fetch thread started");
 
             message_send_queue = new BlockingCollection<PostMessageRequest>(new ConcurrentQueue<PostMessageRequest>());
@@ -357,12 +358,12 @@ namespace DutchSkies
                 qrcode_watcher.Added += (o, qr) =>
                 {
                     //Log.Info($"(QR code Added handler) Found QR code: {qr.Code.Id} '{qr.Code.Data}'");
-                    updates_queue.Enqueue(new Tuple<string, object, string>("qrcode", qr.Code, ""));
+                    updates_queue.Enqueue(new Update("qrcode", qr.Code, ""));
                 };
                 qrcode_watcher.Updated += (o, qr) =>
                 {
                     //Log.Info($"(QR code Updated handler) QR code: {qr.Code.Id} '{qr.Code.Data}'");
-                    updates_queue.Enqueue(new Tuple<string, object, string>("qrcode", qr.Code, ""));
+                    updates_queue.Enqueue(new Update("qrcode", qr.Code, ""));
                 };
                 //watcher.Removed += (o, qr) => poses.Remove(qr.Code.Id);
             }
@@ -433,7 +434,7 @@ namespace DutchSkies
             TextStyle MAP_DIMENSION_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.01f * U.m, Color.White);
             TextStyle ALIGNMENT_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.35f * U.m, ALIGNMENT_TEXT_COLOR);
 
-            Tuple<string, object, string> update;
+            Update update;
             string update_type;
             JSONNode root_node;
 
@@ -473,14 +474,14 @@ namespace DutchSkies
                     if (update_type == "map_image")
                     {
                         byte[] map_image_file = update.Item2 as byte[];
-                        string map_to_update = update.Item3;
-                        Log.Info($"Got updated map image ({map_image_file.Length} bytes), for map '{map_to_update}'");
+                        OSMMap map_to_update = update.Item3 as OSMMap;
+                        Log.Info($"Got updated map image ({map_image_file.Length} bytes), for map '{map_to_update.id}'");
                         Tex texture = Tex.FromMemory(map_image_file);
                         if (texture != null)
                         {
-                            maps_in_current_set[map_to_update].texture = texture;
-                            if (current_map_name == map_to_update)
-                                map_material[MatParamName.DiffuseTex] = maps_in_current_set[map_to_update].texture;
+                            map_to_update.texture = texture;
+                            if (current_map_name == map_to_update.id)
+                                map_material[MatParamName.DiffuseTex] = maps_in_current_set[map_to_update.id].texture;
                         }
                         else
                             Log.Err($"Could not load map image file!");
@@ -539,7 +540,7 @@ namespace DutchSkies
                     }
                     else if (update_type == "config_data")
                     {
-                        ProcessConfigurationData(update.Item2 as string, update.Item3);
+                        ProcessConfigurationData(update.Item2 as string, update.Item3 as string);
                     }
                     else if (update_type == "map_tilefetch_progress")
                     {
@@ -1334,14 +1335,14 @@ namespace DutchSkies
             plane_data.Clear();            
         }
 
-        void ScheduleURLFetch(string url, string type, bool binary, string payload)
+        void ScheduleURLFetch(string url, string type, bool binary, object payload)
         {
             url_requests_queue.Add(new URLFetchRequest(url, type, binary, payload));
         }
 
-        void ScheduleTileFetch(int min_i, int max_i, int min_j, int max_j, int zoom, string[] servers, string map_name)
+        void ScheduleTileFetch(int min_i, int max_i, int min_j, int max_j, int zoom, string[] servers, OSMMap map)
         {
-            TileFetchRequest request = new TileFetchRequest(min_i, max_i, min_j, max_j, zoom, servers, map_name);
+            TileFetchRequest request = new TileFetchRequest(min_i, max_i, min_j, max_j, zoom, servers, map);
             tile_requests_queue.Add(request);
         }
          void SchedulePostMessage(string message)
@@ -1355,7 +1356,8 @@ namespace DutchSkies
         async void FetchURLThread()
         {
             URLFetchRequest request;
-            string type, url, payload;
+            string type, url;
+            object payload;
             bool binary;
 
             HttpClient http_client = new HttpClient();
@@ -1371,7 +1373,7 @@ namespace DutchSkies
                 binary = request.Item3;
                 payload = request.Item4;
 
-                Log.Info($"(URL fetch) Fetching URL {url} (type '{type}', binary {binary}, payload '{payload}')");
+                Log.Info($"(URL fetch) Fetching URL {url} (type '{type}', binary {binary}, payload {payload})");
 
                 try
                 {
@@ -1385,12 +1387,12 @@ namespace DutchSkies
                     if (binary)
                     {
                         byte[] data = await response.Content.ReadAsByteArrayAsync();
-                        updates_queue.Enqueue(new Tuple<string, object, string>(type, data, payload));
+                        updates_queue.Enqueue(new Update(type, data, payload));
                     }
                     else
                     {
                         string text = await response.Content.ReadAsStringAsync();
-                        updates_queue.Enqueue(new Tuple<string, object, string>(type, text, payload));
+                        updates_queue.Enqueue(new Update(type, text, payload));
                     }
 
                 }
@@ -1484,7 +1486,7 @@ namespace DutchSkies
                         //Log.Info("(Data fetch): " + body);
 
                         JSONNode root_node = JSON.Parse(body);
-                        updates_queue.Enqueue(new Tuple<string, object, string>("plane_data", root_node, ""));
+                        updates_queue.Enqueue(new Update("plane_data", root_node, ""));
                     }
                     catch (Exception e)
                     {
@@ -1492,9 +1494,11 @@ namespace DutchSkies
                         if (e.InnerException != null)
                             Log.Err($"(Data fetch) Inner exception: {e.InnerException.Message}");
                     }
-                }
 
-                Thread.Sleep(OPENSKY_QUERY_INTERVAL * 1000);
+                    Thread.Sleep(OPENSKY_QUERY_INTERVAL * 1000);
+                }
+                else
+                    Thread.Sleep(100);
             }
         }
 
@@ -1674,10 +1678,6 @@ namespace DutchSkies
                         Log.Info($"Assuming image source relative to config URL: '{imgurl}'");
                     }
 
-                    // XXX needs to include (map_set, name) to make sure fetched result gets put in the right place
-                    Log.Info($"Scheduling fetching of map image {imgurl} for map '{map_id}'");
-                    ScheduleURLFetch(imgurl, "map_image", true, map_id);
-
                     min_lat = jmap["lat_range"][0];
                     max_lat = jmap["lat_range"][1];
                     min_lon = jmap["lon_range"][0];
@@ -1690,6 +1690,10 @@ namespace DutchSkies
                     overall_max_lat = MathF.Max(overall_max_lat, max_lat);
                     overall_min_lon = MathF.Min(overall_min_lon, min_lon);
                     overall_max_lon = MathF.Max(overall_max_lon, max_lon);
+
+                    Log.Info($"Scheduling fetching of map image {imgurl} for map '{map.id}'");
+                    ScheduleURLFetch(imgurl, "map_image", true, map);
+
                 }
                 else if (imgsource["type"] == "tile_server")
                 {
@@ -1718,19 +1722,17 @@ namespace DutchSkies
                         Log.Err("Map specification '{map_id}' is using unknown tile-server id '{tile_server_id}', ignoring map!");
                         continue;
                     }
-
-                    // XXX needs to include (map_set, name)
-                    // XXX should not schedule from here, but when selecting this map set
-                        Log.Info($"Scheduling fetching of map tiles for map '{map_id}' ({min_i}-{max_i}, {min_j}-{max_j}, {jmap["zoom"]})");
-                    ScheduleTileFetch(min_i, max_i, min_j, max_j, jmap["zoom"],
-                        tile_server_configurations[tile_server_id].urls, map_id);
-
+                    
                     overall_min_lat = MathF.Min(overall_min_lat, min_lat);
                     overall_max_lat = MathF.Max(overall_max_lat, max_lat);
                     overall_min_lon = MathF.Min(overall_min_lon, min_lon);
                     overall_max_lon = MathF.Max(overall_max_lon, max_lon);
 
                     map_set.Add(map_id, map);
+
+                    // XXX should not schedule from here, but when selecting this map set
+                    Log.Info($"Scheduling fetching of map tiles for map '{map.id}' ({min_i}-{max_i}, {min_j}-{max_j}, {jmap["zoom"]})");
+                    ScheduleTileFetch(min_i, max_i, min_j, max_j, jmap["zoom"], tile_server_configurations[tile_server_id].urls, map);
                 }
                 else
                     Log.Warn($"Unknown map image-source type '{imgsource["type"]}'!");
