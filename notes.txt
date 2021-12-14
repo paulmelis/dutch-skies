@@ -10,6 +10,8 @@ use Windows.Data.Json instead of SimpleJSON
 
 use monospace font for log window?
 
+allow option to use per-map query extent in a set, instead of union of all map extents
+
 
 when alignment solution is applied, observer windrose needs to move
 to current position (and not original observer position), plus

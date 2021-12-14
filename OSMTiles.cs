@@ -128,7 +128,7 @@ namespace DutchSkies
                 int tile_row_size = TILE_SIZE * 4;  // BGRA
                 int tiles_fetched = 0;
                 int server_idx = 0;
-                string url;
+                string url = "";
 
                 for (int j = min_j; j <= max_j; j++)
                 {
@@ -176,7 +176,7 @@ namespace DutchSkies
                         }
                         catch (Exception e)
                         {
-                            Log.Err($"(tile fetch) Exception while fetching tile {i},{j}: {e.Message}");
+                            Log.Err($"(tile fetch) Exception while fetching tile {i},{j} from {url}: {e.Message}");
                             if (e.InnerException != null)
                                 Log.Err($"(tile fetch) Inner exception: {e.InnerException.Message}");
 

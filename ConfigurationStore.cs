@@ -52,6 +52,9 @@ namespace DutchSkies
             else
                 type_container = localSettings.CreateContainer(section, ApplicationDataCreateDisposition.Always);
 
+            if (type_container.Values.ContainsKey(id))
+                Log.Info($"Overwriting configuration '{id}' (section '{section}')");
+
             type_container.Values[id] = data.ToString();
         }
 
@@ -94,16 +97,15 @@ namespace DutchSkies
             items.Sort();
         }
 
-        public static bool Load(ConfigType type, string id, out JSONNode node)
+        public static JSONNode Load(ConfigType type, string id)
         {
             ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
             string section = type2section(type);
 
             if (!localSettings.Containers.ContainsKey(section))
             {
-                Log.Err($"No configurations of type '{section}' stored (id '{id}')");
-                node = null;
-                return false;
+                Log.Err($"No configurations of type '{section}' stored (id '{id}')");                
+                return null;
             }
 
             ApplicationDataContainer type_container = localSettings.Containers[section];
@@ -111,14 +113,12 @@ namespace DutchSkies
             if (!type_container.Values.ContainsKey(id))
             {
                 Log.Err($"No configuration '{id}' found (type '{section}')");
-                node = null;
-                return false;
+                return null;
             }
 
             string sdata = type_container.Values[id] as string;
-            node = JSONNode.Parse(sdata);
-
-            return true;
+            // XXX handle error
+            return JSONNode.Parse(sdata);
         }
    }
 }

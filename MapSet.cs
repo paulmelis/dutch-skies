@@ -9,12 +9,14 @@ namespace DutchSkies
 		public string id;
 		public Dictionary<string, OSMMap> maps;
 		public string default_map;
+		public Vec4 query_extent;
 
 		public MapSet(string id)
 		{
 			this.id = id;
 			maps = new Dictionary<string, OSMMap>();
 			default_map = "";
+			query_extent = new Vec4();
 		}
 
 		public void Add(string map_id, OSMMap map)

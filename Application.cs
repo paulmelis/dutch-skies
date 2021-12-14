@@ -40,18 +40,18 @@ namespace DutchSkies
         bool show_origin;
 
         // Configurations
-        List<string> available_map_sets;
-        List<string> available_landmark_sets;
-        List<string> available_observers;
+        List<string> stored_map_sets;
+        List<string> stored_landmark_sets;
+        List<string> stored_observers;
 
-        Dictionary<string, MapSet> map_sets;
-
-        MapSet current_map_set;
         string current_map_set_name;
         string current_landmark_set_name;
         string current_observer_name;
 
-        // XXX no longer needed
+        Dictionary<string, MapSet> map_sets;
+        MapSet current_map_set;
+
+        // XXX need to use a different value to show in the UI
         string current_configuration_name;
 
         // UI
@@ -61,21 +61,21 @@ namespace DutchSkies
         bool show_configuration_window;
 
         // Plane data
-        ConcurrentQueue<Vec4> query_extent_update_queue;
+        BlockingCollection<Vec4> query_extent_update_queue;
         Dictionary<string, PlaneData> plane_data;
                 
         int num_planes_on_map;
         int num_planes_late, num_planes_missing;
         int num_planes_on_ground;
 
-        DetailLevel detail_level;
+        DetailLevel map_detail_level;
         bool map_visible;
         bool map_show_plane_model, sky_show_plane_models;
         bool map_show_vlines, sky_show_vlines;
         bool map_show_track_lines, sky_show_trail_lines;
         bool map_show_observer;
         bool sky_show_landmarks;        
-        bool show_flight_units;
+        bool use_flight_units;
 
         int sky_d_trim;         // In 0.1 degree increments
         int sky_v_trim;         // In centimeters
@@ -101,7 +101,7 @@ namespace DutchSkies
         // XXX prefix with sky_
         Dictionary<string, Landmark> landmarks;
         List<string> sorted_landmark_names;
-        ObserverData observer;
+        ObserverData current_observer;
 
         const float OBSERVER_WINDROSE_SIZE = 1f;    // meters
         AlignmentSolver alignment_solver;
@@ -200,34 +200,67 @@ namespace DutchSkies
 
             XboxController xbox_controller = new XboxController();
 
+            //
+            // Start some background threads
+            // XXX can probably take more advantage of async/await, but let's use threads for now
+            //
+
+            // Queue for receiving updates from threads
+            updates_queue = new ConcurrentQueue<Tuple<string, object, string>>();
+
+            // Launch data update thread            
+            // Queue for sending updated query range to thread
+            query_extent_update_queue = new BlockingCollection<Vec4>(new ConcurrentQueue<Vec4>());
+            var plane_update_thread = new Thread(FetchPlaneUpdates);
+            plane_update_thread.IsBackground = true;
+            plane_update_thread.Start(query_extent_update_queue);
+            Log.Info("Plane update thread started");
+
+            // Launch config fetch thread
+            // Queue for fetching different types of data by URL
+            url_requests_queue = new BlockingCollection<URLFetchRequest>(new ConcurrentQueue<URLFetchRequest>());
+            var url_fetch_thread = new Thread(FetchURLThread);
+            url_fetch_thread.IsBackground = true;
+            url_fetch_thread.Start();
+            Log.Info("URL fetch thread started");
+
+            // Tile fetch thread
+            // input: lat/lon range, zoomlevel, tile servers
+            tile_requests_queue = new BlockingCollection<TileFetchRequest>(new ConcurrentQueue<TileFetchRequest>());
+            var tiles_fetch_thread = new Thread(OSMTiles.FetchMapTiles);
+            tiles_fetch_thread.IsBackground = true;
+            tiles_fetch_thread.Start(new Tuple<object, object>(tile_requests_queue, updates_queue));
+            Log.Info("Tile fetch thread started");
+
+            message_send_queue = new BlockingCollection<PostMessageRequest>(new ConcurrentQueue<PostMessageRequest>());
+            var post_messages_thread = new Thread(PostMessagesThread);
+            post_messages_thread.IsBackground = true;
+            post_messages_thread.Start();
+            Log.Info("Message post thread started");
 
             // Configurations
 
             current_configuration_name = "<builtin>";
 
-            //Configuration.DeleteConfigurationsOfType(Configuration.ConfigType.MAP_SET);
-            //Configuration.DeleteConfigurationsOfType(Configuration.ConfigType.LANDMARK_SET);
-            //Configuration.DeleteConfigurationsOfType(Configuration.ConfigType.OBSERVER);
-
             current_map_set_name = "";
             current_landmark_set_name = "";
             current_observer_name = "";
 
-            available_map_sets = new List<string>();
-            available_landmark_sets = new List<string>();
-            available_observers = new List<string>();
+            stored_map_sets = new List<string>();
+            stored_landmark_sets = new List<string>();
+            stored_observers = new List<string>();
 
             UpdateConfigurationLists();
 
             Log.Info("--- Available stored configurations ---");
             
-            foreach (string s in available_map_sets)
+            foreach (string s in stored_map_sets)
                 Log.Info($"[MAP_SET] '{s}'");
             
-            foreach (string s in available_map_sets)
+            foreach (string s in stored_map_sets)
                 Log.Info($"[LANDMARK_SET] '{s}'");
 
-            foreach (string s in available_observers)
+            foreach (string s in stored_observers)
                 Log.Info($"[OBSERVER] '{s}'");
 
             Log.Info("--- Available stored configurations ---");
@@ -238,7 +271,7 @@ namespace DutchSkies
 
             // Observer
 
-            observer = new ObserverData();
+            current_observer = new ObserverData();
 
             Mesh observer_cylinder_marker = Mesh.GenerateCylinder(0.002f, 0.02f, Vec3.UnitY, 8);
             Mesh observer_sphere_marker = Mesh.GenerateSphere(0.006f, 8);
@@ -295,59 +328,19 @@ namespace DutchSkies
             //Material floorMaterial = new Material(Shader.FromFile("floor.hlsl"));
             //floorMaterial.Transparency = Transparency.Blend;
 
-            //
-            // Start some background threads
-            // XXX can probably take more advantage of async/await, but let's use threads for now
-            //
-
-            // Queue for receiving updates from threads
-            updates_queue = new ConcurrentQueue<Tuple<string, object, string>>();
-
-            // Set initial query extent, based on map (minlat, maxlat, minlon, maxlon)
-            Vec4 data_query_extent = new Vec4(current_map.min_lat, current_map.max_lat, current_map.min_lon, current_map.max_lon);
-
-            // Launch data update thread            
-            // Queue for sending updated query range to thread
-            query_extent_update_queue = new ConcurrentQueue<Vec4>();
-            // Push initial query extent
-            query_extent_update_queue.Enqueue(data_query_extent);
-            var plane_update_thread = new Thread(FetchPlaneUpdates);
-            plane_update_thread.IsBackground = true;
-            plane_update_thread.Start(query_extent_update_queue);
-            Log.Info("Plane update thread started");
-
-            // Launch config fetch thread
-            // Queue for fetching different types of data by URL
-            url_requests_queue = new BlockingCollection<URLFetchRequest>(new ConcurrentQueue<URLFetchRequest>());
-            var url_fetch_thread = new Thread(FetchURLThread);
-            url_fetch_thread.IsBackground = true;
-            url_fetch_thread.Start();
-            Log.Info("URL fetch thread started");
-
-            // Tile fetch thread
-            // input: lat/lon range, zoomlevel, tile servers
-            tile_requests_queue = new BlockingCollection<TileFetchRequest>(new ConcurrentQueue<TileFetchRequest>());
-            var tiles_fetch_thread = new Thread(OSMTiles.FetchMapTiles);
-            tiles_fetch_thread.IsBackground = true;
-            tiles_fetch_thread.Start(new Tuple<object, object>(tile_requests_queue, updates_queue));
-            Log.Info("Tile fetch thread started");
-
-            message_send_queue = new BlockingCollection<PostMessageRequest>(new ConcurrentQueue<PostMessageRequest>());
-            var post_messages_thread = new Thread(PostMessagesThread);
-            post_messages_thread.IsBackground = true;
-            post_messages_thread.Start();
-            Log.Info("Message post thread started");
+            // Initial config (for debugging)
 
             // XXX
             string initial_config = "";
             //initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-image.json";
             //initial_config = "http://192.168.178.32:8000/config-netherlands-and-schiphol-osmtiles.json";
             //initial_config = "http://192.168.178.32:8000/config-newyork-image.json";
-            //initial_config = "http://192.168.178.32:8000/config-alps-image.json";
-            //initial_config = "http://192.168.178.32:8000/sanfrancisco-osmtiles.json";
-            //initial_config = "https://surfdrive.surf.nl/files/index.php/s/mzR0FisZZQkKLm1/download?path=%2F&files=observer-and-landmarks-frankendael.json";
-            //ScheduleURLFetch(initial_config, "config_data", false, initial_config);
+            //initial_config = "http://192.168.178.32:8000/config-alps-image.json";            
+            //initial_config = "http://192.168.178.32:8000/sanfrancisco-osmtiles.json";            
             //initial_config = "http://192.168.178.32:8000/observer-and-landmarks-home-backroom.json";
+
+            //initial_config = "http://192.168.178.32:8000/config-alps-surfdriveimage.json2";
+            //initial_config = "http://192.168.178.32:8000/sanfrancisco-image.json2";                                    
             //initial_config = "http://192.168.178.32:8000/config-netherlands-park.json2";
 
             if (initial_config != "")
@@ -393,7 +386,7 @@ namespace DutchSkies
             log_window_pose = new Pose(0.9f, -0.2f, 0f, Quat.LookDir(-1, 0, 1));
             configuration_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));
 
-            detail_level = DetailLevel.FULL;
+            map_detail_level = DetailLevel.FULL;
             show_log_window = true;
             show_trim_window = false;
             show_configuration_window = true;
@@ -407,7 +400,7 @@ namespace DutchSkies
             sky_show_trail_lines = true;
             map_show_observer = false;
             sky_show_landmarks = true;
-            show_flight_units = false;
+            use_flight_units = false;
             show_origin = false;
 
             sky_d_trim = 0;
@@ -510,7 +503,7 @@ namespace DutchSkies
                             if (!plane_data.ContainsKey(id))
                                 plane_data[id] = new PlaneData(id);
 
-                            plane_data[id].ProcessDataUpdate(update_time, plane, current_map, observer);
+                            plane_data[id].ProcessDataUpdate(update_time, plane, current_map, current_observer);
                         }
                     }
                     else if (update_type == "qrcode")
@@ -703,7 +696,7 @@ namespace DutchSkies
                         text_pos.y = 0.01f;
                     }
 
-                    if (detail_level == DetailLevel.CALLSIGN)
+                    if (map_detail_level == DetailLevel.CALLSIGN)
                     {
                         Text.Add(
                             $"{callsign}",
@@ -713,14 +706,14 @@ namespace DutchSkies
                             TextAlign.XLeft | TextAlign.YTop,
                             -0.01f, 0.00f);
                     }
-                    else if (detail_level == DetailLevel.FULL)
+                    else if (map_detail_level == DetailLevel.FULL)
                     {
                         float vrate = plane.last_vertical_rate;
                         string vstring = " ";
                         string astring = "";
                         string sstring = "";
 
-                        if (show_flight_units)
+                        if (use_flight_units)
                         {
                             sstring = $"{plane.last_velocity * 1.94384449f:N0} kn";
 
@@ -771,9 +764,9 @@ namespace DutchSkies
 
                 // Observer location on map
 
-                if (map_show_observer && observer.on_map)
+                if (map_show_observer && current_observer.on_map)
                 {
-                    Vec3 observer_pos = ROT_MIN90_X.Transform(observer.map_position) * map_scale_km_to_scene;
+                    Vec3 observer_pos = ROT_MIN90_X.Transform(current_observer.map_position) * map_scale_km_to_scene;
                     observer_cylinder_marker.Draw(observer_marker_material, Matrix.T(0f, 0.005f, 0f) * Matrix.T(observer_pos));
                     observer_sphere_marker.Draw(observer_marker_material, Matrix.T(0f, 0.015f, 0f) * Matrix.T(observer_pos));
                 }
@@ -872,7 +865,7 @@ namespace DutchSkies
                     string astring = "";
                     string sstring = "";
 
-                    if (show_flight_units)
+                    if (use_flight_units)
                     {
                         sstring = $"{plane.last_velocity * 1.94384449f:N0} kn";
                         int fl = (int)MathF.Round(plane.computed_geometric_altitude / 30.48f);
@@ -995,7 +988,7 @@ namespace DutchSkies
             // Main window
             UI.WindowBegin($"Dutch SKies - {current_configuration_name}", ref main_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
 
-            UI.Toggle("Flight units", ref show_flight_units);
+            UI.Toggle("Flight units", ref use_flight_units);
             UI.SameLine();
             if (UI.Button("Clear tracks"))
                 ClearTracks();
@@ -1038,15 +1031,15 @@ namespace DutchSkies
             UI.SameLine();
             UI.Toggle("Track lines", ref map_show_track_lines);
             UI.SameLine();
-            UI.Toggle($"Observer '{observer.name}'", ref map_show_observer);
+            UI.Toggle($"Observer '{current_observer.name}'", ref map_show_observer);
 
             UI.Label("Plane details");
             UI.SameLine();
-            if (UI.Radio("None", detail_level == DetailLevel.NONE)) detail_level = DetailLevel.NONE;
+            if (UI.Radio("None", map_detail_level == DetailLevel.NONE)) map_detail_level = DetailLevel.NONE;
             UI.SameLine();
-            if (UI.Radio("Callsign", detail_level == DetailLevel.CALLSIGN)) detail_level = DetailLevel.CALLSIGN;
+            if (UI.Radio("Callsign", map_detail_level == DetailLevel.CALLSIGN)) map_detail_level = DetailLevel.CALLSIGN;
             UI.SameLine();
-            if (UI.Radio("Full", detail_level == DetailLevel.FULL)) detail_level = DetailLevel.FULL;
+            if (UI.Radio("Full", map_detail_level == DetailLevel.FULL)) map_detail_level = DetailLevel.FULL;
 
             UI.PopId();
 
@@ -1191,48 +1184,84 @@ namespace DutchSkies
 
             if (show_configuration_window)
             {
-                UI.WindowBegin("Log", ref configuration_window_pose, new Vec2(40, 0) * U.cm, UIWin.Normal);
-
-                UI.Text("Map sets");
-                col = 0;
                 size = new Vec2(8 * U.cm, 0);
-                foreach (string name in available_map_sets)
+                bool first;
+
+                UI.WindowBegin("Configurations", ref configuration_window_pose, new Vec2(40, 0) * U.cm, UIWin.Normal);
+
+                UI.PushId("map-sets");
+                UI.Text("Map sets");                
+                UI.SameLine();
+                UI.Space(-0.03f);
+                if (UI.Button("Delete ALL"))
                 {
-                    if (col < 4) UI.SameLine(); else col = 0;
+                    ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.MAP_SET);
+                    UpdateConfigurationLists();
+                    SelectMapSet("<default>");
+                }
+                first = true;
+                col = 0;                
+                foreach (string name in stored_map_sets)
+                {
+                    if (!first && col < 4) UI.SameLine(); else col = 0;
 
                     if (UI.Radio(name, current_map_set_name == name, size))
                         SelectMapSet(name);
 
                     col++;
+                    first = false;
                 }
+                UI.PopId();
 
-                UI.Text("Observers");
-                col = 0;
-                size = new Vec2(8 * U.cm, 0);
-                foreach (string name in available_observers)
+                UI.PushId("observers");
+                UI.Text("Observers");                
+                UI.SameLine();
+                UI.Space(-0.03f);
+                if (UI.Button("Delete ALL"))
                 {
-                    if (col < 4) UI.SameLine(); else col = 0;
+                    ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.OBSERVER);
+                    UpdateConfigurationLists();
+                    // XXX clear observer
+                }
+                first = true;
+                col = 0;
+                foreach (string name in stored_observers)
+                {
+                    if (!first && col < 4) UI.SameLine(); else col = 0;
 
                     if (UI.Radio(name, current_observer_name == name, size))
                         // XXX update observer
                         ;
 
                     col++;
+                    first = false;
                 }
+                UI.PopId();
 
-                UI.Text("Landmark sets");
-                col = 0;
-                size = new Vec2(8 * U.cm, 0);
-                foreach (string name in available_landmark_sets)
+                UI.PushId("landmark-sets");
+                UI.Text("Landmark sets");                
+                UI.SameLine();
+                UI.Space(-0.03f);
+                if (UI.Button("Delete ALL"))
                 {
-                    if (col < 4) UI.SameLine(); else col = 0;
+                    ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.LANDMARK_SET);
+                    UpdateConfigurationLists();
+                    // XXX clear landmarks
+                }
+                first = true;
+                col = 0;
+                foreach (string name in stored_landmark_sets)
+                {
+                    if (!first && col < 4) UI.SameLine(); else col = 0;
 
                     if (UI.Radio(name, current_landmark_set_name == name, size))
                         // XXX update landmark set
                         ;
 
                     col++;
+                    first = false;
                 }
+                UI.PopId();
 
                 UI.WindowEnd();
             }
@@ -1282,14 +1311,15 @@ namespace DutchSkies
             map.texture = Tex.FromFile("Maps\\eindhoven.png");
             map_set.Add("Eindhoven Airport", map);
 
-            map_sets["<default>"] = map_set;
+            map_set.query_extent = new Vec4(50.51342652633955f, 53.9560855309879f, 2.8125f, 8.0859375f);
+            map_sets["<default>"] = map_set;            
         }
 
         public void ObserverChanged()
         {
-            observer.update_map_position(current_map);
+            current_observer.update_map_position(current_map);
             foreach (PlaneData plane in plane_data.Values)
-                plane.ObserverChange(observer);
+                plane.ObserverChange(current_observer);
             RecomputeLandmarkPositions();
         }
 
@@ -1297,6 +1327,11 @@ namespace DutchSkies
         {
             foreach (var plane in plane_data.Values)
                 plane.ClearTrack();
+        }
+
+        public void ClearAllPlaneData()
+        {
+            plane_data.Clear();            
         }
 
         void ScheduleURLFetch(string url, string type, bool binary, string payload)
@@ -1423,26 +1458,20 @@ namespace DutchSkies
 
         async void FetchPlaneUpdates(object obj)
         {
-            ConcurrentQueue<Vec4> extent_input_queue = obj as ConcurrentQueue<Vec4>;
+            BlockingCollection<Vec4> extent_input_queue = obj as BlockingCollection<Vec4>;
 
+            string URL;
             Vec4 extent;
+
             HttpClient http_client = new HttpClient();
-
-            // Wait for initial extent
-            while (!extent_input_queue.TryDequeue(out extent))
-                Thread.Sleep(100);
-
-            Log.Info($"(Data fetch) Initial query extent: lat {extent.x:F6} to {extent.y:F6}; lon {extent.z:F6} to {extent.w:F6}");
-            string URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
 
             while (true)
             {
-                if (extent_input_queue.TryDequeue(out extent))
-                {
-                    // Got updated extent
-                    Log.Info($"(Data fetch) Got updated query extent: lat {extent.x:F6} to {extent.y:F6}; lon {extent.z:F6} to {extent.w:F6}");
-                    URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
-                }
+                extent = extent_input_queue.Take();
+
+                // Got updated extent
+                Log.Info($"(Data fetch) Got updated query extent: lat {extent.x:F6} to {extent.y:F6}; lon {extent.z:F6} to {extent.w:F6}");
+                URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
 
                 try
                 {
@@ -1520,7 +1549,7 @@ namespace DutchSkies
 
             alignment_solver.ClearReferences();
 
-            SchedulePostMessage($"RecomputeLandmarkPositions: observer lat {observer.lat:F6}, lon {observer.lon:F6}, alt {observer.floor_altitude:F6}");
+            SchedulePostMessage($"RecomputeLandmarkPositions: observer lat {current_observer.lat:F6}, lon {current_observer.lon:F6}, alt {current_observer.floor_altitude:F6}");
 
             foreach (Landmark lm in landmarks.Values)
             {
@@ -1531,12 +1560,12 @@ namespace DutchSkies
                 // Sky (m)
                 M = Matrix.R(-lm.lat, 0f, 0f)
                     *
-                    Matrix.R(0f, lm.lon - observer.lon, 0f)
+                    Matrix.R(0f, lm.lon - current_observer.lon, 0f)
                     *
-                    Matrix.R(observer.lat, 0f, 0f)
+                    Matrix.R(current_observer.lat, 0f, 0f)
                     *
                     // XXX Should also include have-above-floor distance, but the effect will be minimal
-                    Matrix.T(0f, 0f, -(Projection.RADIUS_METERS + observer.floor_altitude));
+                    Matrix.T(0f, 0f, -(Projection.RADIUS_METERS + current_observer.floor_altitude));
 
                 Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + lm.top_altitude);
 
@@ -1551,19 +1580,196 @@ namespace DutchSkies
             }
         }
 
+        public MapSet ParseMapSet(JSONNode jmap_set, string config_url="")
+        {
+            JSONArray jmaps;
+            MapSet map_set;
+            string map_set_id;
+            OSMMap map;
+            float min_lat, min_lon, max_lat, max_lon;
+            float overall_min_lat = 1e6f, overall_min_lon = 1e6f;
+            float overall_max_lat = -1e6f, overall_max_lon = -1e6f;
+
+            if (!jmap_set.HasKey("id"))
+            {
+                // XXX list index in sets in message
+                Log.Warn($"Map-set does not have 'id' field!");
+                return null;
+            }
+
+            map_set_id = jmap_set["id"];
+
+            // XXX avoid '<default>'?
+            if (map_set_id == "")
+            {
+                Log.Warn($"Map-set should not have empty 'id' field!");
+                return null;
+            }
+
+            if (!jmap_set.HasKey("items") || jmap_set["items"].Count == 0)
+            { 
+                Log.Warn($"Map-set '{map_set_id}' does not contain any maps!");
+                // XXX return anyway?
+                return null;
+            }
+
+            map_set = new MapSet(map_set_id);
+            jmaps = jmap_set["items"].AsArray;
+
+            if (config_url == "" && jmap_set.HasKey("config_url"))
+                config_url = jmap_set["config_url"];
+
+            // Optional list of tile servers
+            Dictionary<string, TileServerConfiguration> tile_server_configurations = new Dictionary<string, TileServerConfiguration>();
+
+            if (jmap_set.HasKey("tile_servers"))
+            {
+                foreach (JSONNode jtileserver in jmap_set["tile_servers"])
+                {
+                    TileServerConfiguration ts = TileServerConfiguration.FromJSON(jtileserver);
+                    tile_server_configurations[ts.id] = ts;
+                }
+            }
+
+            // Maps in map set
+            foreach (JSONNode jmap in jmaps)
+            {
+                if (!jmap.HasKey("id"))
+                {
+                    Log.Err($"Map does not have 'id' set, ignoring whole map set!");
+                    return null;
+                }
+
+                string map_id = jmap["id"];
+                Log.Info($"Have new map '{map_id}'");
+
+                if (!jmap.HasKey("lat_range"))
+                {
+                    Log.Err("Map specification is missing 'lat_range'!");
+                    continue;
+                }
+                if (!jmap.HasKey("lon_range"))
+                {
+                    Log.Err("Map specification is missing 'lon_range'!");
+                    continue;
+                }
+
+                JSONNode imgsource = jmap["image_source"];
+
+                if (imgsource["type"] == "url")
+                {
+                    string imgurl = imgsource["url"];
+                    if (!(imgurl.StartsWith("http://") || imgurl.StartsWith("https://")))
+                    {
+                        // Assume path relative to config url
+                        Uri uri = new Uri(config_url);
+                        string path = Path.GetDirectoryName(uri.AbsolutePath).Replace("\\", "/");
+                        if (imgurl[0] != '/')
+                            path += '/';
+                        imgurl = $"{uri.GetLeftPart(UriPartial.Authority)}{path}{imgurl}";
+                        Log.Info($"Assuming image source relative to config URL: '{imgurl}'");
+                    }
+
+                    // XXX needs to include (map_set, name) to make sure fetched result gets put in the right place
+                    Log.Info($"Scheduling fetching of map image {imgurl} for map '{map_id}'");
+                    ScheduleURLFetch(imgurl, "map_image", true, map_id);
+
+                    min_lat = jmap["lat_range"][0];
+                    max_lat = jmap["lat_range"][1];
+                    min_lon = jmap["lon_range"][0];
+                    max_lon = jmap["lon_range"][1];
+
+                    map = new OSMMap(map_id, min_lat, max_lat, min_lon, max_lon);
+                    map_set.Add(map_id, map);
+
+                    overall_min_lat = MathF.Min(overall_min_lat, min_lat);
+                    overall_max_lat = MathF.Max(overall_max_lat, max_lat);
+                    overall_min_lon = MathF.Min(overall_min_lon, min_lon);
+                    overall_max_lon = MathF.Max(overall_max_lon, max_lon);
+                }
+                else if (imgsource["type"] == "tile_server")
+                {
+                    if (!jmap.HasKey("zoom"))
+                    {
+                        Log.Err("Map specification '{map_id}' uses tile-server, but is missing 'zoom' value!");
+                        continue;
+                    }
+
+                    Vec4 query_extent = new Vec4(jmap["lat_range"][0], jmap["lat_range"][1], jmap["lon_range"][0], jmap["lon_range"][1]);
+
+                    int min_i, max_i, min_j, max_j;
+
+                    // The actual map extent will be based on a set of unclipped tiles, so we need it here to set up the
+                    // map correctly before the image fetch is complete.
+                    OSMTiles.ComputeActualMapExtent(
+                        out min_lat, out max_lat, out min_lon, out max_lon,
+                        out min_i, out max_i, out min_j, out max_j,
+                            query_extent, jmap["zoom"]);
+
+                    map = new OSMMap(map_id, min_lat, max_lat, min_lon, max_lon);
+                    map_set.Add(map_id, map);
+
+                    // XXX needs to include (map_set, name)
+                    // XXX should not schedule from here, but when selecting this map set
+                    Log.Info($"Scheduling fetching of map tiles for map '{map_id}' ({min_i}-{max_i}, {min_j}-{max_j}, {jmap["zoom"]})");
+                    ScheduleTileFetch(min_i, max_i, min_j, max_j, jmap["zoom"],
+                        tile_server_configurations[imgsource["id"]].urls, map_id);
+
+                    overall_min_lat = MathF.Min(overall_min_lat, min_lat);
+                    overall_max_lat = MathF.Max(overall_max_lat, max_lat);
+                    overall_min_lon = MathF.Min(overall_min_lon, min_lon);
+                    overall_max_lon = MathF.Max(overall_max_lon, max_lon);
+                }
+                else
+                    Log.Warn($"Unknown map image-source type '{imgsource["type"]}'!");
+            }
+
+            map_set.query_extent = new Vec4(overall_min_lat, overall_max_lat, overall_min_lon, overall_max_lon);
+            Log.Info($"Setting plane data query extent to {map_set.query_extent}, based on union of map extents (map-set '{map_set.id}')");            
+                        
+            return map_set;
+        }
+
         public void SelectMapSet(string id)
         {
+            JSONNode jmapset;
+
             Log.Info($"Selecting map-set '{id}'");
 
-            // XXX check id exists
+            if (!map_sets.ContainsKey(id))
+            {
+                if (!stored_map_sets.Contains(id))
+                {
+                    Log.Err($"Map-set '{id}' not available, nor stored!");
+                    return;
+                }
+
+                jmapset = ConfigurationStore.Load(ConfigurationStore.ConfigType.MAP_SET, id);
+                if (jmapset == null)
+                {
+                    Log.Err($"Error loading map-set '{id}' from storage!");
+                    return;
+                }
+
+                map_sets[id] = ParseMapSet(jmapset);
+            }
+                
             current_map_set = map_sets[id];
             current_map_set_name = id;
 
             maps_in_current_set = current_map_set.maps;
 
             SelectMap(current_map_set.default_map);
+
+            // XXX Update/clear observer
             // XXX fold into SelectMap?
-            observer.update_map_position(current_map);            
+            current_observer.update_map_position(current_map);
+
+            ClearAllPlaneData();
+
+            Log.Info($"Setting plane data query extent to {current_map_set.query_extent}");
+            query_extent_update_queue.Add(current_map_set.query_extent);
+
         }
 
         public void SelectMap(string id)
@@ -1595,16 +1801,16 @@ namespace DutchSkies
                 plane.Update(draw_time);
             }
 
-            observer.update_map_position(current_map);
+            current_observer.update_map_position(current_map);
         }
 
         public void UpdateConfigurationLists()
         {
-            ConfigurationStore.List(ConfigurationStore.ConfigType.MAP_SET, ref available_map_sets);
-            available_map_sets.Insert(0, "<default>");
+            ConfigurationStore.List(ConfigurationStore.ConfigType.MAP_SET, ref stored_map_sets);
+            stored_map_sets.Insert(0, "<default>");
 
-            ConfigurationStore.List(ConfigurationStore.ConfigType.LANDMARK_SET, ref available_landmark_sets);
-            ConfigurationStore.List(ConfigurationStore.ConfigType.OBSERVER, ref available_observers);
+            ConfigurationStore.List(ConfigurationStore.ConfigType.LANDMARK_SET, ref stored_landmark_sets);
+            ConfigurationStore.List(ConfigurationStore.ConfigType.OBSERVER, ref stored_observers);
         }
 
         public void ProcessConfigurationData(string config_string, string config_url)
@@ -1618,181 +1824,60 @@ namespace DutchSkies
 
             bool current_map_updated = false;
             bool observer_updated = false;
-            bool explicit_query_extent = false;
-
-            /*if (config_root.HasKey("query"))
-            {
-                JSONNode query = config_root["query"];
-
-                Vec4 extent = new Vec4(query["lat_range"][0], query["lat_range"][1], query["lon_range"][0], query["lon_range"][1]);
-                Log.Info($"Setting plane data query extent to {extent}");
-                query_extent_update_queue.Enqueue(extent);
-                explicit_query_extent = true;
-            }*/
 
             if (config_root.HasKey("map_sets"))
             {
                 JSONArray jmap_sets = config_root["map_sets"].AsArray;
-                JSONArray jmaps;
                 MapSet map_set;
-                string map_set_id;
-                OSMMap map;
-
                 bool first = true;
-                float min_lat, max_lat, min_lon, max_lon;
                 int set_idx = 0;
-                
+
                 foreach (JSONNode jmap_set in jmap_sets)
-                {
-                    if (!jmap_set.HasKey("id"))
+                {                    
+                    map_set = ParseMapSet(jmap_set, config_url);
+
+                    if (map_set == null)
                     {
-                        // XXX list index in sets in message
-                        Log.Err($"Map-set (index {set_idx}) does not have 'id' field, ignoring!");
-                        set_idx++;
+                        Log.Warn($"Map-set (index {set_idx} could not be parsed, ignoring");
                         continue;
                     }
 
-                    map_set_id = jmap_set["id"];
+                    map_sets[map_set.id] = map_set;
 
-                    // XXX avoid '<default>'?
-                    if (map_set_id == "")
-                    {
-                        Log.Err($"Map-set (index {set_idx}) should not have empty 'id' field, ignoring!");
-                        set_idx++;
-                        continue;
-                    }
+                    // Hack in the original config_url, so we can restore properly later on
+                    jmap_set["config_url"] = config_url;
 
-                    if (!jmap_set.HasKey("items") || jmap_set["items"].Count == 0)
-                    {
-                        Log.Err($"Map-set '{map_set_id}' does not contain any maps, ignoring!");
-                        set_idx++;
-                        continue;
-                    }
-
-                    map_set = new MapSet(map_set_id);
-                    jmaps = jmap_set["items"].AsArray;
-
-                    // Optional list of tile servers
-                    Dictionary<string, TileServerConfiguration> tile_server_configurations = new Dictionary<string, TileServerConfiguration>();
-
-                    if (jmap_set.HasKey("tile_servers"))
-                    {
-                        foreach (JSONNode jtileserver in jmap_set["tile_servers"])
-                        {
-                            TileServerConfiguration ts = TileServerConfiguration.FromJSON(jtileserver);
-                            tile_server_configurations[ts.id] = ts;
-                        }
-                    }
-
-                    // Maps in map set
-                    foreach (JSONNode jmap in jmaps)
-                    {
-                        string map_id = jmap["id"];
-                        Log.Info($"Have new map '{map_id}'");
-
-                        if (!jmap.HasKey("lat_range"))
-                        {
-                            Log.Err("Map specification is missing 'lat_range'!");
-                            continue;
-                        }
-                        if (!jmap.HasKey("lon_range"))
-                        {
-                            Log.Err("Map specification is missing 'lon_range'!");
-                            continue;
-                        }
-
-                        JSONNode imgsource = jmap["image_source"];
-
-                        if (imgsource["type"] == "url")
-                        {
-                            string imgurl = imgsource["url"];
-                            if (!(imgurl.StartsWith("http://") || imgurl.StartsWith("https://")))
-                            {
-                                // Assume path relative to config url
-                                Uri uri = new Uri(config_url);
-                                string path = Path.GetDirectoryName(uri.AbsolutePath).Replace("\\", "/");
-                                if (imgurl[0] != '/')
-                                    path += '/';
-                                imgurl = $"{uri.GetLeftPart(UriPartial.Authority)}{path}{imgurl}";
-                                Log.Info($"Assuming image source relative to config URL: {imgurl}");
-                            }
-
-                            // XXX needs to include (map_set, name) to make sure fetched result gets put in the right place
-                            Log.Info($"Scheduling fetching of map image {imgurl} for map '{map_id}'");
-                            ScheduleURLFetch(imgurl, "map_image", true, map_id);
-
-                            min_lat = jmap["lat_range"][0];
-                            max_lat = jmap["lat_range"][1];
-                            min_lon = jmap["lon_range"][0];
-                            max_lon = jmap["lon_range"][1];
-
-                            map = new OSMMap(map_id, min_lat, max_lat, min_lon, max_lon);
-                            map_set.Add(map_id, map);
-                        }
-                        else if (imgsource["type"] == "tile_server")
-                        {
-                            if (!jmap.HasKey("zoom"))
-                            {
-                                Log.Err("Map specification '{map_id}' uses tile-server, but is missing 'zoom' value!");
-                                continue;
-                            }
-
-                            Vec4 query_extent = new Vec4(jmap["lat_range"][0], jmap["lat_range"][1], jmap["lon_range"][0], jmap["lon_range"][1]);
-
-                            int min_i, max_i, min_j, max_j;
-
-                            // The actual map extent will be based on a set of unclipped tiles, so we need it here to set up the
-                            // map correctly before the image fetch is complete.
-                            OSMTiles.ComputeActualMapExtent(
-                                out min_lat, out max_lat, out min_lon, out max_lon,
-                                out min_i, out max_i, out min_j, out max_j,
-                                    query_extent, jmap["zoom"]);
-
-                            map = new OSMMap(map_id, min_lat, max_lat, min_lon, max_lon);
-                            map_set.Add(map_id, map);
-
-                            // XXX needs to include (map_set, name)
-                            // XXX should not schedule from here, but when selecting this map set
-                            Log.Info($"Scheduling fetching of map tiles for map '{map_id}' ({min_i}-{max_i}, {min_j}-{max_j}, {jmap["zoom"]})");
-                            ScheduleTileFetch(min_i, max_i, min_j, max_j, jmap["zoom"], 
-                                tile_server_configurations[imgsource["id"]].urls, map_id);
-                        }
-                        else
-                            Log.Warn($"Unknown map image-source type '{imgsource["type"]}'!");
-                    }
-
-                    // XXX check if valid map_set config, before storing
-                    ConfigurationStore.Store(ConfigurationStore.ConfigType.MAP_SET, map_set_id, jmap_set);
-
-                    map_sets[map_set_id] = map_set;
+                    ConfigurationStore.Store(ConfigurationStore.ConfigType.MAP_SET, map_set.id, jmap_set);                    
 
                     if (first)
                     {
                         // Switch to this map set
-                        SelectMapSet(map_set_id);
+                        SelectMapSet(map_set.id);
                         first = false;
                         current_map_updated = true;
                     }
+
+                    set_idx++;
                 }
             }
 
             if (config_root.HasKey("observer") && config_root["observer"].HasKey("id"))  // Guard against observer: {}
             {
                 JSONNode jobs = config_root["observer"];
-                observer.name = jobs["id"];
-                observer.lat = jobs["lat"];
-                observer.lon = jobs["lon"];
-                observer.floor_altitude = jobs["alt"];
+                current_observer.name = jobs["id"];
+                current_observer.lat = jobs["lat"];
+                current_observer.lon = jobs["lon"];
+                current_observer.floor_altitude = jobs["alt"];
                 observer_updated = true;
             }
             else if (current_map_updated)
             {
                 // Need some setting for observer, so pick map center at 0m altitude
                 Log.Info("No observer set in configuration, so picking map center");
-                observer.name = "<map center>";
-                observer.lat = current_map.center_lat;
-                observer.lon = current_map.center_lon;
-                observer.floor_altitude = 0f;
+                current_observer.name = "<map center>";
+                current_observer.lat = current_map.center_lat;
+                current_observer.lon = current_map.center_lon;
+                current_observer.floor_altitude = 0f;
                 observer_updated = true;
             }
 
@@ -1806,27 +1891,7 @@ namespace DutchSkies
             if (observer_updated)
                 ObserverChanged();
 
-            if (current_map_updated && !explicit_query_extent)
-            {
-                // Maps changed, but no query extent given. Set extent to union of all maps,
-                // to cover the whole area
-                float min_lat = 1e6f;
-                float min_lon = 1e6f;
-                float max_lat = -1e6f;
-                float max_lon = -1e6f;
-
-                foreach (OSMMap map in maps_in_current_set.Values)
-                {
-                    min_lat = MathF.Min(min_lat, map.min_lat);
-                    max_lat = MathF.Max(max_lat, map.max_lat);
-                    min_lon = MathF.Min(min_lon, map.min_lon);
-                    max_lon = MathF.Max(max_lon, map.max_lon);
-                }
-
-                Vec4 extent = new Vec4(min_lat, max_lat, min_lon, max_lon);
-                Log.Info($"Setting plane data query extent to {extent}, based on union of map extents (no explicit extent given)");
-                query_extent_update_queue.Enqueue(extent);
-            }
+            UpdateConfigurationLists();
         }
     }
 }
