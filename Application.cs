@@ -320,6 +320,11 @@ namespace DutchSkies
 
             // XXX need to figure out why the marker needs to be much smaller compared to the plane model, doesn't make sense
             Mesh plane_ground_marker = Mesh.GenerateCylinder(0.001f, 0.002f, Vec3.UnitY, 8);
+            if (plane_ground_marker == null)
+            {
+                Log.Err("Could not generate plane ground marker, something is really screwed! I'm giving up...");
+                SK.Quit();
+            }
             Material plane_marker_material = Default.Material.Copy();
             plane_marker_material[MatParamName.ColorTint] = new Color(0f, 0f, 1f);
 
@@ -1186,83 +1191,77 @@ namespace DutchSkies
             if (show_configuration_window)
             {
                 size = new Vec2(8 * U.cm, 0);
-                bool first;
 
                 UI.WindowBegin("Configurations", ref configuration_window_pose, new Vec2(40, 0) * U.cm, UIWin.Normal);
 
                 UI.PushId("map-sets");
-                UI.Text("Map sets");                
-                UI.SameLine();
-                UI.Space(-0.03f);
-                if (UI.Button("Delete ALL"))
-                {
-                    ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.MAP_SET);
-                    UpdateConfigurationLists();
-                    SelectMapSet("<default>");
-                }
-                first = true;
+                UI.Label("Map sets");                
                 col = 0;                
                 foreach (string name in stored_map_sets)
                 {
-                    if (!first && col < 4) UI.SameLine(); else col = 0;
+                    if (col < 4) UI.SameLine(); else col = 0;
 
                     if (UI.Radio(name, current_map_set_name == name, size))
                         SelectMapSet(name);
 
                     col++;
-                    first = false;
                 }
                 UI.PopId();
 
                 UI.PushId("observers");
-                UI.Text("Observers");                
-                UI.SameLine();
-                UI.Space(-0.03f);
-                if (UI.Button("Delete ALL"))
-                {
-                    ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.OBSERVER);
-                    UpdateConfigurationLists();
-                    // XXX clear observer
-                }
-                first = true;
+                UI.Label("Observers");                
                 col = 0;
                 foreach (string name in stored_observers)
                 {
-                    if (!first && col < 4) UI.SameLine(); else col = 0;
+                    if (col < 4) UI.SameLine(); else col = 0;
 
                     if (UI.Radio(name, current_observer_name == name, size))
                         // XXX update observer
                         ;
 
                     col++;
-                    first = false;
                 }
                 UI.PopId();
 
                 UI.PushId("landmark-sets");
-                UI.Text("Landmark sets");                
-                UI.SameLine();
-                UI.Space(-0.03f);
-                if (UI.Button("Delete ALL"))
-                {
-                    ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.LANDMARK_SET);
-                    UpdateConfigurationLists();
-                    // XXX clear landmarks
-                }
-                first = true;
+                UI.Label("Landmark sets");
                 col = 0;
                 foreach (string name in stored_landmark_sets)
                 {
-                    if (!first && col < 4) UI.SameLine(); else col = 0;
+                    if (col < 4) UI.SameLine(); else col = 0;
 
                     if (UI.Radio(name, current_landmark_set_name == name, size))
                         // XXX update landmark set
                         ;
 
                     col++;
-                    first = false;
                 }
                 UI.PopId();
+
+                UI.Space(0.03f);
+
+                UI.Label("*DELETE*");
+                UI.SameLine();
+                if (UI.Button("Map sets"))
+                {
+                    ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.MAP_SET);
+                    UpdateConfigurationLists();
+                    SelectMapSet("<default>");
+                }
+                UI.SameLine();
+                if (UI.Button("Observers"))
+                {
+                    ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.OBSERVER);
+                    UpdateConfigurationLists();
+                    // XXX clear observer
+                }
+                UI.SameLine();
+                if (UI.Button("Landmark sets"))
+                {
+                    ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.LANDMARK_SET);
+                    UpdateConfigurationLists();
+                    // XXX clear landmarks
+                }
 
                 UI.WindowEnd();
             }
