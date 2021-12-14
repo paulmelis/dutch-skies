@@ -37,6 +37,7 @@ namespace DutchSkies
 
         string our_ip;
         float fps;
+        bool show_origin;
 
         // Configurations
         List<string> available_map_sets;
@@ -51,18 +52,18 @@ namespace DutchSkies
         string current_observer_name;
 
         // XXX no longer needed
-        string configuration_name;
+        string current_configuration_name;
 
         // UI
-        Pose main_window_pose, log_window_pose;
+        Pose main_window_pose, log_window_pose, configuration_window_pose;
         bool show_log_window;
-        bool show_trim_window;
-        bool show_flight_units;
+        bool show_trim_window;        
+        bool show_configuration_window;
 
         // Plane data
         ConcurrentQueue<Vec4> query_extent_update_queue;
         Dictionary<string, PlaneData> plane_data;
-
+                
         int num_planes_on_map;
         int num_planes_late, num_planes_missing;
         int num_planes_on_ground;
@@ -73,8 +74,8 @@ namespace DutchSkies
         bool map_show_vlines, sky_show_vlines;
         bool map_show_track_lines, sky_show_trail_lines;
         bool map_show_observer;
-        bool sky_show_landmarks;
-        bool show_origin;
+        bool sky_show_landmarks;        
+        bool show_flight_units;
 
         int sky_d_trim;         // In 0.1 degree increments
         int sky_v_trim;         // In centimeters
@@ -202,7 +203,7 @@ namespace DutchSkies
 
             // Configurations
 
-            configuration_name = "<builtin>";
+            current_configuration_name = "<builtin>";
 
             //Configuration.DeleteConfigurationsOfType(Configuration.ConfigType.MAP_SET);
             //Configuration.DeleteConfigurationsOfType(Configuration.ConfigType.LANDMARK_SET);
@@ -347,7 +348,7 @@ namespace DutchSkies
             //initial_config = "https://surfdrive.surf.nl/files/index.php/s/mzR0FisZZQkKLm1/download?path=%2F&files=observer-and-landmarks-frankendael.json";
             //ScheduleURLFetch(initial_config, "config_data", false, initial_config);
             //initial_config = "http://192.168.178.32:8000/observer-and-landmarks-home-backroom.json";
-            initial_config = "http://192.168.178.32:8000/config-netherlands-park.json2";
+            //initial_config = "http://192.168.178.32:8000/config-netherlands-park.json2";
 
             if (initial_config != "")
                 ScheduleURLFetch(initial_config, "config_data", false, initial_config);
@@ -390,11 +391,13 @@ namespace DutchSkies
 
             main_window_pose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
             log_window_pose = new Pose(0.9f, -0.2f, 0f, Quat.LookDir(-1, 0, 1));
+            configuration_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));
 
             detail_level = DetailLevel.FULL;
             show_log_window = true;
             show_trim_window = false;
-            show_flight_units = false;
+            show_configuration_window = true;
+            
             map_visible = true;
             map_show_plane_model = true;
             sky_show_plane_models = true;
@@ -404,6 +407,7 @@ namespace DutchSkies
             sky_show_trail_lines = true;
             map_show_observer = false;
             sky_show_landmarks = true;
+            show_flight_units = false;
             show_origin = false;
 
             sky_d_trim = 0;
@@ -984,8 +988,12 @@ namespace DutchSkies
 
         public void DrawUIWindows()
         {
+            int col;
+            string caption;
+            Vec2 size;
+
             // Main window
-            UI.WindowBegin($"Dutch SKies - {configuration_name}", ref main_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
+            UI.WindowBegin($"Dutch SKies - {current_configuration_name}", ref main_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
 
             UI.Toggle("Flight units", ref show_flight_units);
             UI.SameLine();
@@ -1163,23 +1171,69 @@ namespace DutchSkies
                 if (UI.Button("Clear all"))
                     alignment_solver.ClearObservations();
                 UI.Text($"tx {alignment_offset.x:F3}, tz {alignment_offset.z:F3}, r {alignment_rotation}", TextAlign.Center);
-                int col = 0;
-                string caption;
+
+                col = 0;
+                size = new Vec2(8 * U.cm, 0);
                 foreach (string lm_name in sorted_landmark_names)
                 {
-                    if (col < 3)
-                        UI.SameLine();
-                    else
-                        col = 0;
+                    if (col < 4) UI.SameLine(); else col = 0;
 
                     Landmark lm = landmarks[lm_name];
                     caption = $"[{alignment_solver.ObservationCount(lm.id)}] {lm.id}";
 
-                    if (UI.Radio(caption, current_alignment_landmark == lm.id))
+                    if (UI.Radio(caption, current_alignment_landmark == lm.id, size))
                         current_alignment_landmark = lm.id;
 
                     col++;
                 }
+                UI.WindowEnd();
+            }
+
+            if (show_configuration_window)
+            {
+                UI.WindowBegin("Log", ref configuration_window_pose, new Vec2(40, 0) * U.cm, UIWin.Normal);
+
+                UI.Text("Map sets");
+                col = 0;
+                size = new Vec2(8 * U.cm, 0);
+                foreach (string name in available_map_sets)
+                {
+                    if (col < 4) UI.SameLine(); else col = 0;
+
+                    if (UI.Radio(name, current_map_set_name == name, size))
+                        SelectMapSet(name);
+
+                    col++;
+                }
+
+                UI.Text("Observers");
+                col = 0;
+                size = new Vec2(8 * U.cm, 0);
+                foreach (string name in available_observers)
+                {
+                    if (col < 4) UI.SameLine(); else col = 0;
+
+                    if (UI.Radio(name, current_observer_name == name, size))
+                        // XXX update observer
+                        ;
+
+                    col++;
+                }
+
+                UI.Text("Landmark sets");
+                col = 0;
+                size = new Vec2(8 * U.cm, 0);
+                foreach (string name in available_landmark_sets)
+                {
+                    if (col < 4) UI.SameLine(); else col = 0;
+
+                    if (UI.Radio(name, current_landmark_set_name == name, size))
+                        // XXX update landmark set
+                        ;
+
+                    col++;
+                }
+
                 UI.WindowEnd();
             }
 
@@ -1547,6 +1601,8 @@ namespace DutchSkies
         public void UpdateConfigurationLists()
         {
             ConfigurationStore.List(ConfigurationStore.ConfigType.MAP_SET, ref available_map_sets);
+            available_map_sets.Insert(0, "<default>");
+
             ConfigurationStore.List(ConfigurationStore.ConfigType.LANDMARK_SET, ref available_landmark_sets);
             ConfigurationStore.List(ConfigurationStore.ConfigType.OBSERVER, ref available_observers);
         }
@@ -1556,9 +1612,9 @@ namespace DutchSkies
             // XXX handle error
             JSONNode config_root = JSON.Parse(config_string);
 
-            configuration_name = config_url;
-            if (configuration_name.Length > 63)
-                configuration_name = configuration_name.Substring(0, 30) + "..." + configuration_name.Substring(configuration_name.Length - 30);
+            current_configuration_name = config_url;
+            if (current_configuration_name.Length > 63)
+                current_configuration_name = current_configuration_name.Substring(0, 30) + "..." + current_configuration_name.Substring(current_configuration_name.Length - 30);
 
             bool current_map_updated = false;
             bool observer_updated = false;
