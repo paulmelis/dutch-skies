@@ -6,6 +6,8 @@
                 UI.WindowEnd();
 
 
+planes are slightly off wrt the map in the NL config, compared to the builtin config...
+
 use Windows.Data.Json instead of SimpleJSON
 
 use monospace font for log window?

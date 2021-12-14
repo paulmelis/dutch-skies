@@ -61,7 +61,7 @@ namespace DutchSkies
         bool show_configuration_window;
 
         // Plane data
-        BlockingCollection<Vec4> query_extent_update_queue;
+        ConcurrentQueue<Vec4> query_extent_update_queue;
         Dictionary<string, PlaneData> plane_data;
                 
         int num_planes_on_map;
@@ -210,7 +210,7 @@ namespace DutchSkies
 
             // Launch data update thread            
             // Queue for sending updated query range to thread
-            query_extent_update_queue = new BlockingCollection<Vec4>(new ConcurrentQueue<Vec4>());
+            query_extent_update_queue = new ConcurrentQueue<Vec4>();
             var plane_update_thread = new Thread(FetchPlaneUpdates);
             plane_update_thread.IsBackground = true;
             plane_update_thread.Start(query_extent_update_queue);
@@ -340,8 +340,8 @@ namespace DutchSkies
             //initial_config = "http://192.168.178.32:8000/observer-and-landmarks-home-backroom.json";
 
             //initial_config = "http://192.168.178.32:8000/config-alps-surfdriveimage.json2";
-            //initial_config = "http://192.168.178.32:8000/sanfrancisco-image.json2";                                    
-            //initial_config = "http://192.168.178.32:8000/config-netherlands-park.json2";
+            //initial_config = "http://192.168.178.32:8000/sanfrancisco-image-surfdrive.json2";                                    
+            //initial_config = "http://192.168.178.32:8000/config-netherlands-park-osm.json2";
 
             if (initial_config != "")
                 ScheduleURLFetch(initial_config, "config_data", false, initial_config);
@@ -790,7 +790,7 @@ namespace DutchSkies
                     Hierarchy.Push(Matrix.R(0f, -sky_d_trim * 0.1f, 0f) * Matrix.T(0f, sky_v_trim * 0.1f, 0f));
 
                 bool scaled;
-
+                
                 foreach (var plane in plane_data.Values)
                 {
                     if (plane.on_ground)
@@ -892,7 +892,7 @@ namespace DutchSkies
                         TextAlign.XCenter | TextAlign.YTop,
                         TextAlign.XCenter | TextAlign.YTop,
                         0f, -25f);
-                }
+                }                
 
                 // Landmarks
 
@@ -938,14 +938,14 @@ namespace DutchSkies
                     if (use_alignment_transform)
                         Text.Add("(alignment transform used)", Matrix.R(0f, 180f, 0f) * Matrix.T(0f, -3.2f, -20f), ALIGNMENT_TEXT_STYLE);
 
-                    /*Pose awin_pose = new Pose(new Vec3(0.25f, 0f, -0.5f), Quat.FromAngles(0f, 180f, 0f));
+                    Pose awin_pose = new Pose(new Vec3(0.25f, 0f, -0.5f), Quat.FromAngles(0f, 180f, 0f));
                     UI.WindowBegin("Alignment", ref awin_pose, size, UIWin.Empty);
                     if (UI.Button(" Mark "))
                     {
                         alignment_solver.AddObservation(current_alignment_landmark,
                             Input.Head.position, Input.Head.orientation.Rotate(new Vec3(0f, 0f, -1f)));
                     }
-                    UI.WindowEnd();*/
+                    UI.WindowEnd();
 
                     Hierarchy.Pop();
                 }
@@ -1458,36 +1458,40 @@ namespace DutchSkies
 
         async void FetchPlaneUpdates(object obj)
         {
-            BlockingCollection<Vec4> extent_input_queue = obj as BlockingCollection<Vec4>;
+            ConcurrentQueue<Vec4> extent_input_queue = obj as ConcurrentQueue<Vec4>;
 
-            string URL;
+            string URL = "";
             Vec4 extent;
 
             HttpClient http_client = new HttpClient();
 
             while (true)
             {
-                extent = extent_input_queue.Take();
-
-                // Got updated extent
-                Log.Info($"(Data fetch) Got updated query extent: lat {extent.x:F6} to {extent.y:F6}; lon {extent.z:F6} to {extent.w:F6}");
-                URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
-
-                try
+                if (extent_input_queue.TryDequeue(out extent))
                 {
-                    HttpResponseMessage response = await http_client.GetAsync(URL);
-                    response.EnsureSuccessStatusCode();
-                    string body = await response.Content.ReadAsStringAsync();
-                    //Log.Info("(Data fetch): " + body);
-
-                    JSONNode root_node = JSON.Parse(body);
-                    updates_queue.Enqueue(new Tuple<string, object, string>("plane_data", root_node, ""));
+                    // Got updated extent
+                    Log.Info($"(Data fetch) Got updated query extent: lat {extent.x:F6} to {extent.y:F6}; lon {extent.z:F6} to {extent.w:F6}");
+                    URL = $"https://opensky-network.org/api/states/all?lamin={extent.x}&lamax={extent.y}&lomin={extent.z}&lomax={extent.w}";
                 }
-                catch (Exception e)
+
+                if (URL != "")
                 {
-                    Log.Err($"(Data fetch) Exception      : {e.Message}");
-                    if (e.InnerException != null)
-                        Log.Err($"(Data fetch) Inner exception: {e.InnerException.Message}");
+                    try
+                    {
+                        HttpResponseMessage response = await http_client.GetAsync(URL);
+                        response.EnsureSuccessStatusCode();
+                        string body = await response.Content.ReadAsStringAsync();
+                        //Log.Info("(Data fetch): " + body);
+
+                        JSONNode root_node = JSON.Parse(body);
+                        updates_queue.Enqueue(new Tuple<string, object, string>("plane_data", root_node, ""));
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Err($"(Data fetch) Exception      : {e.Message}");
+                        if (e.InnerException != null)
+                            Log.Err($"(Data fetch) Inner exception: {e.InnerException.Message}");
+                    }
                 }
 
                 Thread.Sleep(OPENSKY_QUERY_INTERVAL * 1000);
@@ -1691,7 +1695,7 @@ namespace DutchSkies
                 {
                     if (!jmap.HasKey("zoom"))
                     {
-                        Log.Err("Map specification '{map_id}' uses tile-server, but is missing 'zoom' value!");
+                        Log.Err("Map specification '{map_id}' uses tile-server, but is missing 'zoom' value, ignoring map!");
                         continue;
                     }
 
@@ -1707,18 +1711,26 @@ namespace DutchSkies
                             query_extent, jmap["zoom"]);
 
                     map = new OSMMap(map_id, min_lat, max_lat, min_lon, max_lon);
-                    map_set.Add(map_id, map);
+
+                    string tile_server_id = imgsource["id"];
+                    if (!tile_server_configurations.ContainsKey(tile_server_id))
+                    {
+                        Log.Err("Map specification '{map_id}' is using unknown tile-server id '{tile_server_id}', ignoring map!");
+                        continue;
+                    }
 
                     // XXX needs to include (map_set, name)
                     // XXX should not schedule from here, but when selecting this map set
-                    Log.Info($"Scheduling fetching of map tiles for map '{map_id}' ({min_i}-{max_i}, {min_j}-{max_j}, {jmap["zoom"]})");
+                        Log.Info($"Scheduling fetching of map tiles for map '{map_id}' ({min_i}-{max_i}, {min_j}-{max_j}, {jmap["zoom"]})");
                     ScheduleTileFetch(min_i, max_i, min_j, max_j, jmap["zoom"],
-                        tile_server_configurations[imgsource["id"]].urls, map_id);
+                        tile_server_configurations[tile_server_id].urls, map_id);
 
                     overall_min_lat = MathF.Min(overall_min_lat, min_lat);
                     overall_max_lat = MathF.Max(overall_max_lat, max_lat);
                     overall_min_lon = MathF.Min(overall_min_lon, min_lon);
                     overall_max_lon = MathF.Max(overall_max_lon, max_lon);
+
+                    map_set.Add(map_id, map);
                 }
                 else
                     Log.Warn($"Unknown map image-source type '{imgsource["type"]}'!");
@@ -1768,7 +1780,7 @@ namespace DutchSkies
             ClearAllPlaneData();
 
             Log.Info($"Setting plane data query extent to {current_map_set.query_extent}");
-            query_extent_update_queue.Add(current_map_set.query_extent);
+            query_extent_update_queue.Enqueue(current_map_set.query_extent);
 
         }
 
