@@ -39,6 +39,7 @@ namespace DutchSkies
         string our_ip;
         float fps;
         bool show_origin;
+        string discord_webhook_url;
 
         // Configurations
         List<string> stored_map_sets;
@@ -177,6 +178,8 @@ namespace DutchSkies
             List<string> log_lines = new List<string>();
             log_level = LogLevel.Info;
             Log.Subscribe(OnLog);
+
+            discord_webhook_url = "";
             discord_messages_enabled = false;
 
             // Tweak renderer
@@ -195,7 +198,7 @@ namespace DutchSkies
                         break;
                     }
                 }
-            }
+            }            
 
             // Gamepad
 
@@ -991,6 +994,8 @@ namespace DutchSkies
             string caption;
             Vec2 size;
 
+            UI.EnableFarInteract = false;
+
             // Main window
             UI.WindowBegin($"Dutch SKies - {current_configuration_name}", ref main_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
 
@@ -1071,8 +1076,11 @@ namespace DutchSkies
             UI.Toggle("Origin", ref show_origin);
             UI.SameLine();
             UI.Toggle("Log", ref show_log_window);
-            UI.SameLine();
-            UI.Toggle("Discord", ref discord_messages_enabled);
+            if (discord_webhook_url != "")
+            {
+                UI.SameLine();
+                UI.Toggle("Discord", ref discord_messages_enabled);
+            }
             UI.SameLine();
             UI.Label($"IP:{our_ip} • {time} • {fps:F1} FPS");
             UI.SameLine();
@@ -1260,7 +1268,7 @@ namespace DutchSkies
                 {
                     ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.LANDMARK_SET);
                     UpdateConfigurationLists();
-                    // XXX clear landmarks
+                    // XXX clear landmark set
                 }
 
                 UI.WindowEnd();
@@ -1281,6 +1289,8 @@ namespace DutchSkies
                 if (UI.Radio("Error", log_level == LogLevel.Error)) { log_level = Log.Filter = LogLevel.Error; }
                 UI.WindowEnd();
             }
+
+            UI.EnableFarInteract = true;
         }
 
         public void PrepareBuiltinMaps()
@@ -1407,8 +1417,7 @@ namespace DutchSkies
         async void PostMessagesThread()
         {
             PostMessageRequest request;
-            string message;
-            string webhook_url = "";
+            string message;            
             string json_message;
             StringContent data;
 
@@ -1420,7 +1429,7 @@ namespace DutchSkies
                 request = message_send_queue.Take();
                 message = request.Item1;
 
-                if (webhook_url == "")
+                if (discord_webhook_url == "")
                 {
                     Log.Info($"No discord webhook set, not sending message '{message}'");
                     continue;
@@ -1436,10 +1445,10 @@ namespace DutchSkies
 
                 try
                 {
-                    HttpResponseMessage response = await http_client.PostAsync(webhook_url, data);
+                    HttpResponseMessage response = await http_client.PostAsync(discord_webhook_url, data);
                     if (!response.IsSuccessStatusCode)
                     {
-                        Log.Err($"(Post message) HTTP error {response.StatusCode} while attempting to post to {webhook_url}!");
+                        Log.Err($"(Post message) HTTP error {response.StatusCode} while attempting to post to {discord_webhook_url}!");
                         continue;
                     }
                 }
