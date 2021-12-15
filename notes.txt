@@ -8,9 +8,7 @@
 
 planes are slightly off wrt the map in the NL config, compared to the builtin config...
 
-use Windows.Data.Json instead of SimpleJSON
 
-use monospace font for log window?
 
 allow option to use per-map query extent in a set, instead of union of all map extents
 
@@ -25,15 +23,9 @@ could show actual observer location after alignment solution?
 if we can find a way to map back to lat, lon
 
 
-guard against empty id's and names in configs
-
 clear observer name on button when none is available
 
 add surf logo
-
-new york json: query area incorrect?
-
-ignore map images that got fetched after a new config was loaded
 
 observer: null should clean observer and set to map[0] center
 
@@ -43,8 +35,9 @@ Bugs:
 
 
 Should have:
+- Windows Store entry...
+- Use Windows.Data.Json instead of SimpleJSON, and make parsing more robust
 - About window
-- More robust JSON parser
 - Highlight airport locations
 
 Nice to have:
@@ -56,6 +49,7 @@ Nice to have:
 - Allow text size selection
 - Delete missing planes (but keep track of number deleted)?
 - Allow specifying altitude of lowest point on map and offset planes by that amount
+- Use monospace font for log window
 
 Optimize:
 - Combine map and sky parts where possible during drawing

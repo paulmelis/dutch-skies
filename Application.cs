@@ -1013,9 +1013,9 @@ namespace DutchSkies
             }
             UI.SameLine();
             UI.Space(-0.03f);
-            UI.Toggle("Alignment", ref alignment_mode);
-            UI.SameLine();
             UI.Toggle("Trim", ref show_trim_window);
+            UI.SameLine();
+            UI.Toggle("Alignment", ref alignment_mode);
             UI.SameLine();
             UI.Space(-0.03f);
             UI.Label($"{num_planes_on_map} planes shown ({num_planes_on_ground} on ground) • {plane_data.Count} planes in query area ({num_planes_late} late, {num_planes_missing} missing)");

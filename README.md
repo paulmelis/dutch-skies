@@ -119,41 +119,36 @@ has been selected) to more precisely select the extent of our map:
 ![](./Scripts/osm-export.jpg)
 
 The next step is to create the configuration JSON file. We specify the lat/lon range and other map data involved, plus specify
-the server addresses where to fetch tiles (in this case from OpenStreetMap):
+the server addresses where to fetch tiles (in this case from official OpenStreetMap tile servers):
 
 ```
 {
-    "query": {
-        "lat_range": [
-            37.2008,
-            37.9193
-        ],
-        "lon_range": [
-            -122.6212,
-            -121.6791
-        ]
-    },
-
-    "maps": [
+    "map_sets": [
         {
-            "image_source": {
-                "type": "osm",
-                "tile_servers": [
-                    "http://a.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
-                    "http://b.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
-                    "http://c.tile.openstreetmap.org/{zoom}/{x}/{y}.png"
-                ]                
-            },
-            "lat_range": [
-                37.2008,
-                37.9193
+            "id": "SF Bay Area",
+            "items": [
+                {
+                    "id": "SF Bay Area",
+                    "lat_range": [37.2008, 37.9193],
+                    "lon_range": [-122.6212, -121.6791],            
+                    "image_source": {
+                        "type": "tile_server",
+                        "id": "osm-official"
+                    },
+                    "zoom": 12
+                }
             ],
-            "lon_range": [
-                -122.6212,
-                -121.6791
-            ],
-            "name": "sanfrancisco",
-            "zoom": 12
+            "tile_servers": [
+                {
+                    "id": "osm-official",
+                    "type": "osm",
+                    "urls": [
+                        "http://a.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
+                        "http://b.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
+                        "http://c.tile.openstreetmap.org/{zoom}/{x}/{y}.png"
+                    ]
+                }
+            ]
         }
     ]
 }
@@ -163,22 +158,23 @@ the server addresses where to fetch tiles (in this case from OpenStreetMap):
 Also note that for the official `openstreetmap.org` servers there is a [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/).
 Finally, see the relevant FAQ entry below on why these tile server addresses are not hard-coded in the application.**
 
-The `maps` section can list one or more maps, which can be switched in the application. The `query` section determines the area
-for which plane data is queried from OpenSky Network. If you leave out the `query` section the query area will be min/max union 
-of all map range specified. Note that specifying a very large query area will lead to lots of planes that need to be rendered,
-slowing down the framerate, etc. 
+The `map_sets` section can list one or more maps, which can be switched in the application. 
 
 Next, we upload this JSON file to a location where the Dutch SKies app can retrieve it. We then generate a QR code for this URL,
-display it on a PC screen and use the `Scan QR code` button in the app UI to initiate scanning. As soon as a QR code is recognized 
+display it on a PC screen (or print to paper) and use the `Scan QR code` button in the app UI to initiate scanning. As soon as a QR code is recognized 
 the scan function is disabled (notified by the button release sound) and the configuration will get loaded. In the process the map 
 geometry (initially all grey) and extent are updated, and the process of retrieving the necessary image tiles is started. Once all tiles are retrieved
 the map will be updated to show the image.
 
-If everything goes right, you should see this after half a minute:
+If everything goes right, you should see this after at most half a minute:
 
 ![](Images/hl2sanfran.jpg)
 
 If anything goes wrong in this workflow then you can check the Log window for warnings/errors.
+
+The JSON configuration data retrieved by scanning a QR code is stored on the device and will be available the next time the application
+is started. To update a stored configuration simply scan a QR code with JSON data that holds the same map_set ID. This will overwrite the 
+existing stored configuration.
 
 #### Tile naming scheme
 
@@ -246,8 +242,37 @@ Two files are created, the map image (`sanfrancisco.png`) and a JSON file holdin
 Note that the actual lat/lon range of the map image is larger than what we specified. This is expected, as only full image tiles are used to cover
 the input lat/lon, without clipping the tiles.
 
-The JSON file produced next to the image can be used to set up the necessary configuration JSON file, as shown earlier. Note that if the `url` field does
-not start with `http://` or `https://` it is assumed to be a path relative to the URL of the configuration file.
+The JSON file produced next to the image can be used to set up the necessary configuration JSON file, as shown earlier: 
+
+```
+{
+    "map_sets": [
+        {
+            "id": "SF Bay Area",
+            "items": [
+                {
+                    "id": "San Franciso",
+                    "image_source": {
+                        "type": "url",
+                        "url": "/sanfrancisco.png"
+                    },
+                    "lat_range": [
+                        37.160316546736766,
+                        37.92686760148134
+                    ],
+                    "lon_range": [
+                        -122.6953125,
+                        -121.640625
+                    ]
+                }
+            ]
+        }
+    ]
+}
+```
+
+Note that if the `url` field does not start with `http://` or `https://` it is assumed to be a path relative to the URL from which the configuration file
+was retrieved.
 
 #### Projection
 
