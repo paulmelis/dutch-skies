@@ -37,7 +37,25 @@ namespace DutchSkies
             direction = dir;
             //Log.Info($"LO: {origin}, {direction}");
         }
-    };
+    }
+
+    public class LandmarkSet
+    {
+        public string id;
+        public Dictionary<string, Landmark> landmarks;
+
+        public LandmarkSet(string id)
+        {
+            this.id = id;
+            landmarks = new Dictionary<string, Landmark>();
+        }
+
+        public void Add(string lm_id, Landmark landmark)
+        {
+            Log.Info($"LandmarkSet.Add '{lm_id}'");
+            landmarks[lm_id] = landmark;
+        }
+    }
 
     /*
      * Given a set of reference points in the local tangent plane, and a set of observations
@@ -319,6 +337,6 @@ namespace DutchSkies
 
             return best_energy;
         }
-    };
+    }
 
 }

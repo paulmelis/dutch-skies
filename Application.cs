@@ -46,12 +46,15 @@ namespace DutchSkies
         List<string> stored_landmark_sets;
         List<string> stored_observers;
 
-        string current_map_set_name;
-        string current_landmark_set_name;
-        string current_observer_name;
-
         Dictionary<string, MapSet> map_sets;
         MapSet current_map_set;
+        string current_map_set_name;
+
+        Dictionary<string, LandmarkSet> landmark_sets;
+        LandmarkSet current_landmark_set;
+        string current_landmark_set_name;
+
+        string current_observer_name;
 
         // XXX need to use a different value to show in the UI
         string current_configuration_name;
@@ -100,8 +103,7 @@ namespace DutchSkies
         Tex map_texture;
 
         // Sky mode
-        // XXX prefix with sky_
-        Dictionary<string, Landmark> landmarks;
+        Dictionary<string, Landmark> landmarks_in_current_set;
         List<string> sorted_landmark_names;
         ObserverData current_observer;
 
@@ -283,8 +285,8 @@ namespace DutchSkies
             Material observer_marker_material = Default.Material.Copy();
             observer_marker_material[MatParamName.ColorTint] = new Color(1f, 0.5f, 0f);
 
-            landmarks = new Dictionary<string, Landmark>();
-            sorted_landmark_names = landmarks.Keys.ToList();
+            landmarks_in_current_set = new Dictionary<string, Landmark>();
+            sorted_landmark_names = landmarks_in_current_set.Keys.ToList();
             alignment_solver = new AlignmentSolver();
 
             Mesh windrose_mesh = Mesh.GeneratePlane(new Vec2(1f, 1f), -Vec3.Forward, Vec3.Up);
@@ -304,12 +306,14 @@ namespace DutchSkies
             map_material.FaceCull = Cull.None;
 
             map_scale_km_to_scene = 0.001f;
-            map_sets = new Dictionary<string, MapSet>();
+            map_sets = new Dictionary<string, MapSet>();            
 
             // Prepare built-in maps and select default
             PrepareBuiltinMaps();
 
             SelectMapSet("<default>");
+
+            landmark_sets = new Dictionary<string, LandmarkSet>();
 
             //
             // Some models
@@ -351,7 +355,7 @@ namespace DutchSkies
 
             //initial_config = "http://192.168.178.32:8000/config-alps-surfdriveimage.json2";
             //initial_config = "http://192.168.178.32:8000/sanfrancisco-image-surfdrive.json2";                                    
-            //initial_config = "http://192.168.178.32:8000/config-netherlands-park-osm.json2";
+            initial_config = "http://192.168.178.32:8000/config-netherlands-park-osm.json2";
 
             if (initial_config != "")
                 ScheduleURLFetch(initial_config, "config_data", false, initial_config);
@@ -919,7 +923,7 @@ namespace DutchSkies
 
                 if (sky_show_landmarks)
                 {
-                    foreach (KeyValuePair<string, Landmark> item in landmarks)
+                    foreach (KeyValuePair<string, Landmark> item in landmarks_in_current_set)
                     {
                         Landmark landmark = item.Value;
                         Vec3 pos = ROT_MIN90_X.Transform(landmark.sky_position);
@@ -1077,7 +1081,7 @@ namespace DutchSkies
             UI.SameLine();
             UI.Toggle("Trails", ref sky_show_trail_lines);
             UI.SameLine();
-            UI.Toggle($"Landmarks ({landmarks.Count})", ref sky_show_landmarks);
+            UI.Toggle($"Landmarks ({landmarks_in_current_set.Count})", ref sky_show_landmarks);
 
             UI.PopId();
 
@@ -1124,7 +1128,7 @@ namespace DutchSkies
 
                 //UI.WindowBegin($"Trim; head lookdir = {head_lookdir_xz} -> angle = {angle}", ref trim_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);                    
                 UI.WindowBegin("Trim", ref trim_window_pose, new Vec2(50, 0) * U.cm, UIWin.Body);
-                UI.Toggle($"Landmarks ({landmarks.Count})", ref sky_show_landmarks);
+                UI.Toggle($"Landmarks ({landmarks_in_current_set.Count})", ref sky_show_landmarks);
                 UI.SameLine();
                 UI.Space(-0.2f);
                 if (UI.Button("Close window")) show_trim_window = false;
@@ -1197,7 +1201,7 @@ namespace DutchSkies
                 {
                     if (col < 4) UI.SameLine(); else col = 0;
 
-                    Landmark lm = landmarks[lm_name];
+                    Landmark lm = landmarks_in_current_set[lm_name];
                     caption = $"[{alignment_solver.ObservationCount(lm.id)}] {lm.id}";
 
                     if (UI.Radio(caption, current_alignment_landmark == lm.id, size))
@@ -1545,30 +1549,6 @@ namespace DutchSkies
                 qrcode_watcher.Stop();
             }
         }
-        public void UpdateLandmarks(JSONNode nodes)
-        {
-            Landmark lm;
-
-            landmarks.Clear();
-
-            foreach (JSONNode n in nodes)
-            {
-                // XXX needs more checks
-                string id = n["id"];
-                float lat = n["lat"];
-                float lon = n["lon"];
-                float top_altitude = n["topalt"];
-                float bottom_altitude = n["botalt"];
-
-                lm = landmarks[id] = new Landmark(id, lat, lon, top_altitude, bottom_altitude);
-
-                SchedulePostMessage($"landmark {n.ToString()}");
-            }
-
-            sorted_landmark_names = landmarks.Keys.ToList();
-
-            RecomputeLandmarkPositions();
-        }
 
         public void RecomputeLandmarkPositions()
         {
@@ -1579,7 +1559,7 @@ namespace DutchSkies
 
             SchedulePostMessage($"RecomputeLandmarkPositions: observer lat {current_observer.lat:F6}, lon {current_observer.lon:F6}, alt {current_observer.floor_altitude:F6}");
 
-            foreach (Landmark lm in landmarks.Values)
+            foreach (Landmark lm in landmarks_in_current_set.Values)
             {
                 // Map (km)
                 current_map.Project(out x, out y, lm.lon, lm.lat);
@@ -1803,7 +1783,6 @@ namespace DutchSkies
 
             Log.Info($"Setting plane data query extent to {current_map_set.query_extent}");
             query_extent_update_queue.Enqueue(current_map_set.query_extent);
-
         }
 
         public void SelectMap(string id)
@@ -1836,6 +1815,92 @@ namespace DutchSkies
             }
 
             current_observer.update_map_position(current_map);
+        }
+
+        public void SelectLandmarkSet(string id)
+        {
+            JSONNode jlandmarkset;
+
+            Log.Info($"Selecting landmark-set '{id}'");
+
+            if (!landmark_sets.ContainsKey(id))
+            {
+                if (!stored_map_sets.Contains(id))
+                {
+                    Log.Err($"Map-set '{id}' not available, nor stored!");
+                    return;
+                }
+
+                jlandmarkset = ConfigurationStore.Load(ConfigurationStore.ConfigType.LANDMARK_SET, id);
+                if (jlandmarkset == null)
+                {
+                    Log.Err($"Error loading landmark-set '{id}' from storage!");
+                    return;
+                }
+
+                landmark_sets[id] = ParseLandmarkSet(jlandmarkset);
+            }
+
+            current_landmark_set = landmark_sets[id];
+            current_landmark_set_name = id;
+
+            landmarks_in_current_set = current_landmark_set.landmarks;
+            sorted_landmark_names = landmarks_in_current_set.Keys.ToList();
+
+            current_alignment_landmark = "";
+            if (sorted_landmark_names.Count > 0)
+                current_alignment_landmark = sorted_landmark_names[0];
+
+            RecomputeLandmarkPositions();
+        }
+
+        public LandmarkSet ParseLandmarkSet(JSONNode jlandmark_set)
+        {
+            JSONArray jlandmarks;
+            LandmarkSet landmark_set;
+            string landmark_set_id;
+            Landmark landmark;
+
+            if (!jlandmark_set.HasKey("id"))
+            {
+                // XXX list index in sets in message
+                Log.Warn($"Landmark-set does not have 'id' field!");
+                return null;
+            }
+
+            landmark_set_id = jlandmark_set["id"];
+
+            // XXX avoid '<default>'?
+            if (landmark_set_id == "")
+            {
+                Log.Warn($"Landmark-set should not have empty 'id' field!");
+                return null;
+            }
+
+            if (!jlandmark_set.HasKey("items") || jlandmark_set["items"].Count == 0)
+            {
+                Log.Warn($"Landmark-set '{landmark_set_id}' does not contain any maps!");
+                // XXX return anyway?
+                return null;
+            }
+
+            landmark_set = new LandmarkSet(landmark_set_id);
+            jlandmarks = jlandmark_set["items"].AsArray;
+
+            foreach (JSONNode n in jlandmarks)
+            {
+                // XXX needs more checks
+                string lm_id = n["id"];
+                float lat = n["lat"];
+                float lon = n["lon"];
+                float top_altitude = n["topalt"];
+                float bottom_altitude = n["botalt"];
+
+                landmark = new Landmark(lm_id, lat, lon, top_altitude, bottom_altitude);
+                landmark_set.Add(lm_id, landmark);
+            }
+
+            return landmark_set;
         }
 
         public void UpdateConfigurationLists()
@@ -1897,6 +1962,39 @@ namespace DutchSkies
                 }
             }
 
+            if (config_root.HasKey("landmark_sets"))
+            {
+                JSONArray jlandmark_sets = config_root["landmark_sets"].AsArray;
+                LandmarkSet landmark_set;
+                bool first = true;
+                int set_idx = 0;
+
+                foreach (JSONNode jlandmark_set in jlandmark_sets)
+                {
+                    landmark_set = ParseLandmarkSet(jlandmark_set);
+
+                    if (landmark_set == null)
+                    {
+                        Log.Warn($"Landmark-set (index {set_idx} could not be parsed, ignoring");
+                        continue;
+                    }
+
+                    landmark_sets[landmark_set.id] = landmark_set;
+
+                    ConfigurationStore.Store(ConfigurationStore.ConfigType.LANDMARK_SET, landmark_set.id, jlandmark_set);
+
+                    if (first)
+                    {
+                        // Switch to this map set
+                        SelectLandmarkSet(landmark_set.id);
+                        first = false;
+                    }
+
+                    set_idx++;
+                }
+            }
+
+
             if (config_root.HasKey("observer") && config_root["observer"].HasKey("id"))  // Guard against observer: {}
             {
                 JSONNode jobs = config_root["observer"];
@@ -1915,13 +2013,6 @@ namespace DutchSkies
                 current_observer.lon = current_map.center_lon;
                 current_observer.floor_altitude = 0f;
                 observer_updated = true;
-            }
-
-            if (config_root.HasKey("landmarks") && config_root["landmarks"].Count > 0)
-            {
-                UpdateLandmarks(config_root["landmarks"]);
-                if (sorted_landmark_names.Count > 0)
-                    current_alignment_landmark = sorted_landmark_names[0];
             }
 
             if (config_root.HasKey("discord_webhook"))
