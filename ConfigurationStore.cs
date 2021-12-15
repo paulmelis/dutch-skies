@@ -9,7 +9,7 @@ namespace DutchSkies
     {
         public enum ConfigType
         {
-            MAP_SET, LANDMARK_SET, OBSERVER, DISCORD_WEBHOOK
+            MAP_SET, LANDMARK_SET, OBSERVER_SET, DISCORD_WEBHOOK
         };
 
         /*
@@ -36,7 +36,7 @@ namespace DutchSkies
                 return "map_sets";
             else if (type == ConfigType.LANDMARK_SET)
                 return "landmark_sets";
-            else if (type == ConfigType.OBSERVER)
+            else if (type == ConfigType.OBSERVER_SET)
                 return "observers";
             else
             {

@@ -74,7 +74,7 @@
     <Compile Include="ConfigurationStore.cs" />
     <Compile Include="Landmark.cs" />
     <Compile Include="MapSet.cs" />
-    <Compile Include="ObserverData.cs" />
+    <Compile Include="Observer.cs" />
     <Compile Include="OSMMap.cs" />
     <Compile Include="OSMTiles.cs" />
     <Compile Include="PlaneData.cs" />

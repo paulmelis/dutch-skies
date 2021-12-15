@@ -44,7 +44,7 @@ namespace DutchSkies
         // Configurations
         List<string> stored_map_sets;
         List<string> stored_landmark_sets;
-        List<string> stored_observers;
+        List<string> stored_observer_sets;
 
         Dictionary<string, MapSet> map_sets;
         MapSet current_map_set;
@@ -54,7 +54,10 @@ namespace DutchSkies
         LandmarkSet current_landmark_set;
         string current_landmark_set_name;
 
-        string current_observer_name;
+        Dictionary<string, ObserverSet> observer_sets;
+        ObserverSet current_observer_set;
+        string current_observer_set_name;
+        Observer map_center_observer;
 
         // XXX need to use a different value to show in the UI
         string current_configuration_name;
@@ -105,7 +108,10 @@ namespace DutchSkies
         // Sky mode
         Dictionary<string, Landmark> landmarks_in_current_set;
         List<string> sorted_landmark_names;
-        ObserverData current_observer;
+
+        Dictionary<string, Observer> observers_in_current_set;
+        string current_observer_name;
+        Observer current_observer;
 
         const float OBSERVER_WINDROSE_SIZE = 1f;    // meters
         AlignmentSolver alignment_solver;
@@ -251,11 +257,11 @@ namespace DutchSkies
 
             current_map_set_name = "";
             current_landmark_set_name = "";
-            current_observer_name = "";
+            current_observer_set_name = "";
 
             stored_map_sets = new List<string>();
             stored_landmark_sets = new List<string>();
-            stored_observers = new List<string>();
+            stored_observer_sets = new List<string>();
 
             UpdateConfigurationLists();
 
@@ -267,8 +273,8 @@ namespace DutchSkies
             foreach (string s in stored_map_sets)
                 Log.Info($"[LANDMARK_SET] '{s}'");
 
-            foreach (string s in stored_observers)
-                Log.Info($"[OBSERVER] '{s}'");
+            foreach (string s in stored_observer_sets)
+                Log.Info($"[OBSERVER_SET] '{s}'");
 
             Log.Info("--- Available stored configurations ---");
 
@@ -278,12 +284,13 @@ namespace DutchSkies
 
             // Observer
 
-            current_observer = new ObserverData();
-
             Mesh observer_cylinder_marker = Mesh.GenerateCylinder(0.002f, 0.02f, Vec3.UnitY, 8);
             Mesh observer_sphere_marker = Mesh.GenerateSphere(0.006f, 8);
             Material observer_marker_material = Default.Material.Copy();
             observer_marker_material[MatParamName.ColorTint] = new Color(1f, 0.5f, 0f);
+
+            current_observer = null;
+            observers_in_current_set = null;
 
             landmarks_in_current_set = new Dictionary<string, Landmark>();
             sorted_landmark_names = landmarks_in_current_set.Keys.ToList();
@@ -309,11 +316,20 @@ namespace DutchSkies
             map_sets = new Dictionary<string, MapSet>();            
 
             // Prepare built-in maps and select default
-            PrepareBuiltinMaps();
-
-            SelectMapSet("<default>");
+            PrepareBuiltinMaps();            
 
             landmark_sets = new Dictionary<string, LandmarkSet>();
+            observer_sets = new Dictionary<string, ObserverSet>();
+
+            ObserverSet map_center_observer_set = new ObserverSet("<default>");
+            // Observer position will be updated when switching maps
+            map_center_observer = new Observer("<map center>", 0f, 0f, 0f);
+            current_observer = map_center_observer;
+            map_center_observer_set.Add("<map center>", current_observer);
+            observer_sets.Add("<default>", map_center_observer_set);
+            
+            SelectMapSet("<default>");
+            SelectObserverSet("<default>");     // Assumes current map is set
 
             //
             // Some models
@@ -1058,7 +1074,7 @@ namespace DutchSkies
             UI.SameLine();
             UI.Toggle("Track lines", ref map_show_track_lines);
             UI.SameLine();
-            UI.Toggle($"Observer '{current_observer.name}'", ref map_show_observer);
+            UI.Toggle("Observer", ref map_show_observer);
 
             UI.Label("Plane details");
             UI.SameLine();
@@ -1073,7 +1089,7 @@ namespace DutchSkies
             UI.HSeparator();
             UI.PushId("sky");
 
-            UI.Label("Sky:");
+            UI.Label("Sky");
             UI.SameLine();
             UI.Toggle("Planes", ref sky_show_plane_models);
             UI.SameLine();
@@ -1082,6 +1098,17 @@ namespace DutchSkies
             UI.Toggle("Trails", ref sky_show_trail_lines);
             UI.SameLine();
             UI.Toggle($"Landmarks ({landmarks_in_current_set.Count})", ref sky_show_landmarks);
+
+            UI.Label("Observer:");
+            foreach (Observer ob in observers_in_current_set.Values)
+            {
+                UI.SameLine();
+                if (UI.Radio(ob.id, current_observer_name == ob.id))
+                {
+                    // Switch observer
+                    SelectObserver(ob.id);
+                }
+            }
 
             UI.PopId();
 
@@ -1216,7 +1243,7 @@ namespace DutchSkies
             {
                 size = new Vec2(8 * U.cm, 0);
 
-                UI.WindowBegin("Configurations", ref configuration_window_pose, new Vec2(40, 0) * U.cm, UIWin.Normal);
+                UI.WindowBegin("Configurations", ref configuration_window_pose, new Vec2(50, 0) * U.cm, UIWin.Normal);
 
                 UI.PushId("map-sets");
                 UI.Label("Map sets");                
@@ -1232,16 +1259,15 @@ namespace DutchSkies
                 }
                 UI.PopId();
 
-                UI.PushId("observers");
-                UI.Label("Observers");                
+                UI.PushId("observer-sets");
+                UI.Label("Observer sets");                
                 col = 0;
-                foreach (string name in stored_observers)
+                foreach (string name in stored_observer_sets)
                 {
                     if (col < 4) UI.SameLine(); else col = 0;
 
-                    if (UI.Radio(name, current_observer_name == name, size))
-                        // XXX update observer
-                        ;
+                    if (UI.Radio(name, current_observer_set_name == name, size))
+                        SelectObserverSet(name);                        
 
                     col++;
                 }
@@ -1255,8 +1281,7 @@ namespace DutchSkies
                     if (col < 4) UI.SameLine(); else col = 0;
 
                     if (UI.Radio(name, current_landmark_set_name == name, size))
-                        // XXX update landmark set
-                        ;
+                        SelectLandmarkSet(name);
 
                     col++;
                 }
@@ -1273,11 +1298,11 @@ namespace DutchSkies
                     SelectMapSet("<default>");
                 }
                 UI.SameLine();
-                if (UI.Button("Observers"))
+                if (UI.Button("Observer sets"))
                 {
-                    ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.OBSERVER);
+                    ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.OBSERVER_SET);
                     UpdateConfigurationLists();
-                    // XXX clear observer
+                    SelectObserver("<default>");
                 }
                 UI.SameLine();
                 if (UI.Button("Landmark sets"))
@@ -1550,43 +1575,7 @@ namespace DutchSkies
             }
         }
 
-        public void RecomputeLandmarkPositions()
-        {
-            float x, y;
-            Matrix M;
-
-            alignment_solver.ClearReferences();
-
-            SchedulePostMessage($"RecomputeLandmarkPositions: observer lat {current_observer.lat:F6}, lon {current_observer.lon:F6}, alt {current_observer.floor_altitude:F6}");
-
-            foreach (Landmark lm in landmarks_in_current_set.Values)
-            {
-                // Map (km)
-                current_map.Project(out x, out y, lm.lon, lm.lat);
-                lm.map_position = new Vec3(x, y, lm.top_altitude / 1000f);
-
-                // Sky (m)
-                M = Matrix.R(-lm.lat, 0f, 0f)
-                    *
-                    Matrix.R(0f, lm.lon - current_observer.lon, 0f)
-                    *
-                    Matrix.R(current_observer.lat, 0f, 0f)
-                    *
-                    // XXX Should also include have-above-floor distance, but the effect will be minimal
-                    Matrix.T(0f, 0f, -(Projection.RADIUS_METERS + current_observer.floor_altitude));
-
-                Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + lm.top_altitude);
-
-                lm.sky_position = M.Transform(p);
-
-                Log.Info($"Landmark '{lm.id}' sky pos reference (Z-up) = {lm.sky_position}");
-                SchedulePostMessage($"(skypos reference, Z-up) landmark {lm.id} lat {lm.lat}, lon {lm.lon} -> {lm.sky_position.x:F6}, {lm.sky_position.y:F6}, {lm.sky_position.z:F6}");
-
-                // Note: Z-up to Y-up
-                // XXX Should really alter the above transform to produce Y-up positions directly
-                alignment_solver.SetReference(lm.id, ROT_90_X.Transform(lm.sky_position));
-            }
-        }
+        // Map sets
 
         public MapSet ParseMapSet(JSONNode jmap_set, string config_url="")
         {
@@ -1814,8 +1803,105 @@ namespace DutchSkies
                 plane.Update(draw_time);
             }
 
+            map_center_observer.lat = current_map.center_lat;
+            map_center_observer.lon = current_map.center_lon;
             current_observer.update_map_position(current_map);
         }
+
+        // Observer sets
+
+        public void SelectObserverSet(string id)
+        {
+            JSONNode jobserverset;
+
+            Log.Info($"Selecting observer-set '{id}'");
+
+            if (!observer_sets.ContainsKey(id))
+            {
+                if (!stored_observer_sets.Contains(id))
+                {
+                    Log.Err($"Observer-set '{id}' not available, nor stored!");
+                    return;
+                }
+
+                jobserverset = ConfigurationStore.Load(ConfigurationStore.ConfigType.OBSERVER_SET, id);
+                if (jobserverset == null)
+                {
+                    Log.Err($"Error loading observer-set '{id}' from storage!");
+                    return;
+                }
+
+                observer_sets[id] = ParseObserverSet(jobserverset);
+            }
+
+            current_observer_set = observer_sets[id];
+            current_observer_set_name = id;
+
+            observers_in_current_set = current_observer_set.observers;
+
+            SelectObserver(current_observer_set.default_observer);
+        }
+
+        public void SelectObserver(string id)
+        {
+            Log.Info($"Selecting observer '{id}'");
+
+            current_observer_name = id;
+            current_observer = observers_in_current_set[id];
+
+            current_observer.update_map_position(current_map);
+            RecomputeLandmarkPositions();
+        }
+
+        public ObserverSet ParseObserverSet(JSONNode jobserver_set)
+        {
+            JSONArray jobservers;
+            ObserverSet observer_set;
+            string observer_set_id;
+            Observer observer;
+
+            if (!jobserver_set.HasKey("id"))
+            {
+                // XXX list index in sets in message
+                Log.Warn($"Observer-set does not have 'id' field!");
+                return null;
+            }
+
+            observer_set_id = jobserver_set["id"];
+
+            // XXX avoid '<default>'?
+            if (observer_set_id == "")
+            {
+                Log.Warn($"Observer-set should not have empty 'id' field!");
+                return null;
+            }
+
+            if (!jobserver_set.HasKey("items") || jobserver_set["items"].Count == 0)
+            {
+                Log.Warn($"Observer-set '{observer_set_id}' does not contain any observers!");
+                // XXX return anyway?
+                return null;
+            }
+
+            observer_set = new ObserverSet(observer_set_id);
+            jobservers = jobserver_set["items"].AsArray;
+
+            foreach (JSONNode n in jobservers)
+            {
+                // XXX needs more checks
+                string ob_id = n["id"];
+                float lat = n["lat"];
+                float lon = n["lon"];
+                float floor_altitude = n["floor_altitude"];
+
+                observer = new Observer(ob_id, lat, lon, floor_altitude);
+                observer_set.Add(ob_id, observer);
+            }
+
+            return observer_set;
+        }
+
+        // Landmark sets
 
         public void SelectLandmarkSet(string id)
         {
@@ -1842,7 +1928,7 @@ namespace DutchSkies
             }
 
             current_landmark_set = landmark_sets[id];
-            current_landmark_set_name = id;
+            current_landmark_set_name = id;            
 
             landmarks_in_current_set = current_landmark_set.landmarks;
             sorted_landmark_names = landmarks_in_current_set.Keys.ToList();
@@ -1879,7 +1965,7 @@ namespace DutchSkies
 
             if (!jlandmark_set.HasKey("items") || jlandmark_set["items"].Count == 0)
             {
-                Log.Warn($"Landmark-set '{landmark_set_id}' does not contain any maps!");
+                Log.Warn($"Landmark-set '{landmark_set_id}' does not contain any landmarks!");
                 // XXX return anyway?
                 return null;
             }
@@ -1903,13 +1989,55 @@ namespace DutchSkies
             return landmark_set;
         }
 
+        public void RecomputeLandmarkPositions()
+        {
+            float x, y;
+            Matrix M;
+
+            alignment_solver.ClearReferences();
+
+            SchedulePostMessage($"RecomputeLandmarkPositions: observer lat {current_observer.lat:F6}, lon {current_observer.lon:F6}, alt {current_observer.floor_altitude:F6}");
+
+            foreach (Landmark lm in landmarks_in_current_set.Values)
+            {
+                // Map (km)
+                current_map.Project(out x, out y, lm.lon, lm.lat);
+                lm.map_position = new Vec3(x, y, lm.top_altitude / 1000f);
+
+                // Sky (m)
+                M = Matrix.R(-lm.lat, 0f, 0f)
+                    *
+                    Matrix.R(0f, lm.lon - current_observer.lon, 0f)
+                    *
+                    Matrix.R(current_observer.lat, 0f, 0f)
+                    *
+                    // XXX Should also include have-above-floor distance, but the effect will be minimal
+                    Matrix.T(0f, 0f, -(Projection.RADIUS_METERS + current_observer.floor_altitude));
+
+                Vec3 p = new Vec3(0f, 0f, Projection.RADIUS_METERS + lm.top_altitude);
+
+                lm.sky_position = M.Transform(p);
+
+                Log.Info($"Landmark '{lm.id}' sky pos reference (Z-up) = {lm.sky_position}");
+                SchedulePostMessage($"(skypos reference, Z-up) landmark {lm.id} lat {lm.lat}, lon {lm.lon} -> {lm.sky_position.x:F6}, {lm.sky_position.y:F6}, {lm.sky_position.z:F6}");
+
+                // Note: Z-up to Y-up
+                // XXX Should really alter the above transform to produce Y-up positions directly
+                alignment_solver.SetReference(lm.id, ROT_90_X.Transform(lm.sky_position));
+            }
+        }
+
+        // Configurations
+
         public void UpdateConfigurationLists()
         {
             ConfigurationStore.List(ConfigurationStore.ConfigType.MAP_SET, ref stored_map_sets);
-            stored_map_sets.Insert(0, "<default>");
+            stored_map_sets.Insert(0, "<default>");            
+
+            ConfigurationStore.List(ConfigurationStore.ConfigType.OBSERVER_SET, ref stored_observer_sets);
+            stored_observer_sets.Insert(0, "<default>");
 
             ConfigurationStore.List(ConfigurationStore.ConfigType.LANDMARK_SET, ref stored_landmark_sets);
-            ConfigurationStore.List(ConfigurationStore.ConfigType.OBSERVER, ref stored_observers);
         }
 
         public void ProcessConfigurationData(string config_string, string config_url)
@@ -1998,7 +2126,7 @@ namespace DutchSkies
             if (config_root.HasKey("observer") && config_root["observer"].HasKey("id"))  // Guard against observer: {}
             {
                 JSONNode jobs = config_root["observer"];
-                current_observer.name = jobs["id"];
+                current_observer.id = jobs["id"];
                 current_observer.lat = jobs["lat"];
                 current_observer.lon = jobs["lon"];
                 current_observer.floor_altitude = jobs["alt"];
@@ -2008,7 +2136,7 @@ namespace DutchSkies
             {
                 // Need some setting for observer, so pick map center at 0m altitude
                 Log.Info("No observer set in configuration, so picking map center");
-                current_observer.name = "<map center>";
+                current_observer.id = "<map center>";
                 current_observer.lat = current_map.center_lat;
                 current_observer.lon = current_map.center_lon;
                 current_observer.floor_altitude = 0f;
