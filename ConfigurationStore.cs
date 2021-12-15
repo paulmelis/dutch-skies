@@ -9,7 +9,7 @@ namespace DutchSkies
     {
         public enum ConfigType
         {
-            MAP_SET, LANDMARK_SET, OBSERVER
+            MAP_SET, LANDMARK_SET, OBSERVER, DISCORD_WEBHOOK
         };
 
         /*
@@ -28,14 +28,21 @@ namespace DutchSkies
          * 
          */
 
+        const string OPTIONS_CONTAINER = "options";
+
         protected static string type2section(ConfigType type)
         {
             if (type == ConfigType.MAP_SET)
                 return "map_sets";
             else if (type == ConfigType.LANDMARK_SET)
                 return "landmark_sets";
-            else
+            else if (type == ConfigType.OBSERVER)
                 return "observers";
+            else
+            {
+                Log.Warn($"No section for type '{type}'!");
+                return "";
+            }
         }
 
         public static void Store(ConfigType type, string id, JSONNode data)
@@ -120,5 +127,49 @@ namespace DutchSkies
             // XXX handle error
             return JSONNode.Parse(sdata);
         }
-   }
+
+        // String options
+
+        public static void StoreOption(string id, string value)
+        {
+            ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
+
+            Log.Info($"Storing configuration option '{id}', value '{value}'");
+
+            ApplicationDataContainer type_container;
+
+            if (localSettings.Containers.ContainsKey(OPTIONS_CONTAINER))
+                type_container = localSettings.Containers[OPTIONS_CONTAINER];
+            else
+                type_container = localSettings.CreateContainer(OPTIONS_CONTAINER, ApplicationDataCreateDisposition.Always);
+
+            if (type_container.Values.ContainsKey(id))
+                Log.Info($"Overwriting configuration option '{id}'");
+
+            type_container.Values[id] = value;
+        }
+
+        public static bool LoadOption(string id, out string value)
+        {
+            value = "";
+
+            ApplicationDataContainer localSettings = ApplicationData.Current.LocalSettings;
+
+            if (!localSettings.Containers.ContainsKey(OPTIONS_CONTAINER))
+                return false;
+            
+            ApplicationDataContainer type_container = localSettings.Containers[OPTIONS_CONTAINER];
+
+            if (!type_container.Values.ContainsKey(id))
+            {
+                Log.Err($"No configuration option '{id}' found");
+                return false;
+            }
+
+            value = type_container.Values[id] as string;
+
+            return true;
+        }
+
+    }
 }

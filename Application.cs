@@ -59,13 +59,13 @@ namespace DutchSkies
         // UI
         Pose main_window_pose, log_window_pose, configuration_window_pose;
         bool show_log_window;
-        bool show_trim_window;        
+        bool show_trim_window;
         bool show_configuration_window;
 
         // Plane data
         ConcurrentQueue<Vec4> query_extent_update_queue;
         Dictionary<string, PlaneData> plane_data;
-                
+
         int num_planes_on_map;
         int num_planes_late, num_planes_missing;
         int num_planes_on_ground;
@@ -76,7 +76,7 @@ namespace DutchSkies
         bool map_show_vlines, sky_show_vlines;
         bool map_show_track_lines, sky_show_trail_lines;
         bool map_show_observer;
-        bool sky_show_landmarks;        
+        bool sky_show_landmarks;
         bool use_flight_units;
 
         int sky_d_trim;         // In 0.1 degree increments
@@ -179,8 +179,9 @@ namespace DutchSkies
             log_level = LogLevel.Info;
             Log.Subscribe(OnLog);
 
-            discord_webhook_url = "";
             discord_messages_enabled = false;
+            if (ConfigurationStore.LoadOption("discord_webhook", out discord_webhook_url))
+                Log.Info($"Have Discord webhook {discord_webhook_url}");
 
             // Tweak renderer
             Renderer.SetClip(0.08f, 10000f);
@@ -198,7 +199,7 @@ namespace DutchSkies
                         break;
                     }
                 }
-            }            
+            }
 
             // Gamepad
 
@@ -233,7 +234,7 @@ namespace DutchSkies
             tile_requests_queue = new BlockingCollection<TileFetchRequest>(new ConcurrentQueue<TileFetchRequest>());
             var tiles_fetch_thread = new Thread(OSMTiles.FetchMapTiles);
             tiles_fetch_thread.IsBackground = true;
-            tiles_fetch_thread.Start(new Tuple<object,object>(tile_requests_queue, updates_queue));
+            tiles_fetch_thread.Start(new Tuple<object, object>(tile_requests_queue, updates_queue));
             Log.Info("Tile fetch thread started");
 
             message_send_queue = new BlockingCollection<PostMessageRequest>(new ConcurrentQueue<PostMessageRequest>());
@@ -257,10 +258,10 @@ namespace DutchSkies
             UpdateConfigurationLists();
 
             Log.Info("--- Available stored configurations ---");
-            
+
             foreach (string s in stored_map_sets)
                 Log.Info($"[MAP_SET] '{s}'");
-            
+
             foreach (string s in stored_map_sets)
                 Log.Info($"[LANDMARK_SET] '{s}'");
 
@@ -307,7 +308,7 @@ namespace DutchSkies
 
             // Prepare built-in maps and select default
             PrepareBuiltinMaps();
-            
+
             SelectMapSet("<default>");
 
             //
@@ -383,7 +384,7 @@ namespace DutchSkies
             // Alignment
 
             alignment_mode = false;
-            alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));            
+            alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));
             alignment_offset = new Vec3();
             alignment_rotation = 0f;
             use_alignment_transform = false;
@@ -399,7 +400,7 @@ namespace DutchSkies
             show_log_window = true;
             show_trim_window = false;
             show_configuration_window = true;
-            
+
             map_visible = true;
             map_show_plane_model = true;
             sky_show_plane_models = true;
@@ -544,7 +545,18 @@ namespace DutchSkies
                             ScheduleURLFetch(data, "config_data", false, data);
                         }
                         else
-                            Log.Warn("Ignoring QR code that doesn't look like a URL");
+                        {
+                            Log.Info("Parsing QR code that doesn't look like URL as JSON");
+                            try
+                            {
+                                JSON.Parse(data);
+                                ProcessConfigurationData(data, "");
+                            }
+                            catch (Exception e)
+                            {
+                                Log.Warn($"Discarding QR code data, neither a URL or parseable JSON");
+                            }
+                        }
                     }
                     else if (update_type == "config_data")
                     {
@@ -1839,7 +1851,9 @@ namespace DutchSkies
         {
             // XXX handle error
             JSONNode config_root = JSON.Parse(config_string);
+            Log.Info($"config_string = '{config_string}', parsed to '{config_root.ToString()}'");
 
+            // XXX only set this when config actually changes
             current_configuration_name = config_url;
             if (current_configuration_name.Length > 63)
                 current_configuration_name = current_configuration_name.Substring(0, 30) + "..." + current_configuration_name.Substring(current_configuration_name.Length - 30);
@@ -1908,6 +1922,14 @@ namespace DutchSkies
                 UpdateLandmarks(config_root["landmarks"]);
                 if (sorted_landmark_names.Count > 0)
                     current_alignment_landmark = sorted_landmark_names[0];
+            }
+
+            if (config_root.HasKey("discord_webhook"))
+            {
+                JsonObject obj = JsonObject.Parse(config_string);
+                discord_webhook_url = obj["discord_webhook"].GetString();
+                ConfigurationStore.StoreOption("discord_webhook", discord_webhook_url);
+                Log.Info($"Discord webhook set to {discord_webhook_url}");
             }
 
             if (observer_updated)
