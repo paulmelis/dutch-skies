@@ -294,6 +294,8 @@ namespace DutchSkies
 
             landmarks_in_current_set = new Dictionary<string, Landmark>();
             sorted_landmark_names = landmarks_in_current_set.Keys.ToList();
+            sorted_landmark_names.Sort();
+
             alignment_solver = new AlignmentSolver();
 
             Mesh windrose_mesh = Mesh.GeneratePlane(new Vec2(1f, 1f), -Vec3.Forward, Vec3.Up);
@@ -371,7 +373,7 @@ namespace DutchSkies
 
             //initial_config = "http://192.168.178.32:8000/config-alps-surfdriveimage.json2";
             //initial_config = "http://192.168.178.32:8000/sanfrancisco-image-surfdrive.json2";                                    
-            initial_config = "http://192.168.178.32:8000/config-netherlands-park-osm.json2";
+            //initial_config = "http://192.168.178.32:8000/config-netherlands-park-osm.json2";
 
             if (initial_config != "")
                 ScheduleURLFetch(initial_config, "config_data", false, initial_config);
@@ -403,8 +405,7 @@ namespace DutchSkies
 
             // Alignment
 
-            alignment_mode = false;
-            alignment_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));
+            alignment_mode = false;            
             alignment_offset = new Vec3();
             alignment_rotation = 0f;
             use_alignment_transform = false;
@@ -415,6 +416,7 @@ namespace DutchSkies
             main_window_pose = new Pose(0.5f, -0.2f, -0.5f, Quat.LookDir(-1, 0, 1));
             log_window_pose = new Pose(0.9f, -0.2f, 0f, Quat.LookDir(-1, 0, 1));
             configuration_window_pose = new Pose(-0.5f, -0.2f, 0f, Quat.LookDir(1, 0, 1));
+            alignment_window_pose = new Pose(-0.9f, -0.2f, 0f, Quat.LookDir(1, 0, 1));
 
             map_detail_level = DetailLevel.FULL;
             show_log_window = true;
@@ -447,6 +449,7 @@ namespace DutchSkies
             Color SKY_BASE_COLOR = new Color(1f, 0f, 0f);
             Color SKY_TRAIL_LINE_COLOR = new Color(0.4f, 1f, 0.4f);
             Color LANDMARK_VLINE_COLOR = new Color(1f, 0f, 1f);
+            Color LANDMARK_VLINE_COLOR_HIGHLIGHTED = new Color(0f, 1f, 0f);
             Color ALIGNMENT_TEXT_COLOR = new Color(0f, 1f, 0f);
 
             Color32 ALIGNMENT_LINE_COLOR = new Color32(0, 255, 0, 255);
@@ -459,7 +462,8 @@ namespace DutchSkies
             // XXX style uses gamma-space color, leading to slight difference with vline color
             TextStyle MAP_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.7f * U.cm, MAP_BASE_COLOR);
             TextStyle SKY_TEXT_STYLE = Text.MakeStyle(Default.Font, 15f * U.m, SKY_BASE_COLOR);
-            TextStyle LANDMARK_TEXT_STYLE = Text.MakeStyle(Default.Font, 1f * U.m, LANDMARK_VLINE_COLOR);
+            TextStyle LANDMARK_TEXT_STYLE = Text.MakeStyle(Default.Font, 2f * U.m, LANDMARK_VLINE_COLOR);
+            TextStyle LANDMARK_TEXT_STYLE_HIGHLIGHTED = Text.MakeStyle(Default.Font, 2f * U.m, LANDMARK_VLINE_COLOR_HIGHLIGHTED);
             TextStyle MAP_DIMENSION_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.01f * U.m, Color.White);
             TextStyle ALIGNMENT_TEXT_STYLE = Text.MakeStyle(Default.Font, 0.35f * U.m, ALIGNMENT_TEXT_COLOR);
 
@@ -617,28 +621,36 @@ namespace DutchSkies
                         current_alignment_landmark = sorted_landmark_names[idx];
                     }
 
-                    if (!use_alignment_transform && xbox_controller.Pressed(XboxController.A))
+                    if (xbox_controller.Pressed(XboxController.A))
                     {
-                        var hp = Input.Head.position;
-                        var ho = Input.Head.orientation.Rotate(new Vec3(0f, 0f, -1f));
-                        JsonObject jo = new JsonObject();
-                        jo["lm"] = JsonValue.CreateStringValue(current_alignment_landmark);
-                        jo["head_pos"] = JsonValue.CreateStringValue($"[{hp.x:F6}, {hp.y:F6}, {hp.z:F6}]");
-                        jo["head_ori"] = JsonValue.CreateStringValue($"[{ho.x:F6}, {ho.y:F6}, {ho.z:F6}]");
-                        SchedulePostMessage(jo.ToString());
-                        alignment_solver.AddObservation(current_alignment_landmark, hp, ho);
+                        if (!use_alignment_transform)
+                        {
+                            var hp = Input.Head.position;
+                            var ho = Input.Head.orientation.Rotate(new Vec3(0f, 0f, -1f));
+                            JsonObject jo = new JsonObject();
+                            jo["lm"] = JsonValue.CreateStringValue(current_alignment_landmark);
+                            jo["head_pos"] = JsonValue.CreateStringValue($"[{hp.x:F6}, {hp.y:F6}, {hp.z:F6}]");
+                            jo["head_ori"] = JsonValue.CreateStringValue($"[{ho.x:F6}, {ho.y:F6}, {ho.z:F6}]");
+                            SchedulePostMessage(jo.ToString());
+                            alignment_solver.AddObservation(current_alignment_landmark, hp, ho);
+                        }
+                        else
+                            Log.Warn("Not adding observation, as alignment transform is active");
                     }
-                    else if (!use_alignment_transform && xbox_controller.Pressed(XboxController.X))
+                    else if (xbox_controller.Pressed(XboxController.X))
                     {
-                        SchedulePostMessage($"Remove observations, lm {current_alignment_landmark}, ");
-                        alignment_solver.RemoveObservations(current_alignment_landmark);
+                        if (!use_alignment_transform)
+                        {
+                            SchedulePostMessage($"Remove observations, lm {current_alignment_landmark}, ");
+                            alignment_solver.RemoveObservations(current_alignment_landmark);
+                        }
+                        else
+                            Log.Warn("Not removing observations, as alignment transform is active");
                     }
                     else if (xbox_controller.Pressed(XboxController.B))
                     {
                         // The found solution transform the observations onto the world coordinate system
-                        float res = alignment_solver.Solve(out alignment_offset, out alignment_rotation);
-
-                        SchedulePostMessage($"Solve -> ({alignment_offset.x:F6}, {alignment_offset.y:F6}, {alignment_offset.z:F6}), {alignment_rotation} (energy {res:F6})");
+                        UpdateAlignmentSolution();
                     }
                     else if (xbox_controller.Pressed(XboxController.Y))
                     {
@@ -939,18 +951,29 @@ namespace DutchSkies
 
                 if (sky_show_landmarks)
                 {
+                    Color color;
+                    TextStyle style;
+
                     foreach (KeyValuePair<string, Landmark> item in landmarks_in_current_set)
                     {
                         Landmark landmark = item.Value;
                         Vec3 pos = ROT_MIN90_X.Transform(landmark.sky_position);
 
-                        Lines.Add(pos, new Vec3(pos.x, pos.y - landmark.height, pos.z), LANDMARK_VLINE_COLOR, 0.5f);
+                        color = LANDMARK_VLINE_COLOR;
+                        style = LANDMARK_TEXT_STYLE;
+                        if (alignment_mode && item.Key == current_alignment_landmark)
+                        {
+                            color = LANDMARK_VLINE_COLOR_HIGHLIGHTED;
+                            style = LANDMARK_TEXT_STYLE_HIGHLIGHTED;
+                        }
+
+                        Lines.Add(pos, new Vec3(pos.x, pos.y - landmark.height, pos.z), color, 2f);
 
                         Quat textquat = Quat.LookAt(pos, head_pos, Vec3.UnitY);
                         Text.Add(
                             $"{item.Key}",
                             Matrix.R(textquat) * Matrix.T(pos),
-                            LANDMARK_TEXT_STYLE,
+                            style,
                             TextAlign.XCenter | TextAlign.YTop,
                             TextAlign.XCenter | TextAlign.YTop,
                             0f, 2f);
@@ -979,6 +1002,7 @@ namespace DutchSkies
                     if (use_alignment_transform)
                         Text.Add("(alignment transform used)", Matrix.R(0f, 180f, 0f) * Matrix.T(0f, -3.2f, -20f), ALIGNMENT_TEXT_STYLE);
 
+                    /*
                     Pose awin_pose = new Pose(new Vec3(0.25f, 0f, -0.5f), Quat.FromAngles(0f, 180f, 0f));
                     UI.WindowBegin("Alignment", ref awin_pose, size, UIWin.Empty);
                     if (UI.Button(" Mark "))
@@ -987,6 +1011,7 @@ namespace DutchSkies
                             Input.Head.position, Input.Head.orientation.Rotate(new Vec3(0f, 0f, -1f)));
                     }
                     UI.WindowEnd();
+                    */
 
                     Hierarchy.Pop();
                 }
@@ -1018,6 +1043,19 @@ namespace DutchSkies
             // XXX should be in finally clause
             url_requests_queue.Dispose();
             tile_requests_queue.Dispose();            
+        }
+
+        public float UpdateAlignmentSolution()
+        {
+            // Clear trim, so the solution shown isn't altered by the trim
+            sky_d_trim = 0;
+            sky_v_trim = 0;
+
+            float res = alignment_solver.Solve(out alignment_offset, out alignment_rotation);
+
+            SchedulePostMessage($"Solve -> ({alignment_offset.x:F6}, {alignment_offset.y:F6}, {alignment_offset.z:F6}), {alignment_rotation} (energy {res:F6})");
+
+            return res;
         }
 
         public void DrawUIWindows()
@@ -1159,6 +1197,7 @@ namespace DutchSkies
                 UI.SameLine();
                 UI.Space(-0.2f);
                 if (UI.Button("Close window")) show_trim_window = false;
+                UI.Text($"H {sky_d_trim*0.1f:F1}°, V {sky_v_trim} cm");
                 UI.PushId("htrim");
                 UI.Text("H Trim (°)", TextAlign.XCenter);
                 if (UI.Button("◀45")) sky_d_trim -= 450;
@@ -1212,7 +1251,7 @@ namespace DutchSkies
             {
                 UI.WindowBegin("Alignment", ref alignment_window_pose, new Vec2(60, 0) * U.cm, UIWin.Normal);
                 if (UI.Button("Solve"))
-                    alignment_solver.Solve(out alignment_offset, out alignment_rotation);
+                    UpdateAlignmentSolution();
                 UI.SameLine();
                 UI.Space(-0.02f);
                 UI.Toggle("Use alignment", ref use_alignment_transform);
@@ -1302,7 +1341,7 @@ namespace DutchSkies
                 {
                     ConfigurationStore.DeleteAllOfType(ConfigurationStore.ConfigType.OBSERVER_SET);
                     UpdateConfigurationLists();
-                    SelectObserver("<default>");
+                    SelectObserverSet("<default>");
                 }
                 UI.SameLine();
                 if (UI.Button("Landmark sets"))
@@ -1851,6 +1890,9 @@ namespace DutchSkies
 
             current_observer.update_map_position(current_map);
             RecomputeLandmarkPositions();
+
+            foreach (PlaneData pd in plane_data.Values)
+                pd.ObserverChange(current_observer);            
         }
 
         public ObserverSet ParseObserverSet(JSONNode jobserver_set)
@@ -1911,9 +1953,9 @@ namespace DutchSkies
 
             if (!landmark_sets.ContainsKey(id))
             {
-                if (!stored_map_sets.Contains(id))
+                if (!stored_landmark_sets.Contains(id))
                 {
-                    Log.Err($"Map-set '{id}' not available, nor stored!");
+                    Log.Err($"Landmark-set '{id}' not available, nor stored!");
                     return;
                 }
 
@@ -1932,6 +1974,7 @@ namespace DutchSkies
 
             landmarks_in_current_set = current_landmark_set.landmarks;
             sorted_landmark_names = landmarks_in_current_set.Keys.ToList();
+            sorted_landmark_names.Sort();
 
             current_alignment_landmark = "";
             if (sorted_landmark_names.Count > 0)
@@ -2051,7 +2094,6 @@ namespace DutchSkies
             if (current_configuration_name.Length > 63)
                 current_configuration_name = current_configuration_name.Substring(0, 30) + "..." + current_configuration_name.Substring(current_configuration_name.Length - 30);
 
-            bool current_map_updated = false;
             bool observer_updated = false;
 
             if (config_root.HasKey("map_sets"))
@@ -2083,7 +2125,6 @@ namespace DutchSkies
                         // Switch to this map set
                         SelectMapSet(map_set.id);
                         first = false;
-                        current_map_updated = true;
                     }
 
                     set_idx++;
@@ -2113,7 +2154,7 @@ namespace DutchSkies
 
                     if (first)
                     {
-                        // Switch to this map set
+                        // Switch to this landmark set
                         SelectLandmarkSet(landmark_set.id);
                         first = false;
                     }
@@ -2122,25 +2163,36 @@ namespace DutchSkies
                 }
             }
 
+            if (config_root.HasKey("observer_sets"))
+            {
+                JSONArray jobserver_sets = config_root["observer_sets"].AsArray;
+                ObserverSet observer_set;
+                bool first = true;
+                int set_idx = 0;
 
-            if (config_root.HasKey("observer") && config_root["observer"].HasKey("id"))  // Guard against observer: {}
-            {
-                JSONNode jobs = config_root["observer"];
-                current_observer.id = jobs["id"];
-                current_observer.lat = jobs["lat"];
-                current_observer.lon = jobs["lon"];
-                current_observer.floor_altitude = jobs["alt"];
-                observer_updated = true;
-            }
-            else if (current_map_updated)
-            {
-                // Need some setting for observer, so pick map center at 0m altitude
-                Log.Info("No observer set in configuration, so picking map center");
-                current_observer.id = "<map center>";
-                current_observer.lat = current_map.center_lat;
-                current_observer.lon = current_map.center_lon;
-                current_observer.floor_altitude = 0f;
-                observer_updated = true;
+                foreach (JSONNode jobserver_set in jobserver_sets)
+                {
+                    observer_set = ParseObserverSet(jobserver_set);
+
+                    if (observer_set == null)
+                    {
+                        Log.Warn($"Observer-set (index {set_idx} could not be parsed, ignoring");
+                        continue;
+                    }
+
+                    observer_sets[observer_set.id] = observer_set;
+
+                    ConfigurationStore.Store(ConfigurationStore.ConfigType.OBSERVER_SET, observer_set.id, jobserver_set);
+
+                    if (first)
+                    {
+                        // Switch to this observer set
+                        SelectObserverSet(observer_set.id);
+                        first = false;
+                    }
+
+                    set_idx++;
+                }
             }
 
             if (config_root.HasKey("discord_webhook"))
