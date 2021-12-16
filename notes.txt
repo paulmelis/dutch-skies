@@ -5,15 +5,26 @@
                         head.Ray.direction.x, head.Ray.direction.y, head.Ray.direction.z));
                 UI.WindowEnd();
 
-clear observer name on button when none is available
+
+planes are slightly off wrt the map in the NL config, compared to the builtin config...
+
+
+when switching map set immediately query an opensky update?
+
+when alignment solution is applied, observer windrose needs to move
+to current position (and not original observer position), plus
+its orientation will need to be based on the true North, instead of
+transformed startup Forward direction
+
+could show actual observer location after alignment solution?
+if we can find a way to map back to lat, lon
 
 add surf logo
 
-new york json: query area incorrect?
+show battery status in UI
 
-ignore map images that got fetched after a new config was loaded
+add schiphol zoomed map
 
-observer: null should clean observer and set to map[0] center
 
 Bugs:
 - When switching configs the sky trails sometimes use incorrect previous pos
@@ -21,12 +32,13 @@ Bugs:
 
 
 Should have:
+- Way to select a single plane and hide info on all others
+- Windows Store entry...
+- Use Windows.Data.Json instead of SimpleJSON, and make parsing more robust
 - About window
-- More robust JSON parser
 - Highlight airport locations
 
 Nice to have:
-- Reset back to internals maps
 - Reset MR origin option (to recenter at current position)
 - Run Tex.FromFile on loading thread if possible, as it briefly interrupts all rendering for large images
 - Allow settings to be specified in qr codes, for easy demo setup
@@ -34,6 +46,9 @@ Nice to have:
 - Allow text size selection
 - Delete missing planes (but keep track of number deleted)?
 - Allow specifying altitude of lowest point on map and offset planes by that amount
+- Use monospace font for log window
+- Allow option to use per-map query extent in a set, instead of union of all map extents
+
 
 Optimize:
 - Combine map and sky parts where possible during drawing

@@ -14,7 +14,8 @@ using SimpleJSON;
 
 namespace DutchSkies
 {
-    using TileFetchRequest = Tuple<int, int, int, int, int, string[], string>;
+    using TileFetchRequest = Tuple<int, int, int, int, int, string[], OSMMap>;
+    using Update = Tuple<string, object, object>;
 
     class OSMTiles
     {
@@ -89,13 +90,13 @@ namespace DutchSkies
         {
             Tuple<object, object> args = tuple as Tuple<object, object>;
             BlockingCollection<TileFetchRequest> input_queue = args.Item1 as BlockingCollection<TileFetchRequest>;
-            ConcurrentQueue<Tuple<string, object, string>> result_queue = args.Item2 as ConcurrentQueue<Tuple<string, object, string>>;
+            ConcurrentQueue<Update> result_queue = args.Item2 as ConcurrentQueue<Update>;
             
             TileFetchRequest request;
             int min_i, max_i, min_j, max_j;
             int zoom;
             string[] tile_servers;
-            string map_name;
+            OSMMap map;
 
             while (true)
             {
@@ -107,9 +108,9 @@ namespace DutchSkies
                 max_j = request.Item4;
                 zoom = request.Item5;
                 tile_servers = request.Item6;
-                map_name = request.Item7;
+                map = request.Item7;
 
-                Log.Info($"(tile fetch) Fetching tiles for map '{map_name}'");
+                Log.Info($"(tile fetch) Fetching tiles for map '{map.id}'");
 
                 // get tile extent, zoom, server list
 
@@ -128,7 +129,7 @@ namespace DutchSkies
                 int tile_row_size = TILE_SIZE * 4;  // BGRA
                 int tiles_fetched = 0;
                 int server_idx = 0;
-                string url;
+                string url = "";
 
                 for (int j = min_j; j <= max_j; j++)
                 {
@@ -170,14 +171,15 @@ namespace DutchSkies
                             }
 
                             tiles_fetched++;
-                            result_queue.Enqueue(new Tuple<string, object, string>("map_tilefetch_progress", 100f * tiles_fetched / num_tiles_to_fetch, map_name));
+                            result_queue.Enqueue(new Update("map_tilefetch_progress", 100f * tiles_fetched / num_tiles_to_fetch, map));
 
                             server_idx = (server_idx + 1) % tile_servers.Length;
                         }
                         catch (Exception e)
                         {
-                            Log.Err($"(tile fetch) Exception while fetching tile {i},{j}: {e.Message}");
-                            Log.Err($"(tile fetch) Inner exception: {e.InnerException.Message}");
+                            Log.Err($"(tile fetch) Exception while fetching tile {i},{j} from {url}: {e.Message}");
+                            if (e.InnerException != null)
+                                Log.Err($"(tile fetch) Inner exception: {e.InnerException.Message}");
 
                         }
                     }
@@ -203,7 +205,7 @@ namespace DutchSkies
                 full_map_pixels[16] = 24;                       // Pixel depth in bits
                 full_map_pixels[17] = 1 << 5;                   // Image descriptor (Y-flip)
 
-                result_queue.Enqueue(new Tuple<string, object, string>("map_image", full_map_pixels, map_name));
+                result_queue.Enqueue(new Update("map_image", full_map_pixels, map));
 
                 /*
                 Windows.Storage.StorageFolder storageFolder = Windows.Storage.ApplicationData.Current.LocalFolder;

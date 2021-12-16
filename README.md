@@ -1,51 +1,70 @@
 # Dutch SKies - A Mixed Reality view of air traffic over The Netherlands (and elsewhere)
 
-This application provides a real-time view of air traffic in mixed reality, through the
+![](Images/schiphol2.png)
+
+This application, for Microsoft HoloLens 2, provides a real-time view of air traffic in mixed reality (MR), through the
 data provided by the [OpenSky Network](opensky-network.org/). It provides both a map view of 
-air traffic, *as well as a live view of traffic in the sky* (when properly aligned).
+air traffic, *as well as a live view of traffic in the sky*. The image above is a view of Amsterdam
+Schiphol Airport (the main control tower is next to the purple line). Over a dozen aircraft
+are shown in the MR overlay, with some of their flight statistics, such as call-sign, altitude, speed
+and distance from the viewer. For the top two flights the (real) contrails can be seen between the
+lines of text, indicating a fairly good alignment of the mixed reality overlay with physical reality.
 
-As an example, here's a map view of air traffic around Amsterdam, as seen through mixed reality on
-a HoloLens 2:
+## Background
 
-![](Images/mapview.jpg)
+DutchSKies was created as an [entry](https://devpost.com/software/dutch-skies) for the 
+[Mixed Reality Challenge: StereoKit (C# and OpenXR)](https://mixed-reality-stereokit.devpost.com/),
+using the excellent [StereoKit](https://stereokit.net/) framework. It serves mostly as a proof-of-concept,
+and demonstration of mixed reality.
 
-The flight with callsign TRA6505 has just passed over the observer's location
+Dutch SKies is Copyright (C) 2021 Paul Melis, SURF (paul.melis@surf.nl). See the section
+below for details on the license under which is it made available.
+
+### Use cases and benefits
+
+Using this 3D mixed reality view air traffic patterns and spatial relations can be more intuitively inspected, more so than when
+looking at the same data on a computer monitor. The overlay of real-time flight data over the actual flights can help even further.
+
+In principle, the application could be used for other types of spatial data, as long as it can
+be represented both on a map and in the mixed reality overlay. This currently isn't the focus, 
+but should not be too hard to add.
+
+## Examples
+
+Below is an example with on the left a map view of air traffic around Amsterdam, as seen through 
+the HoloLens 2. A flight with call-sign TRA6505 that has just passed over the observer's location
 on the Amsterdam Science Park (marked with the orange pin), and is climbing away. 
-
-Looking out the window TRA6505 is indeed close to the mixed reality projection
+On the right, looking out the window TRA6505 is indeed close to the mixed reality projection
 of where the plane is expected to be:
 
-![](Images/skyview.jpg)
+| Map view | Sky view |
+| -------- | -------- |
+| <img src="./Images/mapview.jpg" width="500px"> | <img src="./Images/skyview.jpg" width="500px"> |
+
+### Map view
 
 Apart from augmenting real air traffic with a mixer reality overlay, the map view
-can used to visual inspect air traffic patterns and relations that are otherwise
-hard to detect and grasp. For example, here are plane tracks
-(in blue) on a windy day. Apparently, quite a few holding patterns where used to
-properly guide planes towards Schiphol Airport (which is roughly at the center of the image).
+can used to visually inspect air traffic patterns and relations that are otherwise
+hard to detect and/or grasp. 
+
+Here are plane tracks (in blue) on a windy day. Apparently, quite a few holding patterns 
+where used to properly guide planes towards Amsterdam Schiphol Airport (which is roughly at the center of the image):
 
 ![](Images/holdingpatterns.jpg)
 
-Dutch SKies isn't limited to traffic over The Netherlands. Your own maps and areas
+The application isn't limited to traffic over The Netherlands. Your own maps and areas
 can be configured at will. For example, here is a view of the very busy airspace
 surrounding New York:
 
 ![](Images/newyork.jpg)
 
-By having a 3D mixed reality view of air traffic, spatial relations and patterns can
-be more intuitively inspected, more so than when looking at the same data on a computer monitor.
-The overlay of real-time flight data over the actual flights can help even further.
-
-## Overview
-
-This application was built with the excellent [StereoKit](https://stereokit.net/) framework,
-as an entry for the [Mixed Reality Challenge: StereoKit (C# and OpenXR)](https://mixed-reality-stereokit.devpost.com/).
-
-Dutch SKies is Copyright (C) 2021 Paul Melis, SURF (paul.melis@surf.nl). See the section
-below for licensing details.
 
 ## Requirements
 
-In order to build the application you will need:
+DutchSKies is not available on the Microsoft Store, but might get an entry there are some point.
+Until then, you will need to build the application yourself, if you want to try it.
+
+In order to build it you will need:
 
 * Visual Studio, set up for Windows UWP development, with these two packages installed (through NuGet):
   * [StereoKit](https://stereokit.net/) (developed and tested with 0.3.4)
@@ -119,41 +138,36 @@ has been selected) to more precisely select the extent of our map:
 ![](./Scripts/osm-export.jpg)
 
 The next step is to create the configuration JSON file. We specify the lat/lon range and other map data involved, plus specify
-the server addresses where to fetch tiles (in this case from OpenStreetMap):
+the server addresses where to fetch tiles (in this case from official OpenStreetMap tile servers):
 
 ```
 {
-    "query": {
-        "lat_range": [
-            37.2008,
-            37.9193
-        ],
-        "lon_range": [
-            -122.6212,
-            -121.6791
-        ]
-    },
-
-    "maps": [
+    "map_sets": [
         {
-            "image_source": {
-                "type": "osm",
-                "tile_servers": [
-                    "http://a.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
-                    "http://b.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
-                    "http://c.tile.openstreetmap.org/{zoom}/{x}/{y}.png"
-                ]                
-            },
-            "lat_range": [
-                37.2008,
-                37.9193
+            "id": "SF Bay Area",
+            "items": [
+                {
+                    "id": "SF Bay Area",
+                    "lat_range": [37.2008, 37.9193],
+                    "lon_range": [-122.6212, -121.6791],            
+                    "image_source": {
+                        "type": "tile_server",
+                        "id": "osm-official"
+                    },
+                    "zoom": 12
+                }
             ],
-            "lon_range": [
-                -122.6212,
-                -121.6791
-            ],
-            "name": "sanfrancisco",
-            "zoom": 12
+            "tile_servers": [
+                {
+                    "id": "osm-official",
+                    "type": "osm",
+                    "urls": [
+                        "http://a.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
+                        "http://b.tile.openstreetmap.org/{zoom}/{x}/{y}.png",
+                        "http://c.tile.openstreetmap.org/{zoom}/{x}/{y}.png"
+                    ]
+                }
+            ]
         }
     ]
 }
@@ -163,22 +177,23 @@ the server addresses where to fetch tiles (in this case from OpenStreetMap):
 Also note that for the official `openstreetmap.org` servers there is a [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/).
 Finally, see the relevant FAQ entry below on why these tile server addresses are not hard-coded in the application.**
 
-The `maps` section can list one or more maps, which can be switched in the application. The `query` section determines the area
-for which plane data is queried from OpenSky Network. If you leave out the `query` section the query area will be min/max union 
-of all map range specified. Note that specifying a very large query area will lead to lots of planes that need to be rendered,
-slowing down the framerate, etc. 
+The `map_sets` section can list one or more maps, which can be switched in the application. 
 
 Next, we upload this JSON file to a location where the Dutch SKies app can retrieve it. We then generate a QR code for this URL,
-display it on a PC screen and use the `Scan QR code` button in the app UI to initiate scanning. As soon as a QR code is recognized 
+display it on a PC screen (or print to paper) and use the `Scan QR code` button in the app UI to initiate scanning. As soon as a QR code is recognized 
 the scan function is disabled (notified by the button release sound) and the configuration will get loaded. In the process the map 
 geometry (initially all grey) and extent are updated, and the process of retrieving the necessary image tiles is started. Once all tiles are retrieved
 the map will be updated to show the image.
 
-If everything goes right, you should see this after half a minute:
+If everything goes right, you should see this after at most half a minute:
 
 ![](Images/hl2sanfran.jpg)
 
 If anything goes wrong in this workflow then you can check the Log window for warnings/errors.
+
+The JSON configuration data retrieved by scanning a QR code is stored on the device and will be available the next time the application
+is started. To update a stored configuration simply scan a QR code with JSON data that holds the same map_set ID. This will overwrite the 
+existing stored configuration.
 
 #### Tile naming scheme
 
@@ -246,8 +261,37 @@ Two files are created, the map image (`sanfrancisco.png`) and a JSON file holdin
 Note that the actual lat/lon range of the map image is larger than what we specified. This is expected, as only full image tiles are used to cover
 the input lat/lon, without clipping the tiles.
 
-The JSON file produced next to the image can be used to set up the necessary configuration JSON file, as shown earlier. Note that if the `url` field does
-not start with `http://` or `https://` it is assumed to be a path relative to the URL of the configuration file.
+The JSON file produced next to the image can be used to set up the necessary configuration JSON file, as shown earlier: 
+
+```
+{
+    "map_sets": [
+        {
+            "id": "SF Bay Area",
+            "items": [
+                {
+                    "id": "San Franciso",
+                    "image_source": {
+                        "type": "url",
+                        "url": "/sanfrancisco.png"
+                    },
+                    "lat_range": [
+                        37.160316546736766,
+                        37.92686760148134
+                    ],
+                    "lon_range": [
+                        -122.6953125,
+                        -121.640625
+                    ]
+                }
+            ]
+        }
+    ]
+}
+```
+
+Note that if the `url` field does not start with `http://` or `https://` it is assumed to be a path relative to the URL from which the configuration file
+was retrieved.
 
 #### Projection
 
@@ -261,42 +305,56 @@ It is crucial that you that the WGS84 latitude/longitude map extent matches the 
 
 For getting a correct sky view of the planes you will need to set an observer location. Plus, for fine-tuning
 the alignment of the mixed reality view with the real world it can be very useful to specify a number of
-landmarks. The latter can be edges of high buildings, chimneys, Church spires, mountain peaks, etc. Preferably something 
+landmarks. The latter can be edges of high buildings, chimneys, church spires, mountain peaks, etc. Preferably something 
 that stands out in the environment over which you can easily align a marker line.
 
-You specify the observer id, location and (floor) altitude, and landmark id, location, top and bottom altitude like this:
+For both observers and landmarks you can specify a *set* of items. Within the the application you can then select the set you to use. 
+You specify each observer and landmark item like this:
 
 ```
     ...
 
-    "observer": {
-        "id": "Office (floor @ desk)",
-        "lat": 52.3...,
-        "lon": 4.9...,
-        "alt": 0.39
-    }
+    "observer_sets": [
+        {
+            "id": "Amsterdam Science Park",
+            "items": [
+                {
+                    "id": "Office (floor @ desk)",
+                    "lat": 52.3...,
+                    "lon": 4.9...,
+                    "alt": 0.39
+                }
+            ]
+        }
+    ],
 
-    "landmarks": [
+
+    "landmark_sets": [
         {
-            "id": "Tall building left edge",
-            "lat": 52.3....,
-            "lon": 4.9...,
-            "topalt": 68,
-            "botalt": -4
-        },
-        {
-            "id": "Tall building right edge",
-            "lat": 52.3....,
-            "lon": 4.9....,
-            "topalt": 68,
-            "botalt": -4
-        },
-        {
-            "id": "Low building roof",
-            "lat": 52.3..., 
-            "lon": 4.9...,
-            "topalt": 10.59,
-            "botalt": 0.39
+            "id": "Amsterdam Science Park",
+            "items": [
+                {
+                    "id": "Tall building left edge",
+                    "lat": 52.3....,
+                    "lon": 4.9...,
+                    "topalt": 68,
+                    "botalt": -4
+                },
+                {
+                    "id": "Tall building right edge",
+                    "lat": 52.3....,
+                    "lon": 4.9....,
+                    "topalt": 68,
+                    "botalt": -4
+                },
+                {
+                    "id": "Low building roof",
+                    "lat": 52.3..., 
+                    "lon": 4.9...,
+                    "topalt": 10.59,
+                    "botalt": 0.39
+                }
+            ]
         }
     ]
 
@@ -310,11 +368,12 @@ them if you don't have good values and still rely on the position of the vertica
 
 You can either include these extra sections in the JSON configuration file holding the map (as shown earlier), or store
 each section (or both) in a separate JSON file. Whenever a QR code is scanned the corresponding JSON file is retrieved and 
-any sections in it applied to the current scene.
+any sections in it applied to the current scene. The configuration data from the JSON file is also stored on the device,
+so can be reused later on.
 
 Whenever landmarks are loaded the button `Landmarks` in the UI will list the number of landmarks. When the button is
 enabled each landmark will be drawn as a vertical line with the ID of the landmark. In general, the alignment, especially
-with respect to North, will be off substantially. On the main UI window there's a button `Trim observer`, which
+with respect to North, will be off substantially. On the main UI window there's a button `Trim`, which
 opens a window for trimming both horizontal rotation and vertical translation. Use these trimming buttons to get 
 the overlay of the landmark lines in the right place. 
 
@@ -332,7 +391,7 @@ perfect, so might get revisited at some point.
   is no functionality to move the map, other than restarting (this only applies to the map, the sky view can, and usually needs to,
   be trimmed, as described above).
 
-* The JSON parsing isn't very robust currently, either to syntax errors in the JSON data itself,
+* The JSON parsing isn't fully robust currently, either to syntax errors in the JSON data itself,
   nor to fields/values that are expected, but missing.
 
 * The map surface always represents an altitude of 0m (sea level), which will look weird for planes landing at airports

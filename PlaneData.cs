@@ -69,7 +69,7 @@ namespace DutchSkies
             map_track_points = new List<Vec3>();
         }
 
-        public void ProcessDataUpdate(float session_time_received, JSONNode node, OSMMap map, ObserverData observer)
+        public void ProcessDataUpdate(float session_time_received, JSONNode node, OSMMap map, Observer observer)
         {
             if (node[3] == null)
             {
@@ -239,7 +239,7 @@ namespace DutchSkies
             }
         }
 
-        public void ObserverChange(ObserverData observer)
+        public void ObserverChange(Observer observer)
         {
             Matrix M =
                 Matrix.R(-last_lat, 0f, 0f)
