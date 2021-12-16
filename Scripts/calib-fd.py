@@ -62,6 +62,7 @@ def compute_energy(tx, ty, tz, r):
     """Returns RMS in meters"""
     
     e2 = 0.0
+    n = 0    
         
     for ref_name, ref_position in GROUND_TRUTH.items():
         #print(ref_name)
@@ -69,8 +70,6 @@ def compute_energy(tx, ty, tz, r):
         r2 = rot_y(ref_position, r)
         r2 = (r2[0] + tx, r2[1] + ty, r2[2] + tz)
         
-        n = 0
-        behind = 0
         for observation in OBSERVATIONS:            
             if observation['lm'] != ref_name:
                 # XXX yuck
