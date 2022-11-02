@@ -32,7 +32,7 @@ namespace DutchSkies
         static Matrix ROT_180_Y = Matrix.R(0f, 180f, 0f);
 
         // Log
-        List<string> log_lines = new List<string>();
+        List<string> log_lines;
         string log_text;
         LogLevel log_level = LogLevel.Info;
 
@@ -183,7 +183,7 @@ namespace DutchSkies
         public void Run()
         {
             // Set up logging
-            List<string> log_lines = new List<string>();
+            log_lines = new List<string>();
             log_level = LogLevel.Info;
             Log.Subscribe(OnLog);
 
